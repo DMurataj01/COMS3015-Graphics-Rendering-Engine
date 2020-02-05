@@ -22,6 +22,7 @@ void drawStrokedTriangle(vec2 point1, vec2 point2, vec2 point3, vec3 colour);
 void drawRandomTriangle();
 void drawFilledTriangle(vec2 point1, vec2 point2, vec2 point3, vec3 colour);
 void drawRandomFilledTriangle();
+void readImage();
 
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
@@ -29,6 +30,7 @@ int main(int argc, char* argv[])
 {
   window.clearPixels();
   SDL_Event event;
+  readImage();
   while(true)
   {
     // We MUST poll for events - otherwise the window will freeze !
@@ -230,11 +232,12 @@ void drawFilledTriangle(vec2 point1, vec2 point2, vec2 point3, vec3 colour){
     vec2 end(xEnd, cutterPoint[1] + i);
     drawLine(start,end,colour);
   }
-  
+  /*
   drawLine(point1,point2,vec3 (255,255,255));
   drawLine(point2,point3,vec3 (255,255,255));
   drawLine(point3,point1,vec3 (255,255,255));
   drawLine(points[1],cutterPoint,vec3 (255,255,255));
+  */
 }
 
 void drawRandomFilledTriangle(){
@@ -254,4 +257,52 @@ void drawRandomFilledTriangle(){
   cout << "Point 3: " << x3 << ", " << y3 << "\n\n";
 
   drawFilledTriangle(vec2(x1,y1), vec2(x2,y2), vec2(x3,y3), vec3(red,green,blue));
+}
+
+void readImage(){
+  FILE* textureFile = fopen("texture.ppm","rb");
+  long lSize;
+
+  if (textureFile == NULL) {
+    fputs ("File error", stderr);
+    exit(1);
+  } else {
+    //we're good to continue reading.
+    //get file size
+    fseek (textureFile, 0, SEEK_END);
+    lSize = ftell(textureFile);
+    rewind(textureFile);
+    cout << "Size " << lSize;
+    
+    fread(buffer, 1, 1, textureFile);
+
+    cout << "Buffer:: " << buffer;
+  }
+
+  ifstream ifs;
+
+  ifs.open("texture.ppm", std::ifstream::in);
+  char c;
+
+  for (int i=0; i< 2; i++){
+    c = ifs.get();
+    std::cout << c;
+    
+  }
+
+  ifs.close();
+
+  //ifstream tex_file = std::ifstream.open("texture.ppm", ifstream::in);
+  /*
+  int size = 395 * 480;
+  unsigned char* pixels = new unsigned char[size];
+  int j=0;
+  while( fread(pixels, sizeof(int), 128, textureFile)){
+    j++;
+  }
+  printf("%d\n", j);
+  fclose(textureFile);
+  cout << textureFile;
+
+  */
 }
