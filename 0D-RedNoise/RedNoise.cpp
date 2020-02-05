@@ -23,10 +23,9 @@ void draw_interp_colour();
 
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
-int main(int argc, char* argv[]){
+int main(int argc, char* argv[]) {
   SDL_Event event;
-  while(true)
-  {
+  while(true) {
     // We MUST poll for events - otherwise the window will freeze !
     if(window.pollForInputEvents(&event)) handleEvent(event);
     update();
@@ -36,29 +35,31 @@ int main(int argc, char* argv[]){
   }
 }
 
-void draw(){
+void draw() {
   window.clearPixels();
   draw_interp_colour();
 }
 
-void draw_interp_colour(){
-  vector<float> vec_height_list = interpolate(0, 255, HEIGHT);
+void draw_interp_colour() {
+  vec3 red = vec3(255, 0 , 0);
+  vec3 green = vec3(0, 255, 0);
+  vec3 blue = vec3(0, 0, 255);
+  vec3 yellow = vec3(255, 255, 0);
+
+  vector<vec3> left = interpolate(red, yellow, HEIGHT);
+  vector<vec3> right = interpolate(blue, green, HEIGHT);
 
   for(int y=0; y<window.height; y++) {
-    vector<float> vec_width_list = interpolate(255, 0, WIDTH);
-
-    for(int x=0; x<window.width ;x++) {
-      float red = vec_width_list[x];
-      float green = vec_height_list[y];
-      float blue = 255 - vec_width_list[x];
-      uint32_t colour = (255<<24) + (int(red)<<16) + (int(green)<<8) + int(blue);
+    vector<vec3> temp_row = interpolate(left[y], right[y], WIDTH);
+    for(int x=0; x<window.width; x++) {
+      uint32_t colour = (255<<24) + (int(temp_row[x][0])<<16) + (int(temp_row[x][1])<<8) + int(temp_row[x][2]);
       window.setPixelColour(x, y, colour);
     }
   }
 }
 
 
-void draw_interp_grayscale(){
+void draw_interp_grayscale() {
   for(int y=0; y<window.height ;y++) {
     vector<float> vec_list = interpolate(255, 0, WIDTH);
     for(int x=0; x<window.width ;x++) {
@@ -71,8 +72,7 @@ void draw_interp_grayscale(){
   }
 }
 
-vector<float> interpolate(float from, float to, int numberOfValues)
-{
+vector<float> interpolate(float from, float to, int numberOfValues) {
     vector<float> vec_list;
     
     float increment = (to - from) / (numberOfValues-1);
@@ -84,8 +84,7 @@ vector<float> interpolate(float from, float to, int numberOfValues)
     return vec_list;
 }
 
-vector<vec3> interpolate(vec3 from, vec3 to, int numberOfValues)
-{
+vector<vec3> interpolate(vec3 from, vec3 to, int numberOfValues) {
     vector<vec3> vec_list;
     
     vec3 increment = (to - from) / vec3(numberOfValues-1, numberOfValues-1, numberOfValues-1);
@@ -97,13 +96,11 @@ vector<vec3> interpolate(vec3 from, vec3 to, int numberOfValues)
     return vec_list;
 }
 
-void update()
-{
+void update() {
   // Function for performing animation (shifting artifacts or moving the camera)
 }
 
-void handleEvent(SDL_Event event)
-{
+void handleEvent(SDL_Event event) {
   if(event.type == SDL_KEYDOWN) {
     if(event.key.keysym.sym == SDLK_LEFT) cout << "LEFT" << endl;
     else if(event.key.keysym.sym == SDLK_RIGHT) cout << "RIGHT" << endl;
