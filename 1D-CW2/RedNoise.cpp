@@ -259,50 +259,62 @@ void drawRandomFilledTriangle(){
   drawFilledTriangle(vec2(x1,y1), vec2(x2,y2), vec2(x3,y3), vec3(red,green,blue));
 }
 
-void readImage(){
-  FILE* textureFile = fopen("texture.ppm","rb");
-  long lSize;
 
-  if (textureFile == NULL) {
-    fputs ("File error", stderr);
-    exit(1);
-  } else {
-    //we're good to continue reading.
-    //get file size
-    fseek (textureFile, 0, SEEK_END);
-    lSize = ftell(textureFile);
-    rewind(textureFile);
-    cout << "Size " << lSize;
-    
-    fread(buffer, 1, 1, textureFile);
+  struct InputPixel {
+    int r;
+    int g;
+    int b;
+  };
+void readImage() {
 
-    cout << "Buffer:: " << buffer;
-  }
+  vector<InputPixel> inputArray;
 
-  ifstream ifs;
+  std::ifstream ifs;
+  ifs.open ("texture_no_header.ppm", std::ifstream::in);
 
-  ifs.open("texture.ppm", std::ifstream::in);
-  char c;
+  unsigned char c = ifs.get();
+  int count = 1;
+  cout << "val: " << c;
 
-  for (int i=0; i< 2; i++){
+  while (ifs.good()) {
+    std::cout << int(c) << " ";
     c = ifs.get();
-    std::cout << c;
-    
+    count++;
   }
 
+  cout << "\n\n\nCount: " << count << "\n";
   ifs.close();
 
-  //ifstream tex_file = std::ifstream.open("texture.ppm", ifstream::in);
-  /*
-  int size = 395 * 480;
-  unsigned char* pixels = new unsigned char[size];
-  int j=0;
-  while( fread(pixels, sizeof(int), 128, textureFile)){
-    j++;
-  }
-  printf("%d\n", j);
-  fclose(textureFile);
-  cout << textureFile;
-
-  */
 }
+
+  /*
+  while (fread(val, 1, 128, fp)) { //1 byte read
+    cout << "Count: " << count << "\n";
+    int val_integer = 0;
+    switch (count) {
+      case 0: 
+        tempVec.r = val_integer;
+        count++;
+        break;
+      case 1:
+        tempVec.g = val_integer;
+        count++;
+        break;
+      case 2: 
+        tempVec.b = val_integer;
+        inputArray.push_back(tempVec);
+        count = 0;
+        break;
+      default:
+        cout << "BROKEN!!!!!!!";
+        break;
+    }
+
+
+    printf("%s", val);
+
+    count++;
+  } // end of for loop
+
+  // close file
+  */
