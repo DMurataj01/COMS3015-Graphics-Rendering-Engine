@@ -23,8 +23,16 @@ void drawStrokedTriangle(vec2 point1, vec2 point2, vec2 point3, vec3 colour);
 void drawRandomTriangle();
 void drawFilledTriangle(vec2 point1, vec2 point2, vec2 point3, vec3 colour);
 void drawRandomFilledTriangle();
-void readImage(string fileName);
 
+/* STRUCTURE - Pixel RGB */
+struct Pixel {
+  int r;
+  int g;
+  int b;
+};
+
+
+vector<Pixel> readImage(string fileName);
 
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
@@ -32,7 +40,9 @@ int main(int argc, char* argv[])
 {
   window.clearPixels();
   SDL_Event event;
-  readImage("texture.ppm");
+  vector<Pixel> textureImage = readImage("texture.ppm");
+
+  cout << "\nDisplay Details -- Width: " << WIDTH << " -- Height: " << HEIGHT << "\n";
   while(true)
   {
     // We MUST poll for events - otherwise the window will freeze !
@@ -261,12 +271,7 @@ void drawRandomFilledTriangle(){
   drawFilledTriangle(vec2(x1,y1), vec2(x2,y2), vec2(x3,y3), vec3(red,green,blue));
 }
 
-//Pixel Structure -> Holds 
-struct InputPixel {
-  int r;
-  int g;
-  int b;
-};
+
 
 string removeLeadingWhitespace(string s){
   s.erase(0, s.find_first_not_of(" "));
@@ -274,13 +279,12 @@ string removeLeadingWhitespace(string s){
 }
 
 
-void readImage(string fileName) {
-  //Open ifstream.
+vector<Pixel> readImage(string fileName) {
+
   std::ifstream ifs;
   ifs.open ("texture.ppm", std::ifstream::in);
 
   /* Parse Header */
-
 
   //Check if header is a P6 file.
   string headerInput = "";
@@ -289,22 +293,18 @@ void readImage(string fileName) {
   if (headerInput != "P6") {
     cout << "Error - Header file is invalid";
     ifs.close();
-    return;
+    throw 1;
   }
 
   int width = -1;
   int height = -1;
   int maxvalue = -1;
 
-  string w = "";
-  string h = "";
-
   /* Following Specification: http://netpbm.sourceforge.net/doc/ppm.html */ 
   // 1) Check if header is a P6 file.
   // 2) Ignore Comments.
   // 3) Parse Width + whitespace + Height.
   // 4) Parse Max value
-
 
   while (true || !ifs.eof()) {
     string inputLine = "";
@@ -329,66 +329,16 @@ void readImage(string fileName) {
       break;
     }
   }
-
-
-  //Read Byte Stream.
-
-  return;
-
- /*// string inputLine = "";
-  getline(ifs,inputLine);
-  inputLine = removeLeadingWhitespace(inputLine);
-  if (inputLine[0] == '#'){
-    cout << "\nTHIS IS A COMMENT\n";
-  } else {
-    //read for numbers.
-  }
-
-  cout << "Comment : " << inputLine << endl;
-    getline(ifs,inputLine);
-  cout << "Comment : " << inputLine << endl;
-    getline(ifs,inputLine);
-  cout << "Comment : " << inputLine << endl;
-
-
-
-  cout << "end\n";
-  return;
-  */
-  vector<InputPixel> inputArray;
-
-
   
-  InputPixel tempVec = { 0, 0, 0};
+  /* Body RGB Parse */
 
-  unsigned char c = ifs.get();
-  tempVec.r = int(c);
-  int count_rgb = 1;
-  
-  while (ifs.peek() != EOF) {
-    c = ifs.get();
-    int c_int = int(c);
+  vector<Pixel> fileVector; //RGB storage.
 
-    switch (count_rgb) {
-      case 0: 
-        tempVec.r = c_int;
-        count_rgb++;
-        break;
-      case 1:
-        tempVec.g = c_int;
-        count_rgb++;
-        break;
-      case 2: 
-        tempVec.b = c_int;
-        inputArray.push_back(tempVec);
-        count_rgb = 0;
-        break;
-      default:
-        cout << "BROKEN!!!!!!!";
-        break;
-    }
+  while (ifs.peek()!= EOF) {
+    fileVector.push_back(Pixel({ifs.get(), ifs.get(), ifs.get()})); //Create a Pixel element with three consecutive byte reads.
   }
-  cout << "\n\n\nCount: " << inputArray.size() << "\n";
+  cout << "\nBody Parse -- Number of elements: " << fileVector.size() << "\n";
   ifs.close();
+  return fileVector;
 
-}
+ }
