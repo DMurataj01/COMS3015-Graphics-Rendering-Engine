@@ -271,50 +271,38 @@ void readImage() {
 
   std::ifstream ifs;
   ifs.open ("texture_no_header.ppm", std::ifstream::in);
+  
+  InputPixel tempVec = { 0, 0, 0};
 
   unsigned char c = ifs.get();
-  int count = 1;
-  cout << "val: " << c;
-
+  tempVec.r = int(c);
+  int count_rgb = 1;
+  
   while (ifs.good()) {
-    std::cout << int(c) << " ";
     c = ifs.get();
-    count++;
-  }
+    int c_int = int(c);
 
-  cout << "\n\n\nCount: " << count << "\n";
-  ifs.close();
-
-}
-
-  /*
-  while (fread(val, 1, 128, fp)) { //1 byte read
-    cout << "Count: " << count << "\n";
-    int val_integer = 0;
-    switch (count) {
+    switch (count_rgb) {
       case 0: 
-        tempVec.r = val_integer;
-        count++;
+        tempVec.r = c_int;
+        count_rgb++;
         break;
       case 1:
-        tempVec.g = val_integer;
-        count++;
+        tempVec.g = c_int;
+        count_rgb++;
         break;
       case 2: 
-        tempVec.b = val_integer;
+        tempVec.b = c_int;
         inputArray.push_back(tempVec);
-        count = 0;
+        count_rgb = 0;
         break;
       default:
         cout << "BROKEN!!!!!!!";
         break;
     }
+  }
 
+  cout << "\n\n\nCount: " << inputArray.size() << "\n";
+  ifs.close();
 
-    printf("%s", val);
-
-    count++;
-  } // end of for loop
-
-  // close file
-  */
+}
