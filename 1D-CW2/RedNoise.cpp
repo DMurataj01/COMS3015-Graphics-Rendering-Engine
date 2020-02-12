@@ -5,6 +5,7 @@
 #include <glm/glm.hpp>
 #include <fstream>
 #include <vector>
+#include <sstream>
 
 using namespace std;
 using namespace glm;
@@ -22,7 +23,8 @@ void drawStrokedTriangle(vec2 point1, vec2 point2, vec2 point3, vec3 colour);
 void drawRandomTriangle();
 void drawFilledTriangle(vec2 point1, vec2 point2, vec2 point3, vec3 colour);
 void drawRandomFilledTriangle();
-void readImage();
+void readImage(string fileName);
+
 
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
@@ -30,7 +32,7 @@ int main(int argc, char* argv[])
 {
   window.clearPixels();
   SDL_Event event;
-  readImage();
+  readImage("texture.ppm");
   while(true)
   {
     // We MUST poll for events - otherwise the window will freeze !
@@ -259,18 +261,103 @@ void drawRandomFilledTriangle(){
   drawFilledTriangle(vec2(x1,y1), vec2(x2,y2), vec2(x3,y3), vec3(red,green,blue));
 }
 
+//Pixel Structure -> Holds 
+struct InputPixel {
+  int r;
+  int g;
+  int b;
+};
 
-  struct InputPixel {
-    int r;
-    int g;
-    int b;
-  };
-void readImage() {
+string removeLeadingWhitespace(string s){
+  s.erase(0, s.find_first_not_of(" "));
+  return s;
+}
 
+
+void readImage(string fileName) {
+  //Open ifstream.
+  std::ifstream ifs;
+  ifs.open ("texture.ppm", std::ifstream::in);
+
+  /* Parse Header */
+
+
+  //Check if header is a P6 file.
+  string headerInput = "";
+  getline(ifs, headerInput);
+
+  if (headerInput != "P6") {
+    cout << "Error - Header file is invalid";
+    ifs.close();
+    return;
+  }
+
+  int width = -1;
+  int height = -1;
+  int maxvalue = -1;
+
+  string w = "";
+  string h = "";
+
+  /* Following Specification: http://netpbm.sourceforge.net/doc/ppm.html */ 
+  // 1) Check if header is a P6 file.
+  // 2) Ignore Comments.
+  // 3) Parse Width + whitespace + Height.
+  // 4) Parse Max value
+
+
+  while (true || !ifs.eof()) {
+    string inputLine = "";
+    getline(ifs,inputLine);
+    inputLine = removeLeadingWhitespace(inputLine);
+    if (inputLine[0] == '#'){
+      //This is a comment line -> ignore them.
+    }
+    else {
+      //Parse Width + Height.
+      stringstream ss_wh(inputLine);
+      ss_wh >> width >> height;
+      
+      //Read new line -> Parse Max value: // 0<val<65536.
+      getline(ifs,inputLine);
+      inputLine = removeLeadingWhitespace(inputLine);
+      
+      stringstream ss_ml(inputLine);
+      ss_ml >> maxvalue;
+
+      cout << "\nHeader Parse --  Width: " << width << " -- Height: " << height << " -- Max Value: " << maxvalue << "\n";
+      break;
+    }
+  }
+
+
+  //Read Byte Stream.
+
+  return;
+
+ /*// string inputLine = "";
+  getline(ifs,inputLine);
+  inputLine = removeLeadingWhitespace(inputLine);
+  if (inputLine[0] == '#'){
+    cout << "\nTHIS IS A COMMENT\n";
+  } else {
+    //read for numbers.
+  }
+
+  cout << "Comment : " << inputLine << endl;
+    getline(ifs,inputLine);
+  cout << "Comment : " << inputLine << endl;
+    getline(ifs,inputLine);
+  cout << "Comment : " << inputLine << endl;
+
+
+
+  cout << "end\n";
+  return;
+  */
   vector<InputPixel> inputArray;
 
-  std::ifstream ifs;
-  ifs.open ("texture_no_header.ppm", std::ifstream::in);
+
   
   InputPixel tempVec = { 0, 0, 0};
 
@@ -278,7 +365,7 @@ void readImage() {
   tempVec.r = int(c);
   int count_rgb = 1;
   
-  while (ifs.good()) {
+  while (ifs.peek() != EOF) {
     c = ifs.get();
     int c_int = int(c);
 
@@ -301,7 +388,6 @@ void readImage() {
         break;
     }
   }
-
   cout << "\n\n\nCount: " << inputArray.size() << "\n";
   ifs.close();
 
