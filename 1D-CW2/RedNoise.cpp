@@ -31,20 +31,35 @@ struct Pixel {
   int b;
 };
 
+/* STRUCTURE - ImageFile */
+struct ImageFile {
+  vector<Pixel> vecPixelList;
+  int width;
+  int height;  
+};
 
-vector<Pixel> readImage(string fileName);
+/* FUNCTION Declarations */
+ImageFile readImage(string fileName);
+void renderImage(ImageFile imageFile);
 
-DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
-int main(int argc, char* argv[])
-{
-  window.clearPixels();
+DrawingWindow window; //Global Drawing window.
+
+int main(int argc, char* argv[]) {
   SDL_Event event;
-  vector<Pixel> textureImage = readImage("texture.ppm");
+  
+  //Read "texture.ppm" into an ImageFile Struct: {vector<Pixel>, width, height}.
+  ImageFile imageFile = readImage("texture.ppm");
 
-  cout << "\nDisplay Details -- Width: " << WIDTH << " -- Height: " << HEIGHT << "\n";
-  while(true)
-  {
+  //Draw window of same size as the read imageFile.
+  window = DrawingWindow( imageFile.width, imageFile.height, false);
+  window.clearPixels();
+
+  //Render the ImageFile.
+  renderImage(imageFile);
+
+
+  while(true) {
     // We MUST poll for events - otherwise the window will freeze !
     if(window.pollForInputEvents(&event)) handleEvent(event);
     update();
@@ -271,15 +286,12 @@ void drawRandomFilledTriangle(){
   drawFilledTriangle(vec2(x1,y1), vec2(x2,y2), vec2(x3,y3), vec3(red,green,blue));
 }
 
-
-
 string removeLeadingWhitespace(string s){
   s.erase(0, s.find_first_not_of(" "));
   return s;
 }
 
-
-vector<Pixel> readImage(string fileName) {
+ImageFile readImage(string fileName) {
 
   std::ifstream ifs;
   ifs.open ("texture.ppm", std::ifstream::in);
@@ -332,13 +344,28 @@ vector<Pixel> readImage(string fileName) {
   
   /* Body RGB Parse */
 
-  vector<Pixel> fileVector; //RGB storage.
+  vector<Pixel> vecPixelList; //RGB storage.
 
   while (ifs.peek()!= EOF) {
-    fileVector.push_back(Pixel({ifs.get(), ifs.get(), ifs.get()})); //Create a Pixel element with three consecutive byte reads.
+    vecPixelList.push_back(Pixel({ifs.get(), ifs.get(), ifs.get()})); //Create a Pixel element with three consecutive byte reads.
   }
-  cout << "\nBody Parse -- Number of elements: " << fileVector.size() << "\n";
+  cout << "\nBody Parse -- Number of elements: " << vecPixelList.size() << "\n";
   ifs.close();
-  return fileVector;
+  ImageFile outputImageFile = ImageFile ({vecPixelList, width, height});
+  return outputImageFile;
+}
 
- }
+void renderImage(ImageFile imageFile){
+
+  for (int i=0; i<imageFile.vecPixelList.size(); i++){
+    int red = imageFile.vecPixelList.at(i).r;
+    int green = imageFile.vecPixelList.at(i).g;
+    int blue = imageFile.vecPixelList.at(i).b;
+    uint32_t colour = (255<<24) + (red<<16) + (green<<8) + blue;
+    int row = int(i/imageFile.width);
+    int col = i - (row*imageFile.width);
+    window.setPixelColour(col, row, colour);
+  }
+
+  cout << "\nImage render complete.\n";
+}
