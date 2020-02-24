@@ -30,15 +30,38 @@ vector<Colour> readOBJMTL(string filename);
 vector<string> separateLine(string inputLine);
 vec3 getVertex(string inputLine);
 ModelTriangle getFace(string inputLine, vector<vec3> vertices, Colour colour, float scalingFactor);
-vector<ModelTriangle> readOBJ(string objFileName, string mtlFileName, float scalingFactor);
-void rasterize(string objFileName, string mtlFileName);
+vector<ModelTriangle> readOBJ(float scalingFactor);
+void rasterize(vec3 cameraPosition, mat3 cameraOrientation);
+void initializeDepthMap();
+void updateView(vec3 cameraPosition, mat3 cameraOrientation, string input);
 
 
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
 
+// the files (scene) which we want to render
+string objFileName = "cornell-box.obj";
+string mtlFileName = "cornell-box.mtl";
+
+
+// create a global depth map
+float depthMap [WIDTH*HEIGHT];
+
+
+// initial camera parameters
+vec3 cameraPosition (0,-2,-3.5);
+vec3 cameraRight (1,0,0);
+vec3 cameraUp (0,-1,0);
+vec3 cameraForward (0,0,-1);
+mat3 cameraOrientation (cameraRight, cameraUp, cameraForward);
+float focalLength = WIDTH / 2;
+
+
+
 int main(int argc, char* argv[])
 {
+  initializeDepthMap();
+
   window.clearPixels();
   SDL_Event event;
   while(true)
@@ -64,10 +87,26 @@ void update()
 void handleEvent(SDL_Event event)
 {
   if(event.type == SDL_KEYDOWN) {
-    if(event.key.keysym.sym == SDLK_LEFT) cout << "LEFT" << endl;
-    else if(event.key.keysym.sym == SDLK_RIGHT) cout << "RIGHT" << endl;
-    else if(event.key.keysym.sym == SDLK_UP) cout << "UP" << endl;
-    else if(event.key.keysym.sym == SDLK_DOWN) cout << "DOWN" << endl;
+    if(event.key.keysym.sym == SDLK_LEFT){
+      cout << "LEFT" << endl;
+      window.clearPixels();
+      updateView(cameraPosition, cameraOrientation, "left");
+    }
+    else if(event.key.keysym.sym == SDLK_RIGHT){
+      cout << "RIGHT" << endl;
+      window.clearPixels();
+      updateView(cameraPosition, cameraOrientation, "right");
+    }
+    else if(event.key.keysym.sym == SDLK_UP){
+      cout << "UP" << endl;
+      window.clearPixels();
+      updateView(cameraPosition, cameraOrientation, "up");
+    }
+    else if(event.key.keysym.sym == SDLK_DOWN){
+      cout << "DOWN" << endl;
+      window.clearPixels();
+      updateView(cameraPosition, cameraOrientation, "down");
+    }
     else if(event.key.keysym.sym == SDLK_u) drawRandomTriangle();
     else if(event.key.keysym.sym == SDLK_f) drawRandomFilledTriangle();
     else if(event.key.keysym.sym == SDLK_t) test();
@@ -111,16 +150,40 @@ void drawLine(CanvasPoint start, CanvasPoint end, Colour colour) {
   float diffX = end.x - start.x;
   float diffY = end.y - start.y;
   float numberOfSteps = glm::max(abs(diffX),abs(diffY));
-  float stepSizeX = diffX / numberOfSteps;
-  float stepSizeY = diffY / numberOfSteps;
-  
+
   // getting the colour in a single string
   uint32_t col = getColour(colour);
+  // if we are starting and ending on the same pixel
+  if (numberOfSteps == 0){
+    window.setPixelColour(start.x, start.y, col);
+  }
 
-  for (int i = 0 ; i < numberOfSteps ; i++){
-    int x = round(start.x + (i * stepSizeX));
-    int y = round(start.y + (i * stepSizeY));
-    window.setPixelColour(x,y,col);
+  else {
+    float stepSizeX = diffX / numberOfSteps;
+    float stepSizeY = diffY / numberOfSteps;
+    //float depth = start.depth;
+    //float depthDistance = end.depth - start.depth;
+
+    for (int i = 0 ; i < numberOfSteps ; i++){
+      int x = round(start.x + (i * stepSizeX));
+      int y = round(start.y + (i * stepSizeY));
+      //int index = (WIDTH*(y-1)) + x;
+    
+      // interpolate to find the current depth of the line
+      //depth = depth + (depthDistance * (i / numberOfSteps));
+      //depthMap[index] = depth;
+      window.setPixelColour(x,y,col);
+
+      /*
+      // only set the pixel colour if our 1/depth is less than the one saved in the depthMap (this is initalized as infinity)
+      // this means we colour the correct object for overlapping objects
+      // update the depth map too
+      if ((1 / depth) > (1 / depthMap[index])){
+        window.setPixelColour(x,y,col);
+        depthMap[index] = depth;
+      }
+      */
+    }
   }
 }
 
@@ -205,45 +268,70 @@ void drawFilledTriangle(CanvasTriangle triangle){
   float maxXDistance = minPoint.x - maxPoint.x;
   float yProportion = yDistance / maxYDistance;
   float xDistance = maxPoint.x + (yProportion * maxXDistance);
-  CanvasPoint cutterPoint(xDistance, maxPoint.y + yDistance);
+  // interpolate to find the right depth too
+  float maxDepth = minPoint.depth - maxPoint.depth;
+  float depth = maxPoint.depth + (yProportion * maxDepth);
+  CanvasPoint cutterPoint(xDistance, maxPoint.y + yDistance, depth);
 
   // the upper triangle
   // for each row, fill it in
   float steps = middlePoint.y - maxPoint.y; // how many rows
-  for (int i = 0 ; i < steps + 1 ; i++){
-    // find the two points which intersect this row
-    float yDiff = i / steps;
-    float maxXDiff1 = maxPoint.x - middlePoint.x;
-    float maxXDiff2 = maxPoint.x - cutterPoint.x;
-    float xStart = round(maxPoint.x - (yDiff * maxXDiff1));
-    float xEnd = round(maxPoint.x - (yDiff * maxXDiff2));
-    CanvasPoint start(xStart, maxPoint.y + i);
-    CanvasPoint end(xEnd, maxPoint.y + i);
-    drawLine(start,end,colour);
+  // if the two vertices are on the same y line, then just draw a line between the two
+  if (steps == 0){
+    drawLine(middlePoint, maxPoint, colour);
+  }
+  else {
+      for (int i = 0 ; i < steps + 1 ; i++){
+      // find the two points which intersect this row
+      float yDiff = i / steps;
+      float maxXDiff1 = maxPoint.x - middlePoint.x;
+      float maxXDiff2 = maxPoint.x - cutterPoint.x;
+      float xStart = round(maxPoint.x - (yDiff * maxXDiff1));
+      float xEnd = round(maxPoint.x - (yDiff * maxXDiff2));
+      // interpolating to find the right depth
+      maxDepth = maxPoint.depth - middlePoint.depth;
+      float maxDepth2 = maxPoint.depth - cutterPoint.depth;
+      depth = maxPoint.depth - (yDiff * maxDepth);
+      float depth2 = maxPoint.depth - (yDiff * maxDepth2);
+      CanvasPoint start(xStart, maxPoint.y + i, depth);
+      CanvasPoint end(xEnd, maxPoint.y + i, depth2);
+      drawLine(start,end,colour);
+    }
   }
   
   // the lower triangle
   // for each row, fill it in
   float steps2 = minPoint.y - middlePoint.y; // how many rows
-  for (int i = steps2 ; i > 0 ; i--){
-    // find the two points which intersect this row
-    float yDiff = 1 - (i / steps2);
-    float maxXDiff1 = minPoint.x - middlePoint.x;
-    float maxXDiff2 = minPoint.x - cutterPoint.x;
-    float xStart = round(minPoint.x - (yDiff * maxXDiff1));
-    float xEnd = round(minPoint.x - (yDiff * maxXDiff2));
-    CanvasPoint start(xStart, cutterPoint.y + i);
-    CanvasPoint end(xEnd, cutterPoint.y + i);
-    drawLine(start,end,colour);
+  if (steps2 == 0) {
+    drawLine(minPoint, middlePoint, colour);
+  }
+  else {
+    for (int i = steps2 ; i >= 0 ; i--){
+      // find the two points which intersect this row
+      float yDiff = 1 - (i / steps2);
+      float maxXDiff1 = minPoint.x - middlePoint.x;
+      float maxXDiff2 = minPoint.x - cutterPoint.x;
+      float xStart = round(minPoint.x - (yDiff * maxXDiff1));
+      float xEnd = round(minPoint.x - (yDiff * maxXDiff2));
+      // interpolating to find the right depth
+      maxDepth = minPoint.depth - middlePoint.depth;
+      float maxDepth2 = minPoint.depth - cutterPoint.depth;
+      depth = minPoint.depth - (yDiff * maxDepth);
+      float depth2 = minPoint.depth - (yDiff * maxDepth2);
+      CanvasPoint start(xStart, cutterPoint.y + i, depth);
+      CanvasPoint end(xEnd, cutterPoint.y + i, depth2);
+      drawLine(start,end,colour);
+    }
   }
   /*
   // this code draws the outlien of the triangle ontop of the filled triangle to make sure it is correct
-  drawLine(point1,point2,vec3 (255,255,255));
-  drawLine(point2,point3,vec3 (255,255,255));
-  drawLine(point3,point1,vec3 (255,255,255));
-  drawLine(points[1],cutterPoint,vec3 (255,255,255));
+  drawLine(point1,point2,Colour (255,255,255));
+  drawLine(point2,point3,Colour (255,255,255));
+  drawLine(point3,point1,Colour (255,255,255));
+  drawLine(points[1],cutterPoint,Colour (255,255,255));
   */
 }
+
 
 
 void drawRandomFilledTriangle(){
@@ -373,7 +461,7 @@ vector<string> separateLine(string inputLine){
 
 
 
-// given a vector in form ['v','12','5','4'] it returns (12,5,4)
+// given a string in form 'v 12 5 4' it returns (12,5,4)
 vec3 getVertex(string inputLine){
   vector<string> points = separateLine(inputLine);
   vec3 output;
@@ -408,7 +496,7 @@ ModelTriangle getFace(string inputLine, vector<vec3> vertices, Colour colour, fl
 
 
 
-vector<ModelTriangle> readOBJ(string objFileName, string mtlFileName, float scalingFactor){
+vector<ModelTriangle> readOBJ(float scalingFactor){
   // get the colours
   vector<Colour> colours = readOBJMTL(mtlFileName);
 
@@ -460,31 +548,25 @@ vector<ModelTriangle> readOBJ(string objFileName, string mtlFileName, float scal
       faces.push_back(triangle);
     }
   }
-return faces;
+  cout << "Printing the faces: \n";
+  for (int i = 0 ; i < faces.size() ; i++){
+    cout << faces[i] << "\n";
+  }
+  return faces;
 }
 
 
-void rasterize(string objFileName, string mtlFileName){
-  // camera parameters
-  vec3 cameraPosition (0,0,-1);
-  vec3 cameraRight (1,0,0);
-  vec3 cameraUp (0,1,0);
-  vec3 cameraForward (0,0,-1);
-  mat3 cameraOrientation (cameraRight, cameraUp, cameraForward);
-  float focalLength = 1;
-  // image plane parameters
-  float imagePlaneHeight = 2;
-  float imagePlaneWidth = 2;
 
+
+void rasterize(vec3 cameraPosition, mat3 cameraOrientation){
   // read in the files and get the vector of faces/triangles
-  vector<ModelTriangle> faces = readOBJ(objFileName, mtlFileName, 1);
+  vector<ModelTriangle> faces = readOBJ(1);
 
   // for each face
   for (int i = 0 ; i < faces.size() ; i++){
     ModelTriangle triangle = faces[i];
     CanvasTriangle canvasTriangle;
     canvasTriangle.colour = triangle.colour;
-    int onScreen = 0; // this states how many of the points can be seen on the screen (we only draw the face if all 3 points can be seen)
     
     // for each vertex
     for (int j = 0 ; j < 3 ; j++){
@@ -495,40 +577,96 @@ void rasterize(string objFileName, string mtlFileName){
       
       // calculating the projection onto the 2D image plane by using interpolation and the z depth
       float depth = vertexCSpace[2];
-      
+
+
       // only worth doing if the vertex is in front of camera
-      if (depth > 0){
+      //if (depth > 0){
         float proportion = focalLength / depth;
         vec3 vertexProjected = vertexCSpace * proportion; // the coordinates of the 3D point (in camera space) projected onto the image plane
         float x = vertexProjected[0];
         float y = vertexProjected[1];
 
-        // converting this 2D point into pixel x and y values
-        // this point is only visible if the absolute value of x and y are less than half the value of the image plane heigh/width
-        if ((abs(x) < (imagePlaneWidth / 2)) && (abs(y) < (imagePlaneHeight / 2))){
-          onScreen = onScreen + 1;
-          float xNormalised = (x / imagePlaneWidth) + 0.5;
-          float yNormalised = (y / imagePlaneHeight) + 0.5;
-          float xPixel = xNormalised * WIDTH;
-          float yPixel = yNormalised * HEIGHT;
-          // store the pixel values as a Canvas Point and save it for this triangle
-          canvasTriangle.vertices[j] = CanvasPoint (xPixel,yPixel);
+        float xNormalised = (x / WIDTH) + 0.5;
+        float yNormalised = (y / HEIGHT) + 0.5;
+        float xPixel = xNormalised * WIDTH;
+        float yPixel = yNormalised * HEIGHT;
+
+        // if the pixel goes off screen
+        if (xPixel < 0){
+          xPixel = 0;
         }
-      }
+        else if (xPixel > WIDTH){
+          xPixel = WIDTH;
+        }
+        if (yPixel < 0){
+          yPixel = 0;
+        }
+        else if (yPixel > HEIGHT){
+          yPixel = HEIGHT;
+        }
+
+        // store the pixel values as a Canvas Point and save it for this triangle
+        canvasTriangle.vertices[j] = CanvasPoint(xPixel, yPixel, depth); // we save the depth of the 2D point too
+
+      //}
     }
 
-    // now we have all 3 vertices as CanvasPoint's, draw the triangle only if all the face can be seen
-    if (onScreen == 3){
-      drawStrokedTriangle(canvasTriangle);
-    }
+    drawFilledTriangle(canvasTriangle);
 
   }
 }
 
 
 
+void initializeDepthMap(){
+  float sum = 0;
+  for (int i = 0 ; i < (HEIGHT*WIDTH) ; i++){
+    sum = sum + depthMap[i];
+  }
+  cout << "Sum: " << sum << "\n";
+  for (int i = 0 ; i < (HEIGHT*WIDTH) ; i++){
+  depthMap[i] = numeric_limits<float>::infinity();
+  }
+}
+
+
+
+void updateView(vec3 cameraPosition, mat3 cameraOrientation, string input){
+
+  vec3 direction (0, 0, 0);
+
+  if (input == "up"){
+    direction = cameraOrientation * vec3 (0, 1, 0);
+  }
+
+  else if (input == "down"){
+    direction = cameraOrientation * vec3 (0, -1, 0);
+  }
+
+  else if (input == "right"){
+    direction = cameraOrientation * vec3 (1, 0, 0);
+  }
+
+  else if (input == "left"){
+    direction = cameraOrientation * vec3 (-1, 0, 0);
+  }
+  
+  direction = normalize(direction);
+  cameraPosition = cameraPosition + direction;
+
+  rasterize(cameraPosition, cameraOrientation);
+
+}
+
+
+
 void test(){
-  rasterize("cornell-box.obj","cornell-box.mtl");
+  rasterize(cameraPosition, cameraOrientation);
+
+  //for (int i = 6400 ; i < 6620 ; i++) {
+    //cout << depthMap[i] << "  ";
+  //}
+  
   /*
   vec3 cameraPosition (0,0,-1);
   vec3 cameraUp (0,1,0);
@@ -537,7 +675,9 @@ void test(){
   mat3 cameraOrientation (cameraRight, cameraUp, cameraForward);
   vec3 vertex (1,0,0);
   vec3 newPoint = (cameraOrientation * vertex) - cameraPosition;
-  cout << "[" << newPoint[0] << ", " << newPoint[1] << ", " << newPoint[2] << "]\n";
+
+  vec3 up = cameraOrientation * vec3 (0,1,0);
+  cout << up[0] << up[1] << up[2];
   */
 }
 
