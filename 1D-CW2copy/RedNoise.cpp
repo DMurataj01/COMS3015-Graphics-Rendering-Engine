@@ -5,12 +5,21 @@
 #include <glm/glm.hpp>
 #include <fstream>
 #include <vector>
+#include <sstream>
 
 using namespace std;
 using namespace glm;
 
-#define WIDTH 320
-#define HEIGHT 240
+#define WIDTH 640
+#define HEIGHT 480
+
+
+/* STRUCTURE - ImageFile */
+struct ImageFile {
+  vector<Colour> vecPixelList;
+  int width;
+  int height;  
+};
 
 
 void update();
@@ -27,6 +36,8 @@ void a();
 void readPPM();
 void test();
 vector<Colour> readOBJMTL(string filename);
+string removeLeadingWhitespace(string s);
+ImageFile readImage(string fileName);
 vector<string> separateLine(string inputLine);
 vec3 getVertex(string inputLine);
 ModelTriangle getFace(string inputLine, vector<vec3> vertices, Colour colour, float scalingFactor);
@@ -34,6 +45,11 @@ vector<ModelTriangle> readOBJ(float scalingFactor);
 void rasterize(vec3 cameraPosition, mat3 cameraOrientation);
 void initializeDepthMap();
 void updateView(vec3 cameraPosition, mat3 cameraOrientation, string input);
+/* FUNCTION Declarations */
+ImageFile readImage(string fileName);
+void renderImage(ImageFile imageFile);
+
+
 
 
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
@@ -61,8 +77,16 @@ float focalLength = WIDTH / 2;
 int main(int argc, char* argv[])
 {
   initializeDepthMap();
+  //Read "texture.ppm" into an ImageFile Struct: {vector<Pixel>, width, height}.
+  ImageFile imageFile = readImage("texture.ppm");
+
 
   window.clearPixels();
+
+  //Render the ImageFile.
+  renderImage(imageFile);
+
+
   SDL_Event event;
   while(true)
   {
@@ -442,6 +466,77 @@ vector<Colour> readOBJMTL(string filename){
 
 
 
+string removeLeadingWhitespace(string s){
+  s.erase(0, s.find_first_not_of(" "));
+  return s;
+}
+
+ImageFile readImage(string fileName) {
+
+  std::ifstream ifs;
+  ifs.open ("texture.ppm", std::ifstream::in);
+
+  /* Parse Header */
+
+  //Check if header is a P6 file.
+  string headerInput = "";
+  getline(ifs, headerInput);
+
+  if (headerInput != "P6") {
+    cout << "Error - Header file is invalid";
+    ifs.close();
+    throw 1;
+  }
+
+  int width = -1;
+  int height = -1;
+  int maxvalue = -1;
+
+  /* Following Specification: http://netpbm.sourceforge.net/doc/ppm.html */ 
+  // 1) Check if header is a P6 file.
+  // 2) Ignore Comments.
+  // 3) Parse Width + whitespace + Height.
+  // 4) Parse Max value
+
+  while (true || !ifs.eof()) {
+    string inputLine = "";
+    getline(ifs,inputLine);
+    inputLine = removeLeadingWhitespace(inputLine);
+    if (inputLine[0] == '#'){
+      //This is a comment line -> ignore them.
+    }
+    else {
+      //Parse Width + Height.
+      stringstream ss_wh(inputLine);
+      ss_wh >> width >> height;
+      
+      //Read new line -> Parse Max value: // 0<val<65536.
+      getline(ifs,inputLine);
+      inputLine = removeLeadingWhitespace(inputLine);
+      
+      stringstream ss_ml(inputLine);
+      ss_ml >> maxvalue;
+
+      cout << "\nHeader Parse --  Width: " << width << " -- Height: " << height << " -- Max Value: " << maxvalue << "\n";
+      break;
+    }
+  }
+  
+  /* Body RGB Parse */
+
+  vector<Colour> vecPixelList; //RGB storage.
+
+  while (ifs.peek()!= EOF) {
+    vecPixelList.push_back(Colour ({ifs.get(), ifs.get(), ifs.get()})); //Create a Pixel element with three consecutive byte reads.
+  }
+  cout << "\nBody Parse -- Number of elements: " << vecPixelList.size() << "\n";
+  ifs.close();
+  ImageFile outputImageFile = ImageFile ({vecPixelList, width, height});
+  return outputImageFile;
+}
+
+
+
 // given a line, say 'v 12 3 5', it retreives the values inbetween the spaces, outputting them as strings in a vector
 vector<string> separateLine(string inputLine){
   inputLine = inputLine + " "; // we add a space at the end to we know when to end;
@@ -682,6 +777,19 @@ void test(){
 }
 
 
+void renderImage(ImageFile imageFile){
+
+  for (int i=0; i<imageFile.vecPixelList.size(); i++){
+    int red = imageFile.vecPixelList.at(i).red;
+    int green = imageFile.vecPixelList.at(i).green;
+    int blue = imageFile.vecPixelList.at(i).blue;
+    uint32_t colour = (255<<24) + (red<<16) + (green<<8) + blue;
+    int row = int(i/imageFile.width);
+    int col = i - (row*imageFile.width);
+    window.setPixelColour(col, row, colour);
+  }
+  cout << "\nImage render complete.\n";
+}
 
 
 
