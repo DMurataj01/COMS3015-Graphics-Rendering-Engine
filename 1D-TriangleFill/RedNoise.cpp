@@ -28,7 +28,7 @@ vector<vec3> interpolate(vec3 from, vec3 to, int numberOfValues);
 void drawLine(CanvasPoint ptStart, CanvasPoint ptEnd, Colour ptClr);
 void drawRandomTriangle();
 void drawStrokedTriangle(CanvasTriangle triangle);
-
+void drawFilledTriangle(CanvasTriangle triangle);
 
 
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
@@ -40,17 +40,15 @@ int main(int argc, char* argv[]) {
 
   //** Draw a line.
   drawLine(CanvasPoint(50, 50), CanvasPoint(50, 100), Colour(255, 0, 0));
+  //** Draw a stroked triangle.
 
-  drawStrokedTriangle( CanvasTriangle(CanvasPoint(50, 0), CanvasPoint(0, 50), CanvasPoint(100, 50), Colour(255, 255, 0)) );
+  drawStrokedTriangle( CanvasTriangle(CanvasPoint(200, 50), CanvasPoint(100, 50), CanvasPoint(150, 0), Colour(0, 255, 255)) );
+  
+  drawFilledTriangle( CanvasTriangle(CanvasPoint(50, 0), CanvasPoint(0, 50), CanvasPoint(100, 50), Colour(255, 0, 255)) );
+  drawFilledTriangle( CanvasTriangle(CanvasPoint(0, 50), CanvasPoint(50, 0), CanvasPoint(100, 50), Colour(255, 0, 255)) );
+  drawFilledTriangle( CanvasTriangle(CanvasPoint(100, 50), CanvasPoint(0, 50), CanvasPoint(50, 0), Colour(255, 0, 255)) );
 
-  //CanvasPoint pt0 = triangle.vertices[0];
-  //CanvasPoint pt1 = triangle.vertices[1];
-  //CanvasPoint pt2 = triangle.vertices[2];
-
-  //drawLine(pt0, pt1, Colour(0, 0, 255));
-  //drawLine(pt2, pt0, Colour(0, 0, 255));
-  //drawLine(pt1, pt2, Colour(0, 0, 255));
-
+  //drawFilledTriangle(CanvasTriangle triangle);
   while(true) {
     // We MUST poll for events - otherwise the window will freeze !
     if(window.pollForInputEvents(&event)) handleEvent(event);
@@ -109,21 +107,65 @@ void drawLine(CanvasPoint ptStart, CanvasPoint ptEnd, Colour ptClr) {
   return;
 }
 
-void drawRandomTriangle() {
-  return;
+void sortTriangleVertices(CanvasTriangle tri) {
+  if (tri.vertices[1].y < tri.vertices[0].y)
+    swap(tri.vertices[0], tri.vertices[1]);
+  else if (tri.vertices[1].y == tri.vertices[0].y)
+      if (tri.vertices[1].x < tri.vertices[0].x)
+        //swapVertices(tri, 0, 1);
+        swap(tri.vertices[0], tri.vertices[1]);
+
+  if (tri.vertices[2].y < tri.vertices[1].y)
+    //swapVertices(tri, 1, 2);
+    swap(tri.vertices[1], tri.vertices[2]);
+  else if (tri.vertices[2].y == tri.vertices[1].y)
+      if (tri.vertices[2].x < tri.vertices[1].x)
+        //swapVertices(tri, 1, 2);
+        swap(tri.vertices[1], tri.vertices[2]);
+
+
+  if (tri.vertices[1].y < tri.vertices[0].y)
+    //swapVertices(tri, 0, 1);
+    swap(tri.vertices[0], tri.vertices[1]);
+  else if (tri.vertices[1].y == tri.vertices[0].y)
+      if (tri.vertices[1].x < tri.vertices[0].x)
+        //swapVertices(tri, 0, 1);
+        swap(tri.vertices[0], tri.vertices[1]);
+  
 }
+
+
+
 void drawStrokedTriangle(CanvasTriangle triangle){
+  /* Vertex sorting NOT required */
   CanvasPoint pt0 = triangle.vertices[0];
   CanvasPoint pt1 = triangle.vertices[1];
   CanvasPoint pt2 = triangle.vertices[2];
 
-  drawLine(pt0, pt1, Colour(0, 0, 255));
-  drawLine(pt2, pt0, Colour(0, 0, 255));
-  drawLine(pt1, pt2, Colour(0, 0, 255));
+  drawLine(pt0, pt1, triangle.colour);
+  drawLine(pt2, pt0, triangle.colour);
+  drawLine(pt1, pt2, triangle.colour);
 
   return;
 }
+void drawRandomTriangle() {
+  return;
+}
 
+
+
+void drawFilledTriangle(CanvasTriangle triangle){
+  //** Draw outline.
+  drawStrokedTriangle(triangle);
+  //** Sort Vertices before fill.  
+  sortTriangleVertices(triangle);
+
+  /** Guarantee that all the vertices are sorted on Y then X... **/
+
+
+
+  return;
+}
 
 void update() {
   // Function for performing animation (shifting artifacts or moving the camera)
