@@ -42,11 +42,13 @@ int main(int argc, char* argv[]) {
   drawLine(CanvasPoint(50, 50), CanvasPoint(50, 100), Colour(255, 0, 0));
   //** Draw a stroked triangle.
 
-  drawStrokedTriangle( CanvasTriangle(CanvasPoint(200, 50), CanvasPoint(100, 50), CanvasPoint(150, 0), Colour(0, 255, 255)) );
+  //drawStrokedTriangle( CanvasTriangle(CanvasPoint(200, 50), CanvasPoint(100, 50), CanvasPoint(150, 0), Colour(0, 255, 255)) );
   
-  drawFilledTriangle( CanvasTriangle(CanvasPoint(50, 0), CanvasPoint(0, 50), CanvasPoint(100, 50), Colour(255, 0, 255)) );
-  drawFilledTriangle( CanvasTriangle(CanvasPoint(0, 50), CanvasPoint(50, 0), CanvasPoint(100, 50), Colour(255, 0, 255)) );
-  drawFilledTriangle( CanvasTriangle(CanvasPoint(100, 50), CanvasPoint(0, 50), CanvasPoint(50, 0), Colour(255, 0, 255)) );
+  //drawStrokedTriangle( CanvasTriangle(CanvasPoint(50, 0), CanvasPoint(0, 50), CanvasPoint(100, 50), Colour(255, 0, 255)) );
+  //drawFilledTriangle( CanvasTriangle(CanvasPoint(0, 50), CanvasPoint(50, 0), CanvasPoint(100, 50), Colour(255, 0, 255)) );
+  //drawFilledTriangle( CanvasTriangle(CanvasPoint(100, 50), CanvasPoint(0, 50), CanvasPoint(50, 0), Colour(255, 0, 255)) );
+
+  drawFilledTriangle( CanvasTriangle(CanvasPoint(200, 0), CanvasPoint(200, 100), CanvasPoint(250, 50), Colour(255, 0, 255)) );
 
   //drawFilledTriangle(CanvasTriangle triangle);
   while(true) {
@@ -63,78 +65,76 @@ vector<float> interpolate(float from, float to, int numberOfValues) {
     
     float increment = (to - from) / (numberOfValues-1);
     
-    for (int i = 0; i<numberOfValues; i++){
+    for (int i = 0; i<numberOfValues; i++)
         vec_list.push_back(from + (i*increment));
-    }
     
     return vec_list;
 }
 
-vector<vec3> interpolate(vec3 from, vec3 to, float numberOfValues)
-{
-  vector<vec3> out; //The output vector of numbers
-  out.push_back(from); //Add the first number in
+vector<vec3> interpolate(vec3 from, vec3 to, float numberOfValues) {
+  vector<vec3> vecInterpVectors;
+
+  //Add the first number in.
+  vecInterpVectors.push_back(from);
+
   vec3 stepValue = (to - from) / (numberOfValues - 1); //numberOfValues - 1 as the first number is already counted
   vec3 previous = from;
 
   //For each step
-  for (int i = 1; i < numberOfValues ; i++)
-  {
+  for (int i = 1; i < numberOfValues ; i++) {
     vec3 input = previous + stepValue;
-    out.push_back(input);
+    vecInterpVectors.push_back(input);
     previous = input;
   }
 
-  return out;
+  return vecInterpVectors;
 }
 
 void drawLine(CanvasPoint ptStart, CanvasPoint ptEnd, Colour ptClr) {
   float diffX = (ptEnd.x - ptStart.x);
   float diffY = (ptEnd.y - ptStart.y);
   float noOfSteps = glm::max(abs(diffX), abs(diffY));
-  cout << "Diff: x " << diffX << " y " << diffY << " max " << noOfSteps << "\n";
-  float stepSizeX = diffX/noOfSteps;
-  float stepSizeY = diffY/noOfSteps;
-  cout << "Step X: " << stepSizeX << " .. Step Y: " << stepSizeY << "\n";
+  //cout << "Diff: x " << diffX << " y " << diffY << " max " << noOfSteps << "\n";
   
-  for (int i = 0 ; i < noOfSteps ; i++){
-    int x = int(ptStart.x + (i * stepSizeX));
-    int y = int(ptStart.y + (i * stepSizeY));
 
-    window.setPixelColour( x, y, getColour(ptClr));
-  }
 
+    float stepSizeX = diffX/noOfSteps;
+    float stepSizeY = diffY/noOfSteps;
+    //cout << "Step X: " << stepSizeX << " .. Step Y: " << stepSizeY << "\n";
+    
+    for (int i = 0 ; i < noOfSteps ; i++){
+      int x = int(ptStart.x + (i * stepSizeX));
+      int y = int(ptStart.y + (i * stepSizeY));
+
+      window.setPixelColour( x, y, getColour(ptClr));
+    }
+  
   return;
 }
 
-void sortTriangleVertices(CanvasTriangle tri) {
+CanvasTriangle sortTriangleVertices(CanvasTriangle tri) {
+  //** Unrolled 'Bubble Sort' for 3 items.
+
   if (tri.vertices[1].y < tri.vertices[0].y)
     swap(tri.vertices[0], tri.vertices[1]);
   else if (tri.vertices[1].y == tri.vertices[0].y)
       if (tri.vertices[1].x < tri.vertices[0].x)
-        //swapVertices(tri, 0, 1);
         swap(tri.vertices[0], tri.vertices[1]);
 
   if (tri.vertices[2].y < tri.vertices[1].y)
-    //swapVertices(tri, 1, 2);
     swap(tri.vertices[1], tri.vertices[2]);
   else if (tri.vertices[2].y == tri.vertices[1].y)
       if (tri.vertices[2].x < tri.vertices[1].x)
-        //swapVertices(tri, 1, 2);
         swap(tri.vertices[1], tri.vertices[2]);
 
-
   if (tri.vertices[1].y < tri.vertices[0].y)
-    //swapVertices(tri, 0, 1);
     swap(tri.vertices[0], tri.vertices[1]);
   else if (tri.vertices[1].y == tri.vertices[0].y)
       if (tri.vertices[1].x < tri.vertices[0].x)
-        //swapVertices(tri, 0, 1);
         swap(tri.vertices[0], tri.vertices[1]);
-  
+
+  return tri;
 }
-
-
 
 void drawStrokedTriangle(CanvasTriangle triangle){
   /* Vertex sorting NOT required */
@@ -148,9 +148,8 @@ void drawStrokedTriangle(CanvasTriangle triangle){
 
   return;
 }
-void drawRandomTriangle() {
-  return;
-}
+
+
 
 
 
@@ -158,14 +157,38 @@ void drawFilledTriangle(CanvasTriangle triangle){
   //** Draw outline.
   drawStrokedTriangle(triangle);
   //** Sort Vertices before fill.  
-  sortTriangleVertices(triangle);
+
+  triangle = sortTriangleVertices(triangle);
 
   /** Guarantee that all the vertices are sorted on Y then X... **/
 
+  //** Get the Cut Point  
+  float xDiff = triangle.vertices[2].x - triangle.vertices[0].x;
+  float yDiff = triangle.vertices[2].y - triangle.vertices[0].y;
 
+  CanvasPoint cutPoint;
+  if (yDiff == 0.f) 
+    cutPoint = CanvasPoint(triangle.vertices[0].x, triangle.vertices[2].y);
+  else {
+    float cut_y = triangle.vertices[1].y;
+    float cut_x = triangle.vertices[0].x + cut_y * xDiff / yDiff;
+    //cout << "Start Point:  x: " << triangle.vertices[0].x << " y: " << triangle.vertices[0].y << "\n";
+    //cout << "Middle Point:  x: " << triangle.vertices[1].x << " y: " << triangle.vertices[1].y << "\n";
+    //cout << "End Point:  x: " << triangle.vertices[2].x << " y: " << triangle.vertices[2].y << "\n";
+    //cout << "Cutting Point:  x: " << cut_x << " y: " << cut_y << "\n";
+    cutPoint = CanvasPoint(cut_x, cut_y);
+  }
+  
+  drawLine(cutPoint, triangle.vertices[1], Colour(0, 200, 150));
 
   return;
 }
+
+
+void drawRandomTriangle() {
+  return;
+}
+
 
 void update() {
   // Function for performing animation (shifting artifacts or moving the camera)
