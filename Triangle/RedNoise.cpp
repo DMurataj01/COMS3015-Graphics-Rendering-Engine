@@ -38,12 +38,15 @@ int main(int argc, char* argv[]) {
   
   SDL_Event event;
   window.clearPixels();
-
+  cout << "Start..";
   //** Draw a stroked triangle.
   drawStrokedTriangle( CanvasTriangle(CanvasPoint(200, 50), CanvasPoint(100, 50), CanvasPoint(150, 0), Colour(0, 255, 255)) );
   drawStrokedTriangle( CanvasTriangle(CanvasPoint(50, 0), CanvasPoint(0, 50), CanvasPoint(100, 50), Colour(255, 0, 255)) );
+    cout << "Start..\n";
   //** Draw a filled triangle.
   drawFilledTriangle( CanvasTriangle(CanvasPoint(200, 0), CanvasPoint(200, 100), CanvasPoint(250, 50), Colour(255, 0, 255)) );
+  drawFilledTriangle( CanvasTriangle(CanvasPoint(200, 0), CanvasPoint(400, 0), CanvasPoint(250, 50), Colour(255, 0, 255)) );
+
 
   while(true) {
     // We MUST poll for events - otherwise the window will freeze !
@@ -223,27 +226,27 @@ void drawFilledTriangle(CanvasTriangle triangle){
   //** 2. Sort Vertices before fill.  
   triangle = sortTriangleVertices(triangle);
 
-  //** 3. Get the Cut Point  
+  //** 3. Get the Cut Point & Fill.
+  CanvasPoint cutPoint;
+    
   float xDiff = triangle.vertices[2].x - triangle.vertices[0].x;
   float yDiff = triangle.vertices[2].y - triangle.vertices[0].y;
 
-  CanvasPoint cutPoint;
-  if (yDiff == 0.f) 
-    cout << "0"; //cutPoint = CanvasPoint(triangle.vertices[0].x, triangle.vertices[2].y);
-  else {
+  if (yDiff == 0.f) {
+    // Mmmm. It's a line.
+    cout << "Y diff is zero.\n\n";
+  } else {
     float cut_y = triangle.vertices[1].y;
     float cut_x = triangle.vertices[0].x + cut_y * xDiff / yDiff;
-    cout << "Start Point:  x: " << triangle.vertices[0].x << " y: " << triangle.vertices[0].y << "\n";
-    cout << "Middle Point:  x: " << triangle.vertices[1].x << " y: " << triangle.vertices[1].y << "\n";
-    cout << "End Point:  x: " << triangle.vertices[2].x << " y: " << triangle.vertices[2].y << "\n";
-    cout << "Cutting Point:  x: " << cut_x << " y: " << cut_y << "\n\n\n";
     cutPoint = CanvasPoint(cut_x, cut_y);
+
+    //** 4.1. Fill the Top Flat Bottom Triangle.
+    fillFlatBottomTriangle(CanvasTriangle(triangle.vertices[0], cutPoint, triangle.vertices[1]));
+    //** 4.2. Fill the Bottom Flat Top Triangle.
+    fillFlatTopTriangle(CanvasTriangle(cutPoint, triangle.vertices[1], triangle.vertices[2]));
   }
   
-  //drawLine(cutPoint, triangle.vertices[1], Colour(0, 200, 150));
 
-  fillFlatBottomTriangle(CanvasTriangle(triangle.vertices[0], cutPoint, triangle.vertices[1]));
-  fillFlatTopTriangle(CanvasTriangle(cutPoint, triangle.vertices[1], triangle.vertices[2]));
   return;
 }
 
