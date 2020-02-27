@@ -5,6 +5,7 @@
 #include <glm/glm.hpp>
 #include <fstream>
 #include <vector>
+#include <assert.h>
 
 using namespace std;
 using namespace glm;
@@ -38,19 +39,12 @@ int main(int argc, char* argv[]) {
   SDL_Event event;
   window.clearPixels();
 
-  //** Draw a line.
-  drawLine(CanvasPoint(50, 50), CanvasPoint(50, 100), Colour(255, 0, 0));
   //** Draw a stroked triangle.
-
-  //drawStrokedTriangle( CanvasTriangle(CanvasPoint(200, 50), CanvasPoint(100, 50), CanvasPoint(150, 0), Colour(0, 255, 255)) );
-  
-  //drawStrokedTriangle( CanvasTriangle(CanvasPoint(50, 0), CanvasPoint(0, 50), CanvasPoint(100, 50), Colour(255, 0, 255)) );
-  //drawFilledTriangle( CanvasTriangle(CanvasPoint(0, 50), CanvasPoint(50, 0), CanvasPoint(100, 50), Colour(255, 0, 255)) );
-  //drawFilledTriangle( CanvasTriangle(CanvasPoint(100, 50), CanvasPoint(0, 50), CanvasPoint(50, 0), Colour(255, 0, 255)) );
-
+  drawStrokedTriangle( CanvasTriangle(CanvasPoint(200, 50), CanvasPoint(100, 50), CanvasPoint(150, 0), Colour(0, 255, 255)) );
+  drawStrokedTriangle( CanvasTriangle(CanvasPoint(50, 0), CanvasPoint(0, 50), CanvasPoint(100, 50), Colour(255, 0, 255)) );
+  //** Draw a filled triangle.
   drawFilledTriangle( CanvasTriangle(CanvasPoint(200, 0), CanvasPoint(200, 100), CanvasPoint(250, 50), Colour(255, 0, 255)) );
 
-  //drawFilledTriangle(CanvasTriangle triangle);
   while(true) {
     // We MUST poll for events - otherwise the window will freeze !
     if(window.pollForInputEvents(&event)) handleEvent(event);
@@ -71,6 +65,24 @@ vector<float> interpolate(float from, float to, int numberOfValues) {
     return vec_list;
 }
 
+vector<CanvasPoint> interpolate(CanvasPoint from, CanvasPoint to, float numberOfValues) {
+  vector<CanvasPoint> vecInterpVectors;
+
+  //Add the first number in.
+  vecInterpVectors.push_back(from);
+  vec2 castedFrom = vec2(from.x, from.y);
+  vec2 castedTo = vec2(to.x, to.y);
+  vec2 stepValue = (castedTo - castedFrom) / (numberOfValues - 1); //numberOfValues - 1 as the first number is already counted
+  vec2 previous = castedFrom;
+
+  for (int i = 1; i < numberOfValues ; i++) {
+    vec2 input = previous + stepValue;
+    vecInterpVectors.push_back(CanvasPoint(input.x, input.y));
+    previous = input;
+  }
+  return vecInterpVectors;
+}
+
 vector<vec3> interpolate(vec3 from, vec3 to, float numberOfValues) {
   vector<vec3> vecInterpVectors;
 
@@ -86,9 +98,9 @@ vector<vec3> interpolate(vec3 from, vec3 to, float numberOfValues) {
     vecInterpVectors.push_back(input);
     previous = input;
   }
-
   return vecInterpVectors;
 }
+
 
 void drawLine(CanvasPoint ptStart, CanvasPoint ptEnd, Colour ptClr) {
   float diffX = (ptEnd.x - ptStart.x);
@@ -96,8 +108,11 @@ void drawLine(CanvasPoint ptStart, CanvasPoint ptEnd, Colour ptClr) {
   float noOfSteps = glm::max(abs(diffX), abs(diffY));
   //cout << "Diff: x " << diffX << " y " << diffY << " max " << noOfSteps << "\n";
   
-
-
+  if (noOfSteps == 0.f) {
+    //Draw a point!
+    window.setPixelColour( ptStart.x, ptStart.y, getColour(ptClr));
+  }
+  else {
     float stepSizeX = diffX/noOfSteps;
     float stepSizeY = diffY/noOfSteps;
     //cout << "Step X: " << stepSizeX << " .. Step Y: " << stepSizeY << "\n";
@@ -108,7 +123,7 @@ void drawLine(CanvasPoint ptStart, CanvasPoint ptEnd, Colour ptClr) {
 
       window.setPixelColour( x, y, getColour(ptClr));
     }
-  
+  }
   return;
 }
 
@@ -151,36 +166,84 @@ void drawStrokedTriangle(CanvasTriangle triangle){
 
 
 
+void fillFlatBottomTriangle(CanvasTriangle triangle) {
+  //Assumption: last two vertices represent the flat bottom.
+  //Assumption: last two y values are both the same.
+  assert( triangle.vertices[1].y == triangle.vertices[2].y);
 
+  if (triangle.vertices[2].x < triangle.vertices[1].x)
+    swap(triangle.vertices[1], triangle.vertices[2]);
+  
+  int noOfRows = triangle.vertices[1].y - triangle.vertices[0].y;
+
+  //cout << "FlatBot X0:  x: " << triangle.vertices[0].x << " y: " << triangle.vertices[0].y << "\n";
+  //cout << "FlatBot X1:  x: " << triangle.vertices[1].x << " y: " << triangle.vertices[1].y << "\n";
+  //cout << "FlatBot X2:  x: " << triangle.vertices[2].x << " y: " << triangle.vertices[2].y << "\n";
+
+
+  vector<CanvasPoint> interpLeft = interpolate(triangle.vertices[0], triangle.vertices[1], noOfRows);
+  vector<CanvasPoint> interpRight = interpolate(triangle.vertices[0], triangle.vertices[2], noOfRows);
+
+  //** Do line by line interp.
+  for (int i=0; i< noOfRows; i++)
+    drawLine(CanvasPoint(interpLeft[i].x, triangle.vertices[0].y + i), CanvasPoint(interpRight[i].x, triangle.vertices[0].y + i), triangle.colour);
+
+  return;
+}
+
+void fillFlatTopTriangle(CanvasTriangle triangle) {
+  //Assumption: last two vertices represent the flat bottom.
+  //Assumption: last two y values are both the same.
+  assert( triangle.vertices[0].y == triangle.vertices[1].y);
+
+  if (triangle.vertices[1].x < triangle.vertices[0].x)
+    swap(triangle.vertices[0], triangle.vertices[1]);
+  
+  int noOfRows = triangle.vertices[2].y - triangle.vertices[0].y;
+
+  //cout << "FlatTop X0:  x: " << triangle.vertices[0].x << " y: " << triangle.vertices[0].y << "\n";
+  //cout << "FlatTop X1:  x: " << triangle.vertices[1].x << " y: " << triangle.vertices[1].y << "\n";
+  //cout << "FlatTop X2:  x: " << triangle.vertices[2].x << " y: " << triangle.vertices[2].y << "\n";
+
+  vector<CanvasPoint> interpLeft = interpolate(triangle.vertices[0], triangle.vertices[2], noOfRows);
+  vector<CanvasPoint> interpRight = interpolate(triangle.vertices[1], triangle.vertices[2], noOfRows);
+
+  //** Do line by line interp.
+  for (int i=0; i< noOfRows; i++)
+    drawLine(CanvasPoint(interpLeft[i].x, triangle.vertices[0].y + i), CanvasPoint(interpRight[i].x, triangle.vertices[0].y + i), triangle.colour);
+
+  return;
+}
 
 void drawFilledTriangle(CanvasTriangle triangle){
-  //** Draw outline.
-  drawStrokedTriangle(triangle);
-  //** Sort Vertices before fill.  
+  
+  //** 1. Draw outline.
+  //drawStrokedTriangle(triangle);
 
+  //** 2. Sort Vertices before fill.  
   triangle = sortTriangleVertices(triangle);
 
-  /** Guarantee that all the vertices are sorted on Y then X... **/
-
-  //** Get the Cut Point  
+  //** 3. Get the Cut Point  
   float xDiff = triangle.vertices[2].x - triangle.vertices[0].x;
   float yDiff = triangle.vertices[2].y - triangle.vertices[0].y;
 
   CanvasPoint cutPoint;
   if (yDiff == 0.f) 
-    cutPoint = CanvasPoint(triangle.vertices[0].x, triangle.vertices[2].y);
+    cout << "0"; //cutPoint = CanvasPoint(triangle.vertices[0].x, triangle.vertices[2].y);
   else {
     float cut_y = triangle.vertices[1].y;
     float cut_x = triangle.vertices[0].x + cut_y * xDiff / yDiff;
-    //cout << "Start Point:  x: " << triangle.vertices[0].x << " y: " << triangle.vertices[0].y << "\n";
-    //cout << "Middle Point:  x: " << triangle.vertices[1].x << " y: " << triangle.vertices[1].y << "\n";
-    //cout << "End Point:  x: " << triangle.vertices[2].x << " y: " << triangle.vertices[2].y << "\n";
-    //cout << "Cutting Point:  x: " << cut_x << " y: " << cut_y << "\n";
+    cout << "Start Point:  x: " << triangle.vertices[0].x << " y: " << triangle.vertices[0].y << "\n";
+    cout << "Middle Point:  x: " << triangle.vertices[1].x << " y: " << triangle.vertices[1].y << "\n";
+    cout << "End Point:  x: " << triangle.vertices[2].x << " y: " << triangle.vertices[2].y << "\n";
+    cout << "Cutting Point:  x: " << cut_x << " y: " << cut_y << "\n\n\n";
     cutPoint = CanvasPoint(cut_x, cut_y);
   }
   
-  drawLine(cutPoint, triangle.vertices[1], Colour(0, 200, 150));
+  //drawLine(cutPoint, triangle.vertices[1], Colour(0, 200, 150));
 
+  fillFlatBottomTriangle(CanvasTriangle(triangle.vertices[0], cutPoint, triangle.vertices[1]));
+  fillFlatTopTriangle(CanvasTriangle(cutPoint, triangle.vertices[1], triangle.vertices[2]));
   return;
 }
 
