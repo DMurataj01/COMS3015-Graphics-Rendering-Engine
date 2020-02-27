@@ -10,8 +10,8 @@
 using namespace std;
 using namespace glm;
 
-#define WIDTH 640
-#define HEIGHT 480
+#define WIDTH 480
+#define HEIGHT 395
 
 
 /* STRUCTURE - ImageFile */
@@ -31,6 +31,7 @@ void drawLine(CanvasPoint start, CanvasPoint end, Colour colour);
 void drawStrokedTriangle(CanvasTriangle triangle);
 void drawRandomTriangle();
 void drawFilledTriangle(CanvasTriangle triangle);
+void drawTexturedTriangle(CanvasTriangle triangle, ImageFile imageFile);
 void drawRandomFilledTriangle();
 void a();
 void readPPM();
@@ -48,7 +49,7 @@ void updateView(vec3 cameraPosition, mat3 cameraOrientation, string input);
 /* FUNCTION Declarations */
 ImageFile readImage(string fileName);
 void renderImage(ImageFile imageFile);
-
+void drawPointFromImageFile(ImageFile imageFile, int x, int y);
 
 
 
@@ -78,13 +79,30 @@ int main(int argc, char* argv[])
 {
   initializeDepthMap();
   //Read "texture.ppm" into an ImageFile Struct: {vector<Pixel>, width, height}.
-  ImageFile imageFile = readImage("texture.ppm");
 
+  ImageFile imageFile = readImage("texture.ppm");
 
   window.clearPixels();
 
-  //Render the ImageFile.
-  renderImage(imageFile);
+  CanvasTriangle canvasTriangle (CanvasPoint(160.f, 10.f), CanvasPoint(300.f, 230.f), CanvasPoint(10.f, 150.f), Colour(255, 255, 255));
+  //drawStrokedTriangle(canvasTriangle);
+
+  //CanvasTriangle canvasTriangle1 (CanvasPoint(195.f, 5.f), CanvasPoint(395.f, 380.f), CanvasPoint(65.f, 330.f), Colour(255, 255, 0));
+  //drawStrokedTriangle(canvasTriangle1);
+
+
+  drawTexturedTriangle(canvasTriangle, imageFile);
+
+  //void drawStrokedTriangle(CanvasTriangle triangle){
+  //CanvasPoint point1 = triangle.vertices[0];
+  //CanvasPoint point2 = triangle.vertices[1];
+  //CanvasPoint point3 = triangle.vertices[2];
+  //Colour colour = triangle.colour;
+
+  //drawLine(point1,point2,colour);
+  //drawLine(point2,point3,colour);
+  //drawLine(point3,point1,colour);
+
 
 
   SDL_Event event;
@@ -305,7 +323,7 @@ void drawFilledTriangle(CanvasTriangle triangle){
     drawLine(middlePoint, maxPoint, colour);
   }
   else {
-      for (int i = 0 ; i < steps + 1 ; i++){
+      for (int i = 0 ; i < steps; i++){
       // find the two points which intersect this row
       float yDiff = i / steps;
       float maxXDiff1 = maxPoint.x - middlePoint.x;
@@ -347,15 +365,119 @@ void drawFilledTriangle(CanvasTriangle triangle){
       drawLine(start,end,colour);
     }
   }
-  /*
-  // this code draws the outlien of the triangle ontop of the filled triangle to make sure it is correct
-  drawLine(point1,point2,Colour (255,255,255));
-  drawLine(point2,point3,Colour (255,255,255));
-  drawLine(point3,point1,Colour (255,255,255));
-  drawLine(points[1],cutterPoint,Colour (255,255,255));
-  */
 }
 
+
+
+void drawTexturedTriangle(CanvasTriangle triangle, ImageFile imageFile) {
+  // separating the CanvasTriangle object and storing the vertices and colour separately
+  CanvasPoint point1 = triangle.vertices[0];
+  CanvasPoint point2 = triangle.vertices[1];
+  CanvasPoint point3 = triangle.vertices[2];
+  Colour colour = triangle.colour;
+  
+  // putting all the points in a vector so they can be retrieved by index
+  vector<CanvasPoint> points;
+  points.push_back(point1);
+  points.push_back(point2);
+  points.push_back(point3);
+
+  // sort the points by the y value
+  for (int i = 0 ; i < 2 ; i++){
+    CanvasPoint pointOne = points[i];
+    CanvasPoint pointTwo = points[i+1];
+    // if the next point has a lower y value then swap them
+    if (pointOne.y > pointTwo.y){
+      points[i+1] = pointOne;
+      points[i] = pointTwo;
+    }
+  }
+  // still sorting : check the first two again
+  CanvasPoint pointOne = points[0];
+  CanvasPoint pointTwo = points[1];
+  if (pointOne.y > pointTwo.y){
+    points[0] = pointTwo;
+    points[1] = pointOne;
+  }
+
+  CanvasPoint maxPoint = points[0];
+  CanvasPoint middlePoint = points[1];
+  CanvasPoint minPoint = points[2];
+
+
+  // the vertical distance between the highest point and the middle point
+  float yDistance = middlePoint.y - maxPoint.y;
+  // interpolating to find the cutting point
+  float maxYDistance = minPoint.y - maxPoint.y;
+  float maxXDistance = minPoint.x - maxPoint.x;
+  float yProportion = yDistance / maxYDistance;
+  float xDistance = maxPoint.x + (yProportion * maxXDistance);
+  // interpolate to find the right depth too
+  float maxDepth = minPoint.depth - maxPoint.depth;
+  float depth = maxPoint.depth + (yProportion * maxDepth);
+  CanvasPoint cutterPoint(xDistance, maxPoint.y + yDistance, depth);
+
+  // the upper triangle
+  // for each row, fill it in
+  float steps = middlePoint.y - maxPoint.y; // how many rows
+  // if the two vertices are on the same y line, then just draw a line between the two
+  if (steps == 0){
+    //drawLine(middlePoint, maxPoint, colour);
+    for (int x=middlePoint.x; x<maxPoint.x; x++){
+      drawPointFromImageFile(imageFile, x, middlePoint.y); 
+    }
+  }
+  else {
+      for (int i = 0 ; i < steps; i++){
+      // find the two points which intersect this row
+      float yDiff = i / steps;
+      float maxXDiff1 = maxPoint.x - middlePoint.x;
+      float maxXDiff2 = maxPoint.x - cutterPoint.x;
+      float xStart = round(maxPoint.x - (yDiff * maxXDiff1));
+      float xEnd = round(maxPoint.x - (yDiff * maxXDiff2));
+      // interpolating to find the right depth
+      maxDepth = maxPoint.depth - middlePoint.depth;
+      float maxDepth2 = maxPoint.depth - cutterPoint.depth;
+      depth = maxPoint.depth - (yDiff * maxDepth);
+      float depth2 = maxPoint.depth - (yDiff * maxDepth2);
+      CanvasPoint start(xStart, maxPoint.y + i, depth);
+      CanvasPoint end(xEnd, maxPoint.y + i, depth2);
+      //drawLine(start,end,colour);
+      for (int x=start.x; x<end.x; x++){
+        drawPointFromImageFile(imageFile, x, start.y); 
+      }
+    }
+  }
+  
+  // the lower triangle
+  // for each row, fill it in
+  float steps2 = minPoint.y - middlePoint.y; // how many rows
+  if (steps2 == 0) {
+    //for (int x=middlePoint.x; x<maxPoint.y; x++){
+      //get Y.
+      //drawPointFromImageFile(imageFile, x, middlePoint.y); 
+    //}
+  }
+  else {
+    for (int i = steps2 ; i >= 0 ; i--){
+      // find the two points which intersect this row
+      float yDiff = 1 - (i / steps2);
+      float maxXDiff1 = minPoint.x - middlePoint.x;
+      float maxXDiff2 = minPoint.x - cutterPoint.x;
+      float xStart = round(minPoint.x - (yDiff * maxXDiff1));
+      float xEnd = round(minPoint.x - (yDiff * maxXDiff2));
+      // interpolating to find the right depth
+      maxDepth = minPoint.depth - middlePoint.depth;
+      float maxDepth2 = minPoint.depth - cutterPoint.depth;
+      depth = minPoint.depth - (yDiff * maxDepth);
+      float depth2 = minPoint.depth - (yDiff * maxDepth2);
+      CanvasPoint start(xStart, cutterPoint.y + i, depth);
+      CanvasPoint end(xEnd, cutterPoint.y + i, depth2);
+      drawLine(start,end,colour);
+    }
+  }
+
+}
 
 
 void drawRandomFilledTriangle(){
@@ -792,161 +914,16 @@ void renderImage(ImageFile imageFile){
 }
 
 
+void drawPointFromImageFile(ImageFile imageFile, int x, int y) {
+
+    int i = y*imageFile.width + x;
+    int red = imageFile.vecPixelList.at(i).red;
+    int green = imageFile.vecPixelList.at(i).green;
+    int blue = imageFile.vecPixelList.at(i).blue;
+    uint32_t colour = (255<<24) + (red<<16) + (green<<8) + blue;
+    //int row = int(i/imageFile.width);
+    //int col = i - (row*imageFile.width);
+    window.setPixelColour(y, x, colour);
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// OLD FUNCTIONS
-
-
-/*
-// this function reads in an OBJ material file and stores it in a vector of Colour objects, so an output may look like:
-// [['Red','1','0','0'] , ['Green','0','1','0']]
-vector<Colour> readOBJMTL(string filename){
-  // store the colours in a vector of Colours
-  vector<Colour> colours;
-  // open the file, we then go through each line storing it in a string
-  string line;
-  ifstream myfile(filename);
-  
-  if (myfile.is_open()){
-    while (getline(myfile,line)){
-      
-      // if we have a new material, store it
-      if (line.find("newmtl") == 0){
-
-        float red;
-        float green;
-        float blue;
-        string name;
-
-        // getting the name of the colour
-        int n = line.length();
-        name = line.substr(7,n);
-
-        
-        // getting the colour - get the next line and then iterate through to find the spaces, and then get the numbers in between
-        getline(myfile,line);
-        string lineCopy = line;
-
-        for (int i = 0 ; i < 4 ; i++){
-          // find where the space is, then take a substring of the end of the line to then find the next space
-          int spaceIndex = lineCopy.find(' ');
-          int n = lineCopy.length();
-          string value = lineCopy.substr(0,spaceIndex); // this stores the string inetween 2 spaces
-
-          // once we have found the first 2 spaces we can then start storing the colours
-          // MTL files have a max value of 0, a Colour object uses 0-255 range
-          if (i == 1){
-            red = stof(value)*255;
-          }
-          else if (i == 2){
-            green = stof(value)*255;
-          }
-          else if (i == 3){
-            blue = stof(value)*255;
-          }
-
-          // update the current lineCopy so we then check the next part of the string for a space
-          lineCopy = lineCopy.substr(spaceIndex + 1, n);
-        }
-        // create the colour object and push the element into the colours array
-        Colour colour (name, red, green, blue);
-        colours.push_back(colour);
-      }
-    }
-  }
-  else cout << "Unable to open file";
-
-  return colours;
 }
-
-
-
-vector<ModelTriangle> readOBJ(string filename){
-  vector<vec3> vertices; // storing the vertices
-  vector<ModelTriangle> output; // storing the faces in terms of the vertices and the colour of each
-
-  // open the file, we then go through each line storing it in a string
-  string line;
-  ifstream myfile(filename);
-
-  if (myfile.is_open()){
-    while (getline(myfile,line)){
-      
-      // if the line starts with a v, then we have a vertex
-      if (line.find('v') == 0){
-        vec3 vertex;
-        
-        // iterate through finding where the spaces are and then storing the points in a vec3
-        string lineCopy = line;
-        for (int i = 0 ; i < 4 ; i++){
-          int spaceIndex = lineCopy.find(' ');
-          int n = lineCopy.length();
-          // once we have gone past the first space we then have the numbers and can store them
-          if (i >= 1){
-            string numberString = lineCopy.substr(0, spaceIndex);
-            float number = stof(numberString); // make the string a float
-            vertex[i-1] = number;
-          }
-          lineCopy = lineCopy.substr(spaceIndex+1, n);
-        }
-
-        vertices.push_back(vertex);
-        cout << "Vertex: [" << vertex[0] << ", " << vertex[1] << ", " << vertex[2] << "]\n";
-      }
-      
-      // if the line starts with an f, then we have a face stating which vertices are connected
-      else if (line.find('f') == 0){
-        vec3 face; // stores the indices of which vertices are used in this face
-
-        // iterate through finding where the spaces are and then storing the values inbetween these spaces in a vec3 object
-        string lineCopy = line;
-        for (int i = 0 ; i < 3 ; i++){
-          // we only need to worry about the first number (as a face has format 'f 1/1 2/2 3/3')
-          int spaceIndex = lineCopy.find(' ');
-          face[i] = stof(lineCopy.substr(spaceIndex + 1,spaceIndex + 2));
-          int n = lineCopy.length();
-          lineCopy = lineCopy.substr(spaceIndex + 1, n);
-        }
-
-        // taking the face (so the numbers of which vertices make up the face) and storing them in a ModelTriangle object
-        vector<vec3> faceVertices;
-        for (int i = 0 ; i < 3 ; i++){
-          int index = face[i] - 1; // which number vertex it is (starting from 0)
-          faceVertices.push_back(vertices[index]); // store all 3 vertices in a vector
-        }
-      
-        // store this as a ModelTriangle object and add it to the output
-        ModelTriangle triangle (faceVertices[0], faceVertices[1], faceVertices[2], Colour (1,0,0));
-        cout << "triangle: \n" << triangle << "\n";
-        output.push_back(triangle);
-      }
-    }
-  }
-
-  else cout << "Unable to open file";
-
-  return output;
-}
-
-*/
