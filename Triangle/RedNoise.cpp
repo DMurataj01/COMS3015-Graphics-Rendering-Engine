@@ -38,15 +38,17 @@ int main(int argc, char* argv[]) {
   
   SDL_Event event;
   window.clearPixels();
-  cout << "Start..";
   //** Draw a stroked triangle.
   drawStrokedTriangle( CanvasTriangle(CanvasPoint(200, 50), CanvasPoint(100, 50), CanvasPoint(150, 0), Colour(0, 255, 255)) );
   drawStrokedTriangle( CanvasTriangle(CanvasPoint(50, 0), CanvasPoint(0, 50), CanvasPoint(100, 50), Colour(255, 0, 255)) );
-    cout << "Start..\n";
   //** Draw a filled triangle.
-  drawFilledTriangle( CanvasTriangle(CanvasPoint(200, 0), CanvasPoint(200, 100), CanvasPoint(250, 50), Colour(255, 0, 255)) );
-  drawFilledTriangle( CanvasTriangle(CanvasPoint(200, 0), CanvasPoint(400, 0), CanvasPoint(250, 50), Colour(255, 0, 255)) );
+  //drawFilledTriangle( CanvasTriangle(CanvasPoint(200, 0), CanvasPoint(200, 100), CanvasPoint(250, 50), Colour(255, 0, 255)) );
 
+  //drawFilledTriangle( CanvasTriangle(CanvasPoint(400, 300), CanvasPoint(300, 150), CanvasPoint(200, 350), Colour(255, 50, 0)) );
+  //drawStrokedTriangle( CanvasTriangle(CanvasPoint(400, 300), CanvasPoint(300, 150), CanvasPoint(200, 350), Colour(0, 0, 255)) );
+
+  drawFilledTriangle( CanvasTriangle(CanvasPoint(400, 300), CanvasPoint(300, 150), CanvasPoint(324, 350), Colour(255, 50, 0)) );
+  drawStrokedTriangle( CanvasTriangle(CanvasPoint(400, 300), CanvasPoint(300, 150), CanvasPoint(324, 350), Colour(0, 0, 255)) );
 
   while(true) {
     // We MUST poll for events - otherwise the window will freeze !
@@ -221,29 +223,43 @@ void fillFlatTopTriangle(CanvasTriangle triangle) {
 void drawFilledTriangle(CanvasTriangle triangle){
   
   //** 1. Draw outline.
-  //drawStrokedTriangle(triangle);
+  drawStrokedTriangle(triangle);
 
   //** 2. Sort Vertices before fill.  
   triangle = sortTriangleVertices(triangle);
 
   //** 3. Get the Cut Point & Fill.
-  CanvasPoint cutPoint;
     
-  float xDiff = triangle.vertices[2].x - triangle.vertices[0].x;
-  float yDiff = triangle.vertices[2].y - triangle.vertices[0].y;
+  float yDiff = glm::abs(triangle.vertices[2].y - triangle.vertices[0].y);
 
+  //cout << "\nXDiff: " << xDiff << " .. YDiff: " << yDiff << "\n\n";
   if (yDiff == 0.f) {
     // Mmmm. It's a line.
     cout << "Y diff is zero.\n\n";
   } else {
-    float cut_y = triangle.vertices[1].y;
-    float cut_x = triangle.vertices[0].x + cut_y * xDiff / yDiff;
-    cutPoint = CanvasPoint(cut_x, cut_y);
+
+    float minorYDiff;
+
+    if (triangle.vertices[0].x < triangle.vertices[2].x)
+      minorYDiff = triangle.vertices[1].y - triangle.vertices[0].y;
+    else 
+      minorYDiff = triangle.vertices[2].y - triangle.vertices[1].y;
+    
+    float xDiff = glm::abs(triangle.vertices[2].x - triangle.vertices[0].x);
+
+    float cut_x = glm::min(triangle.vertices[0].x, triangle.vertices[2].x) + ( minorYDiff * xDiff/yDiff );
+    
+    CanvasPoint cutPoint = CanvasPoint(cut_x, triangle.vertices[1].y);
+
+    cout << "Start Point:  x: " << triangle.vertices[0].x << " y: " << triangle.vertices[0].y << "\n"; 
+    cout << "Middle Point:  x: " << triangle.vertices[1].x << " y: " << triangle.vertices[1].y << "\n"; 
+    cout << "End Point:  x: " << triangle.vertices[2].x << " y: " << triangle.vertices[2].y << "\n"; 
+    cout << "Cutting Point:  x: " << cut_x << " y: " << triangle.vertices[1].y << "\n\n\n"; 
 
     //** 4.1. Fill the Top Flat Bottom Triangle.
-    fillFlatBottomTriangle(CanvasTriangle(triangle.vertices[0], cutPoint, triangle.vertices[1]));
+    fillFlatBottomTriangle(CanvasTriangle(triangle.vertices[0], cutPoint, triangle.vertices[1], triangle.colour));
     //** 4.2. Fill the Bottom Flat Top Triangle.
-    fillFlatTopTriangle(CanvasTriangle(cutPoint, triangle.vertices[1], triangle.vertices[2]));
+    fillFlatTopTriangle(CanvasTriangle(cutPoint, triangle.vertices[1], triangle.vertices[2], triangle.colour));
   }
   
 
