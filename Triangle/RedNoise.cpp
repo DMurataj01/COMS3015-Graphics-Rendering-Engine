@@ -27,7 +27,7 @@ vector<vec3> interpolate(vec3 from, vec3 to, int numberOfValues);
 /* Custom Functions */
 
 void drawLine(CanvasPoint ptStart, CanvasPoint ptEnd, Colour ptClr);
-void drawRandomTriangle();
+void drawRandomFilledTriangle();
 void drawStrokedTriangle(CanvasTriangle triangle);
 void drawFilledTriangle(CanvasTriangle triangle);
 
@@ -258,8 +258,30 @@ void drawFilledTriangle(CanvasTriangle triangle){
 }
 
 
-void drawRandomTriangle() {
-  return;
+void drawRandomFilledTriangle(){
+   int x1 = round(rand()%WIDTH);
+  int x2 = round(rand()%WIDTH);
+  int x3 = round(rand()%WIDTH);
+  int y1 = round(rand()%HEIGHT);
+  int y2 = round(rand()%HEIGHT);
+  int y3 = round(rand()%HEIGHT);
+
+  CanvasPoint point1 (x1, y1);
+  CanvasPoint point2 (x2, y2);
+  CanvasPoint point3 (x3, y3);
+
+  int red = round(rand()%255);
+  int green = round(rand()%255);
+  int blue = round(rand()%255);
+
+  Colour colour (red, green, blue);
+  CanvasTriangle triangle (point1, point2, point3, colour);
+
+  cout << "Point 1: " << x1 << ", " << y1 << "\n";
+  cout << "Point 2: " << x2 << ", " << y2 << "\n";
+  cout << "Point 3: " << x3 << ", " << y3 << "\n\n";
+
+  drawFilledTriangle(triangle);
 }
 
 
@@ -273,8 +295,7 @@ void handleEvent(SDL_Event event) {
     else if(event.key.keysym.sym == SDLK_RIGHT) cout << "RIGHT" << endl;
     else if(event.key.keysym.sym == SDLK_UP) cout << "UP" << endl;
     else if(event.key.keysym.sym == SDLK_DOWN) cout << "DOWN" << endl;
-    else if(event.key.keysym.sym == SDLK_u) drawRandomTriangle();
-    //else if(event.key.keysym.sym == SDLK_f) drawFilledTriangle();
+    else if(event.key.keysym.sym == SDLK_f) drawRandomFilledTriangle();
   }
   else if(event.type == SDL_MOUSEBUTTONDOWN) cout << "MOUSE CLICKED" << endl;
 }

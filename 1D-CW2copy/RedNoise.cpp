@@ -302,6 +302,7 @@ void drawFilledTriangle(CanvasTriangle triangle){
   //float maxDepth = minPoint.depth - maxPoint.depth;
   //float depth = maxPoint.depth + (yProportion * maxDepth);
   float depth = (1 / inverseDepth);
+    
   CanvasPoint cutterPoint(xDistance, maxPoint.y + yDistance, depth);
 
   // the upper triangle
@@ -336,6 +337,11 @@ void drawFilledTriangle(CanvasTriangle triangle){
       drawLine(start,end,colour);
     }
   }
+    
+    
+    
+    
+    
   
   // the lower triangle
   // for each row, fill it in
