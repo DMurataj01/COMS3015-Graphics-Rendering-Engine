@@ -1,10 +1,4 @@
-#include <ModelTriangle.h>
-#include <CanvasTriangle.h>
-#include <DrawingWindow.h>
-#include <Utils.h>
-#include <glm/glm.hpp>
-#include <fstream>
-#include <vector>
+#include "OBJStream.cpp"
 #include <assert.h>
 
 using namespace std;
@@ -22,10 +16,8 @@ uint32_t getColour(Colour colour){
   return (255<<24) + (colour.red<<16) + (colour.green<<8) + colour.blue;;
 }
 
-vector<vec3> interpolate(vec3 from, vec3 to, int numberOfValues);
 
 /* Custom Functions */
-
 void drawLine(CanvasPoint ptStart, CanvasPoint ptEnd, Colour ptClr);
 void drawRandomFilledTriangle();
 void drawStrokedTriangle(CanvasTriangle triangle);
@@ -34,10 +26,22 @@ void drawFilledTriangle(CanvasTriangle triangle);
 
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
+
+float depthMap [WIDTH*HEIGHT];
+void initializeDepthMap(){
+  for (int i = 0 ; i < (HEIGHT*WIDTH) ; i++)
+    depthMap[i] = numeric_limits<float>::infinity();
+}
+
 int main(int argc, char* argv[]) {
   
   SDL_Event event;
   window.clearPixels();
+  initializeDepthMap();
+
+  vector<ModelTriangle> test = readOBJ("cornell-box.obj", "cornell-box.mtl", 1.f);
+
+
   //** Draw a stroked triangle.
   drawStrokedTriangle( CanvasTriangle(CanvasPoint(200, 50), CanvasPoint(100, 50), CanvasPoint(150, 0), Colour(0, 255, 255)) );
   drawStrokedTriangle( CanvasTriangle(CanvasPoint(50, 0), CanvasPoint(0, 50), CanvasPoint(100, 50), Colour(255, 0, 255)) );
@@ -53,17 +57,6 @@ int main(int argc, char* argv[]) {
     // Need to render the frame at the end, or nothing actually gets shown on the screen !
     window.renderFrame();
   }
-}
-
-vector<float> interpolate(float from, float to, int numberOfValues) {
-    vector<float> vec_list;
-    
-    float increment = (to - from) / (numberOfValues-1);
-    
-    for (int i = 0; i<numberOfValues; i++)
-        vec_list.push_back(from + (i*increment));
-    
-    return vec_list;
 }
 
 vector<CanvasPoint> interpolate(CanvasPoint from, CanvasPoint to, float numberOfValues) {
@@ -83,25 +76,6 @@ vector<CanvasPoint> interpolate(CanvasPoint from, CanvasPoint to, float numberOf
   }
   return vecInterpVectors;
 }
-
-vector<vec3> interpolate(vec3 from, vec3 to, float numberOfValues) {
-  vector<vec3> vecInterpVectors;
-
-  //Add the first number in.
-  vecInterpVectors.push_back(from);
-
-  vec3 stepValue = (to - from) / (numberOfValues - 1); //numberOfValues - 1 as the first number is already counted
-  vec3 previous = from;
-
-  //For each step
-  for (int i = 1; i < numberOfValues ; i++) {
-    vec3 input = previous + stepValue;
-    vecInterpVectors.push_back(input);
-    previous = input;
-  }
-  return vecInterpVectors;
-}
-
 
 void drawLine(CanvasPoint ptStart, CanvasPoint ptEnd, Colour ptClr) {
   float diffX = (ptEnd.x - ptStart.x);
