@@ -254,133 +254,142 @@ void drawRandomTriangle(){
 }
 
 
+vector<CanvasPoint> interpolate(CanvasPoint from, CanvasPoint to, float numberOfValues) {
+  vector<CanvasPoint> vecInterpVectors;
+
+  //Add the first number in.
+  vecInterpVectors.push_back(from);
+  vec3 castedFrom = vec3(from.x, from.y, from.depth);
+  vec3 castedTo = vec3(to.x, to.y, from.y);
+  vec3 stepValue = (castedTo - castedFrom) / (numberOfValues - 1); //numberOfValues - 1 as the first number is already counted
+  vec3 previous = castedFrom;
+
+  for (int i = 1; i < numberOfValues ; i++) {
+    vec3 input = previous + stepValue;
+    vecInterpVectors.push_back(CanvasPoint(input.x, input.y, input.z));
+    previous = input;
+  }
+  return vecInterpVectors;
+}
+CanvasTriangle sortTriangleVertices(CanvasTriangle tri) {
+  //** Unrolled 'Bubble Sort' for 3 items.
+
+  if (tri.vertices[1].y < tri.vertices[0].y)
+    swap(tri.vertices[0], tri.vertices[1]);
+  else if (tri.vertices[1].y == tri.vertices[0].y)
+      if (tri.vertices[1].x < tri.vertices[0].x)
+        swap(tri.vertices[0], tri.vertices[1]);
+
+  if (tri.vertices[2].y < tri.vertices[1].y)
+    swap(tri.vertices[1], tri.vertices[2]);
+  else if (tri.vertices[2].y == tri.vertices[1].y)
+      if (tri.vertices[2].x < tri.vertices[1].x)
+        swap(tri.vertices[1], tri.vertices[2]);
+
+  if (tri.vertices[1].y < tri.vertices[0].y)
+    swap(tri.vertices[0], tri.vertices[1]);
+  else if (tri.vertices[1].y == tri.vertices[0].y)
+      if (tri.vertices[1].x < tri.vertices[0].x)
+        swap(tri.vertices[0], tri.vertices[1]);
+
+  return tri;
+}
+
+void fillFlatBottomTriangle(CanvasTriangle triangle) {
+  //Assumption: last two vertices represent the flat bottom.
+  //Assumption: last two y values are both the same.
+  assert( triangle.vertices[1].y == triangle.vertices[2].y);
+
+  if (triangle.vertices[2].x < triangle.vertices[1].x)
+    swap(triangle.vertices[1], triangle.vertices[2]);
+  
+  int noOfRows = triangle.vertices[1].y - triangle.vertices[0].y;
+
+  //cout << "FlatBot X0:  x: " << triangle.vertices[0].x << " y: " << triangle.vertices[0].y << "\n";
+  //cout << "FlatBot X1:  x: " << triangle.vertices[1].x << " y: " << triangle.vertices[1].y << "\n";
+  //cout << "FlatBot X2:  x: " << triangle.vertices[2].x << " y: " << triangle.vertices[2].y << "\n";
+
+
+  vector<CanvasPoint> interpLeft = interpolate(triangle.vertices[0], triangle.vertices[1], noOfRows);
+  vector<CanvasPoint> interpRight = interpolate(triangle.vertices[0], triangle.vertices[2], noOfRows);
+
+  //** Do line by line interp.
+  for (int i=0; i< noOfRows; i++)
+    drawLine(CanvasPoint(interpLeft[i].x, triangle.vertices[0].y + i), CanvasPoint(interpRight[i].x, triangle.vertices[0].y + i), triangle.colour);
+
+  return;
+}
+void fillFlatTopTriangle(CanvasTriangle triangle) {
+  //Assumption: last two vertices represent the flat bottom.
+  //Assumption: last two y values are both the same.
+  assert( triangle.vertices[0].y == triangle.vertices[1].y);
+
+  if (triangle.vertices[1].x < triangle.vertices[0].x)
+    swap(triangle.vertices[0], triangle.vertices[1]);
+  
+  int noOfRows = triangle.vertices[2].y - triangle.vertices[0].y;
+
+  //cout << "FlatTop X0:  x: " << triangle.vertices[0].x << " y: " << triangle.vertices[0].y << "\n";
+  //cout << "FlatTop X1:  x: " << triangle.vertices[1].x << " y: " << triangle.vertices[1].y << "\n";
+  //cout << "FlatTop X2:  x: " << triangle.vertices[2].x << " y: " << triangle.vertices[2].y << "\n";
+
+  vector<CanvasPoint> interpLeft = interpolate(triangle.vertices[0], triangle.vertices[2], noOfRows);
+  vector<CanvasPoint> interpRight = interpolate(triangle.vertices[1], triangle.vertices[2], noOfRows);
+
+  //** Do line by line interp.
+  for (int i=0; i< noOfRows; i++)
+    drawLine(CanvasPoint(interpLeft[i].x, triangle.vertices[0].y + i), CanvasPoint(interpRight[i].x, triangle.vertices[0].y + i), triangle.colour);
+
+  return;
+}
 void drawFilledTriangle(CanvasTriangle triangle){
-  // separating the CanvasTriangle object and storing the vertices and colour separately
-  CanvasPoint point1 = triangle.vertices[0];
-  CanvasPoint point2 = triangle.vertices[1];
-  CanvasPoint point3 = triangle.vertices[2];
-  Colour colour = triangle.colour;
   
-  // putting all the points in a vector so they can be retrieved by index
-  vector<CanvasPoint> points;
-  points.push_back(point1);
-  points.push_back(point2);
-  points.push_back(point3);
+  //** 1. Draw outline.
+  drawStrokedTriangle(triangle);
 
-  // sort the points by the y value
-  for (int i = 0 ; i < 2 ; i++){
-    CanvasPoint pointOne = points[i];
-    CanvasPoint pointTwo = points[i+1];
-    // if the next point has a lower y value then swap them
-    if (pointOne.y > pointTwo.y){
-      points[i+1] = pointOne;
-      points[i] = pointTwo;
-    }
-  }
-  // still sorting : check the first two again
-  CanvasPoint pointOne = points[0];
-  CanvasPoint pointTwo = points[1];
-  if (pointOne.y > pointTwo.y){
-    points[0] = pointTwo;
-    points[1] = pointOne;
-  }
+  //** 2. Sort Vertices before fill.  
+  triangle = sortTriangleVertices(triangle);
 
-  CanvasPoint maxPoint = points[0];
-  CanvasPoint middlePoint = points[1];
-  CanvasPoint minPoint = points[2];
-  // the vertical distance between the highest point and the middle point
-  float yDistance = middlePoint.y - maxPoint.y;
-  // interpolating to find the cutting point
-  float maxYDistance = minPoint.y - maxPoint.y;
-  float maxXDistance = minPoint.x - maxPoint.x;
-  float yProportion = yDistance / maxYDistance; // the proportion of how far along in the y the point should be
-  float xDistance = maxPoint.x + (yProportion * maxXDistance);
+  //** 3. Get the Cut Point & Fill.
+    
+  float yDiff = glm::abs(triangle.vertices[2].y - triangle.vertices[0].y);
+
+  if (yDiff == 0.f) {
+    //** TODO: Draw a line.
+    cout << "Y diff is zero.\n\n";
+  } else {
+
+    /* Get y difference to left_most vertex */
+    float minorYDiff2D;
+    if (triangle.vertices[0].x < triangle.vertices[2].x) minorYDiff2D = triangle.vertices[1].y - triangle.vertices[0].y;
+    else minorYDiff2D = triangle.vertices[2].y - triangle.vertices[1].y;
+
+    float minorYDiff3D;
+    if (triangle.vertices[0].depth < triangle.vertices[2].depth) minorYDiff3D = triangle.vertices[1].y - triangle.vertices[0].y;
+    else minorYDiff3D = triangle.vertices[2].y - triangle.vertices[1].y;
+
+
+    float xDiff = glm::abs(triangle.vertices[2].x - triangle.vertices[0].x);
+    float zDiff = glm::abs(triangle.vertices[2].depth - triangle.vertices[0].depth);
+
+    float cut_x = glm::min(triangle.vertices[0].x, triangle.vertices[2].x) + ( minorYDiff2D * xDiff/yDiff );
+    float cut_z = glm::min(triangle.vertices[0].depth, triangle.vertices[2].depth) + ( minorYDiff3D * zDiff/yDiff );
+    
+    CanvasPoint cutPoint = CanvasPoint(cut_x, triangle.vertices[1].y, cut_z);
+
+    //cout << "Start Point:  x: " << triangle.vertices[0].x << " y: " << triangle.vertices[0].y << "\n"; 
+    //cout << "Middle Point:  x: " << triangle.vertices[1].x << " y: " << triangle.vertices[1].y << "\n"; 
+    //cout << "End Point:  x: " << triangle.vertices[2].x << " y: " << triangle.vertices[2].y << "\n"; 
+    //cout << "Cutting Point:  x: " << cut_x << " y: " << triangle.vertices[1].y << "\n\n\n"; 
+
+    //** 4.1. Fill the Top Flat Bottom Triangle.
+    fillFlatBottomTriangle(CanvasTriangle(triangle.vertices[0], cutPoint, triangle.vertices[1], triangle.colour));
+    //** 4.2. Fill the Bottom Flat Top Triangle.
+    fillFlatTopTriangle(CanvasTriangle(cutPoint, triangle.vertices[1], triangle.vertices[2], triangle.colour));
+  }
   
-  // interpolate to find the right depth too
-  // because of perspective projection we interpolate using 1/depth of everything
-  float inverseDepth = ((1 - yProportion) * (1 / maxPoint.depth)) + (yProportion * (1 / minPoint.depth)); // equation from notes
-  //float maxDepth = minPoint.depth - maxPoint.depth;
-  //float depth = maxPoint.depth + (yProportion * maxDepth);
-  float depth = (1 / inverseDepth);
-    
-  CanvasPoint cutterPoint(xDistance, maxPoint.y + yDistance, depth);
 
-  // the upper triangle
-  // for each row, fill it in
-  float steps = middlePoint.y - maxPoint.y; // how many rows
-  // if the two vertices are on the same y line, then just draw a line between the two
-  if (steps == 0){
-    drawLine(middlePoint, maxPoint, colour);
-  }
-  else {
-    for (int i = 0 ; i < steps ; i++){
-      // find the two points which intersect this row
-      float proportion = i / steps;
-      float maxXDiff1 = maxPoint.x - middlePoint.x;
-      float maxXDiff2 = maxPoint.x - cutterPoint.x;
-      float xStart = round(maxPoint.x - (proportion * maxXDiff1));
-      float xEnd = round(maxPoint.x - (proportion * maxXDiff2));
-      
-      // interpolating to find the right depth of both of the points
-      // point1:
-      float inverseDepthPoint1 = ((1 - proportion) * (1 / maxPoint.depth)) + (proportion * (1 / middlePoint.depth));
-      float depthPoint1 = 1 / inverseDepthPoint1;
-      //float maxDepth = maxPoint.depth - middlePoint.depth;
-      float inverseDepthPoint2 = ((1 - proportion) * (1 / maxPoint.depth)) + (proportion * (1 / cutterPoint.depth));
-      float depthPoint2 = 1 / inverseDepthPoint2;
-      // point2:
-      //float maxDepth2 = maxPoint.depth - cutterPoint.depth;
-      //depth = maxPoint.depth - (yDiff * maxDepth);
-      //float depth2 = maxPoint.depth - (yDiff * maxDepth2);
-      CanvasPoint start(xStart, maxPoint.y + i, depthPoint1);
-      CanvasPoint end(xEnd, maxPoint.y + i, depthPoint2);
-      drawLine(start,end,colour);
-    }
-  }
-    
-    
-    
-    
-    
-  
-  // the lower triangle
-  // for each row, fill it in
-  float steps2 = minPoint.y - middlePoint.y; // how many rows
-  if (steps2 == 0) {
-    drawLine(minPoint, middlePoint, colour);
-  }
-  else {
-    for (int i = steps2 ; i >= 0 ; i--){
-      // find the two points which intersect this row
-      float proportion = 1 - (i / steps2);
-      float maxXDiff1 = minPoint.x - middlePoint.x;
-      float maxXDiff2 = minPoint.x - cutterPoint.x;
-      float xStart = round(minPoint.x - (proportion * maxXDiff1));
-      float xEnd = round(minPoint.x - (proportion * maxXDiff2));
-      
-      // interpolating to find the right depth
-      // point1:
-      float inverseDepthPoint1 = ((1 - proportion) * (1 / minPoint.depth)) + (proportion * middlePoint.depth);
-      float depthPoint1 = 1 / inverseDepthPoint1;
-      // point2:
-      float inverseDepthPoint2 = ((1 - proportion) * (1 / minPoint.depth)) + (proportion * cutterPoint.depth);
-      float depthPoint2 = 1 / inverseDepthPoint2;
-      //maxDepth = minPoint.depth - middlePoint.depth;
-      //float maxDepth2 = minPoint.depth - cutterPoint.depth;
-      //depth = minPoint.depth - (yDiff * maxDepth);
-      //float depth2 = minPoint.depth - (yDiff * maxDepth2);
-      CanvasPoint start(xStart, cutterPoint.y + i, depthPoint1);
-      CanvasPoint end(xEnd, cutterPoint.y + i, depthPoint2);
-      drawLine(start,end,colour);
-    }
-  }
-  /*
-  // this code draws the outline of the triangle ontop of the filled triangle to make sure it is correct
-  drawLine(point1,point2,Colour (255,255,255));
-  drawLine(point2,point3,Colour (255,255,255));
-  drawLine(point3,point1,Colour (255,255,255));
-  drawLine(points[1],cutterPoint,Colour (255,255,255));
-  */
+  return;
 }
 
 
@@ -702,8 +711,6 @@ vec3 getVertex(string inputLine){
   return output;
 }
 
-
-
 // given a line in the form 'f 1/1 2/2 3/3' and also all vertices found so far 
 // it returns a ModelTriangle object, which contains the 3 vertices and the colour too
 ModelTriangle getFace(string inputLine, vector<vec3> vertices, Colour colour, float scalingFactor){
@@ -724,8 +731,6 @@ ModelTriangle getFace(string inputLine, vector<vec3> vertices, Colour colour, fl
 
   return output;
 }
-
-
 
 vector<ModelTriangle> readOBJ(float scalingFactor){
   // get the colours
@@ -841,6 +846,9 @@ void rasterize(vec3 cameraPosition, mat3 cameraOrientation, vector<ModelTriangle
     }
 
     drawFilledTriangle(canvasTriangle);
+    
+    cout << "Triangle: " << canvasTriangle.vertices[0].x << " " << canvasTriangle.vertices[0].y << " " << canvasTriangle.vertices[0].depth << "\n";
+      
 
   }
 }
@@ -852,7 +860,6 @@ void initializeDepthMap(){
     depthMap[i] = numeric_limits<float>::infinity();
   }
 }
-
 
 
 void updateView(vec3 cameraPosition, mat3 cameraOrientation, string input){

@@ -189,7 +189,6 @@ void fillFlatBottomTriangle(CanvasTriangle triangle) {
 
   return;
 }
-
 void fillFlatTopTriangle(CanvasTriangle triangle) {
   //Assumption: last two vertices represent the flat bottom.
   //Assumption: last two y values are both the same.
@@ -213,7 +212,6 @@ void fillFlatTopTriangle(CanvasTriangle triangle) {
 
   return;
 }
-
 void drawFilledTriangle(CanvasTriangle triangle){
   
   //** 1. Draw outline.
