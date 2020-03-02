@@ -27,15 +27,13 @@ vector<string> separateLine(string inputLine){
   return output;
 }
 
-// given a string in form 'v 12 5 4' it returns (12,5,4)
+// given a string in form 'v 12 5 4' -> return vec3(12,5,4)
 vec3 getVertex(string inputLine){
-  vector<string> points = separateLine(inputLine);
-  vec3 output;
-  output[0] = stof(points[1]); // it is points[1] as the first element is 'v'
-  output[1] = stof(points[2]);
-  output[2] = stof(points[3]);
-  return output;
+  string *s = split(inputLine, ' ');
+  return vec3(stof(s[1]), stof(s[2]), stof(s[3]));
 }
+
+
 // this function reads in an OBJ material file and stores it in a vector of Colour objects, so an output may look like:
 // [['Red','1','0','0'] , ['Green','0','1','0']]
 vector<Colour> readOBJMTL(string filename){
@@ -92,60 +90,52 @@ ModelTriangle getFace(string inputLine, vector<vec3> vertices, Colour colour, fl
 
 
 vector<ModelTriangle> readOBJ(string objFileName, string mtlFileName, float scalingFactor){
-  // get the colours
+
   vector<Colour> colours = readOBJMTL(mtlFileName);
 
-  // where we store all the vertices and faces
   vector<vec3> vertices;
   vector<ModelTriangle> faces;
   
-  // open the obj file and then go through each line storing it in a string
-  string line;
+  // Attempt to open OBJFile.
   ifstream myfile(objFileName);
 
   // if we cannot open the file, print an error
-  if (myfile.is_open() == 0){
-    cout << "Unable to open file" << "\n";
-  }
+  if (myfile.is_open() == 0) cout << "Unable to open file" << "\n";
+  
 
-  // this is where we will save the correct colour for each face once found
-  Colour colour (255,255,255);
+  Colour currentCol (255,255,255);
 
+  string line; //used as buffer for ifstream.
 
-  // while we have a new line, get it
   while (getline(myfile, line)){
-    // if the line starts with 'usemtl', then we retrieve the new colour and use this colour until we get a new one
     if (line.find("usemtl") == 0){
+      //Material: retrieve the new colour and use this colour until we get a new one.
       vector<string> colourVector = separateLine(line);
       string colourName = colourVector[1];
       
-      // now go through each of the colours we have saved until we find it
+      //Find the colour in list of saved colours.
       int n = colours.size();
       for (int i = 0 ; i < n ; i++){
         Colour col = colours[i];
         if (colours[i].name == colourName){
-          colour = colours[i];
-          break; // can stop once we have found it
+          currentCol = colours[i];
+          break;
         }
       }
     }
-
-    // if we have a vertex, then put it in a vec3 and store it with all other vertices
     else if (line.find('v') == 0){
+      //Vertex: put it in a vec3 and store it with all other vertices.
       vec3 vertex = getVertex(line);
       vertex = vertex * scalingFactor;
       vertices.push_back(vertex);
     }
-
-    // if we have a face, then get the corresponding vertices and store it as a ModelTriangle object, then add it to the collection of faces
     else if (line.find('f') == 0){
-      ModelTriangle triangle = getFace(line, vertices, colour, scalingFactor);
-      faces.push_back(triangle);
+      //Face: get the corresponding vertices and store it as ModelTriangle object into the collection of faces.
+      faces.push_back(getFace(line, vertices, currentCol, scalingFactor)); 
     }
   }
-  //cout << "Printing the faces: \n";
-  //for (int i = 0 ; i < faces.size() ; i++){
-  //  cout << faces[i] << "\n";
-  //}
+
+  myfile.close();
+
   return faces;
 }
