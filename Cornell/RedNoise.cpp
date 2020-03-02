@@ -44,7 +44,7 @@ int main(int argc, char* argv[]) {
   window.clearPixels();
   initializeDepthMap();
 
-  vector<ModelTriangle> objFaces = readOBJ("cornell-box.obj", "cornell-box.mtl", 1.f);
+  vector<ModelTriangle> objFaces = readOBJ("1_underlap.obj", "cornell-box.mtl", 1.f);
   rasterize(cameraPosition, cameraOrientation, objFaces);
 
   //** Draw a stroked triangle.
