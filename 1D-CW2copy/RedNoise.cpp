@@ -10,8 +10,8 @@
 using namespace std;
 using namespace glm;
 
-#define WIDTH 640
-#define HEIGHT 480
+#define WIDTH 640//640
+#define HEIGHT 480//480
 
 
 /* STRUCTURE - ImageFile */
@@ -109,22 +109,18 @@ void handleEvent(SDL_Event event)
   if(event.type == SDL_KEYDOWN) {
     if(event.key.keysym.sym == SDLK_LEFT){
       cout << "LEFT" << endl;
-      window.clearPixels();
       updateView(cameraPosition, cameraOrientation, "left");
     }
     else if(event.key.keysym.sym == SDLK_RIGHT){
       cout << "RIGHT" << endl;
-      window.clearPixels();
       updateView(cameraPosition, cameraOrientation, "right");
     }
     else if(event.key.keysym.sym == SDLK_UP){
       cout << "UP" << endl;
-      window.clearPixels();
       updateView(cameraPosition, cameraOrientation, "up");
     }
     else if(event.key.keysym.sym == SDLK_DOWN){
       cout << "DOWN" << endl;
-      window.clearPixels();
       updateView(cameraPosition, cameraOrientation, "down");
     }
     else if(event.key.keysym.sym == SDLK_u) drawRandomTriangle();
@@ -187,19 +183,22 @@ void drawLine(CanvasPoint start, CanvasPoint end, Colour colour) {
     for (int i = 0 ; i <= numberOfSteps ; i++){
       int x = round(start.x + (i * stepSizeX));
       int y = round(start.y + (i * stepSizeY));
-      int index = (WIDTH*y) + x; // the index for the position of this pixel in the depth map
+      int index = (WIDTH*(y)) + x; // the index for the position of this pixel in the depth map
     
       // interpolate to find the current depth of the line
       float proportion = i / numberOfSteps;
       float inverseDepth = ((1 - proportion) * (1 / start.depth)) + (proportion * (1 / end.depth)); // got this equation from notes
       float depth = 1 / inverseDepth;
-      
+      //cout << "X: " << x << " Y: " << y << ".. index: " << index << "\n";
       // only set the pixel colour if it is the closest object to the camera
-      if (depth < depthMap[index]){
-        window.setPixelColour(x,y,col);
-        depthMap[index] = depth;
+      if (x > 0 && y > 0 ) {
+        if (x < WIDTH && y< HEIGHT) {
+          if (depth < depthMap[index]){
+            window.setPixelColour(x,y,col);
+            depthMap[index] = depth;
+          }
+        }
       }
-      
       
     }
   }
@@ -655,6 +654,7 @@ vector<ModelTriangle> readOBJ(float scalingFactor){
 
 
 void rasterize(vector<ModelTriangle> faces){
+  cout << "AFTER_AFTER: [" << cameraPosition[0] << ", " << cameraPosition[1] << ", " << cameraPosition [2] << "]\n";
 
   // for each face
   for (int i = 0 ; i < faces.size() ; i++){
@@ -685,6 +685,7 @@ void rasterize(vector<ModelTriangle> faces){
         float xPixel = xNormalised * WIDTH;
         float yPixel = yNormalised * HEIGHT;
 
+        /*
         // if the pixel goes off screen
         if (xPixel < 0){
           xPixel = 0;
@@ -698,6 +699,7 @@ void rasterize(vector<ModelTriangle> faces){
         else if (yPixel > HEIGHT){
           yPixel = HEIGHT;
         }
+        */
 
         // store the pixel values as a Canvas Point and save it for this triangle
         canvasTriangle.vertices[j] = CanvasPoint(xPixel, yPixel, depth); // we save the depth of the 2D point too
@@ -720,13 +722,15 @@ void initializeDepthMap(){
 
 
 
-void updateView(vec3 cameraPosition, mat3 cameraOrientation, string input){
+void updateView(vec3 camPosition, mat3 cameraOrientation, string input){
 
+  initializeDepthMap();
   window.clearPixels();
   vec3 direction (0, 0, 0);
 
   if (input == "up"){
     direction = cameraUp;
+    cout << "up" << "\n";
   }
 
   else if (input == "down"){
@@ -742,9 +746,13 @@ void updateView(vec3 cameraPosition, mat3 cameraOrientation, string input){
   }
   
   //direction = normalize(direction);
-  //cameraPosition = cameraPosition + direction;
 
+  cout << "dir: " << direction[0] << direction [1] << direction [2] << "\n";
+  cout << "BEFORE: [" << cameraPosition[0] << ", " << cameraPosition[1] << ", " << cameraPosition [2] << "]\n";
+  cameraPosition = cameraPosition + direction;  
+  cout << "AFTER: [" << cameraPosition[0] << ", " << cameraPosition[1] << ", " << cameraPosition [2] << "]\n";
   rasterize(faces);
+
 
 }
 
