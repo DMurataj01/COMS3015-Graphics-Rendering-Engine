@@ -48,6 +48,7 @@ void updateView(string input);
 /* FUNCTION Declarations */
 ImageFile readImage(string fileName);
 void renderImage(ImageFile imageFile);
+void rotateView(string inputString);
 
 
 
@@ -123,6 +124,22 @@ void handleEvent(SDL_Event event)
       cout << "DOWN" << endl;
       updateView("down");
     }
+    else if(event.key.keysym.sym == SDLK_a){
+      cout << "PAN RIGHT" << endl;
+      rotateView("panRight");
+    }
+    else if(event.key.keysym.sym == SDLK_s){
+      cout << "PAN LEFT" << endl;
+      rotateView("panLeft");
+    }
+    else if(event.key.keysym.sym == SDLK_w){
+      cout << "TILT DOWN" << endl;
+      rotateView("tiltDown");
+    }
+    else if(event.key.keysym.sym == SDLK_z){
+      cout << "TILT UP" << endl;
+      rotateView("tiltUp");
+    }
     else if(event.key.keysym.sym == SDLK_u) drawRandomTriangle();
     else if(event.key.keysym.sym == SDLK_f) drawRandomFilledTriangle();
     else if(event.key.keysym.sym == SDLK_t) test();
@@ -181,6 +198,7 @@ void drawLine(CanvasPoint start, CanvasPoint end, Colour colour) {
 
     // for each pixel across
     for (int i = 0 ; i <= numberOfSteps ; i++){
+      
       int x = round(start.x + (i * stepSizeX));
       int y = round(start.y + (i * stepSizeY));
       int index = (WIDTH*(y)) + x; // the index for the position of this pixel in the depth map
@@ -199,7 +217,6 @@ void drawLine(CanvasPoint start, CanvasPoint end, Colour colour) {
           }
         }
       }
-      
     }
   }
 }
@@ -654,7 +671,6 @@ vector<ModelTriangle> readOBJ(float scalingFactor){
 
 
 void rasterize(vector<ModelTriangle> faces){
-  cout << "AFTER_AFTER: [" << cameraPosition[0] << ", " << cameraPosition[1] << ", " << cameraPosition [2] << "]\n";
 
   // for each face
   for (int i = 0 ; i < faces.size() ; i++){
@@ -746,15 +762,65 @@ void updateView(string input){
   }
   
   //direction = normalize(direction);
-
-  cout << "dir: " << direction[0] << direction [1] << direction [2] << "\n";
-  cout << "BEFORE: [" << cameraPosition[0] << ", " << cameraPosition[1] << ", " << cameraPosition [2] << "]\n";
-  cameraPosition = cameraPosition + direction;  
-  cout << "AFTER: [" << cameraPosition[0] << ", " << cameraPosition[1] << ", " << cameraPosition [2] << "]\n";
+  cameraPosition = cameraPosition + direction;
   rasterize(faces);
-
-
 }
+
+void rotateView(string inputString){
+
+  initializeDepthMap();
+  window.clearPixels();
+
+  vec3 col1 (0,0,0);
+  vec3 col2 (0,0,0);
+  vec3 col3 (0,0,0);
+
+  if (inputString == "rollRight"){
+    float alpha = -0.5;
+    col1 = vec3 (cos(alpha), sin(alpha), 0);
+    col2 = vec3 (-sin(alpha), cos(alpha), 0);
+    col3 = vec3 (0, 0, 1);
+  }
+
+  else if (inputString == "rollLeft"){
+    float alpha = 0.5;
+    col1 = vec3 (cos(alpha), sin(alpha), 0);
+    col2 = vec3 (-sin(alpha), cos(alpha), 0);
+    col3 = vec3 (0, 0, 1);
+  }
+
+  else if (inputString == "panLeft"){
+    float beta = 0.5;
+    col1 = vec3 (cos(beta), 0, -sin(beta));
+    col2 = vec3 (0, 1, 0);
+    col3 = vec3 (sin(beta), 0, cos(beta));
+  }
+
+  else if (inputString == "panRight"){
+    float beta = -0.5;
+    col1 = vec3 (cos(beta), 0, -sin(beta));
+    col2 = vec3 (0, 1, 0);
+    col3 = vec3 (sin(beta), 0, cos(beta));
+  }
+  else if (inputString == "tiltDown"){
+    float gamma = 0.5;
+    col1 = vec3 (1, 0, 0);
+    col2 = vec3 (0, cos(gamma), sin(gamma));
+    col3 = vec3 (0, -sin(gamma), cos(gamma));
+  }
+
+  else if (inputString == "tiltUp"){
+    float gamma = -0.5;
+    col1 = vec3 (1, 0, 0);
+    col2 = vec3 (0, cos(gamma), sin(gamma));
+    col3 = vec3 (0, -sin(gamma), cos(gamma));
+  }
+  
+  mat3 rotation (col1, col2, col3);
+  cameraOrientation = cameraOrientation * rotation;
+  rasterize(faces);
+}
+
 
 
 
