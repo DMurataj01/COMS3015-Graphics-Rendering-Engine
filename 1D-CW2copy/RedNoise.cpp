@@ -44,7 +44,7 @@ ModelTriangle getFace(string inputLine, vector<vec3> vertices, Colour colour, fl
 vector<ModelTriangle> readOBJ(float scalingFactor);
 void rasterize(vector<ModelTriangle> faces);
 void initializeDepthMap();
-void updateView(vec3 cameraPosition, mat3 cameraOrientation, string input);
+void updateView(string input);
 /* FUNCTION Declarations */
 ImageFile readImage(string fileName);
 void renderImage(ImageFile imageFile);
@@ -109,19 +109,19 @@ void handleEvent(SDL_Event event)
   if(event.type == SDL_KEYDOWN) {
     if(event.key.keysym.sym == SDLK_LEFT){
       cout << "LEFT" << endl;
-      updateView(cameraPosition, cameraOrientation, "left");
+      updateView("left");
     }
     else if(event.key.keysym.sym == SDLK_RIGHT){
       cout << "RIGHT" << endl;
-      updateView(cameraPosition, cameraOrientation, "right");
+      updateView("right");
     }
     else if(event.key.keysym.sym == SDLK_UP){
       cout << "UP" << endl;
-      updateView(cameraPosition, cameraOrientation, "up");
+      updateView("up");
     }
     else if(event.key.keysym.sym == SDLK_DOWN){
       cout << "DOWN" << endl;
-      updateView(cameraPosition, cameraOrientation, "down");
+      updateView("down");
     }
     else if(event.key.keysym.sym == SDLK_u) drawRandomTriangle();
     else if(event.key.keysym.sym == SDLK_f) drawRandomFilledTriangle();
@@ -722,7 +722,7 @@ void initializeDepthMap(){
 
 
 
-void updateView(vec3 camPosition, mat3 cameraOrientation, string input){
+void updateView(string input){
 
   initializeDepthMap();
   window.clearPixels();
