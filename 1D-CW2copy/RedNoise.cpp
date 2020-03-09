@@ -49,6 +49,9 @@ void updateView(string input);
 ImageFile readImage(string fileName);
 void renderImage(ImageFile imageFile);
 void rotateView(string inputString);
+void lookAt(vec3 point);
+vec3 findCentreOfScene();
+void test2();
 
 
 
@@ -143,6 +146,7 @@ void handleEvent(SDL_Event event)
     else if(event.key.keysym.sym == SDLK_u) drawRandomTriangle();
     else if(event.key.keysym.sym == SDLK_f) drawRandomFilledTriangle();
     else if(event.key.keysym.sym == SDLK_t) test();
+    else if(event.key.keysym.sym == SDLK_y) test2();
   }
   else if(event.type == SDL_MOUSEBUTTONDOWN) cout << "MOUSE CLICKED" << endl;
 }
@@ -746,7 +750,6 @@ void updateView(string input){
 
   if (input == "up"){
     direction = cameraUp;
-    cout << "up" << "\n";
   }
 
   else if (input == "down"){
@@ -823,10 +826,53 @@ void rotateView(string inputString){
 
 
 
+void lookAt(vec3 point){
+  initializeDepthMap();
+  window.clearPixels();
+
+  vec3 direction = point - cameraPosition;
+  cameraForward = -direction;
+  vec3 randomVector (0,0,1);
+  cameraRight = glm::cross(randomVector, cameraForward);
+  cameraUp = glm::cross(cameraForward, cameraRight);
+  cameraForward = normalize(cameraForward);
+  cameraRight = normalize(cameraRight);
+  cameraUp = normalize(cameraUp);
+  mat3 cameraOrientation (cameraRight, cameraUp, cameraForward);
+
+  rasterize(faces);
+}
+
+// this function averages all the vertices in the scene to find the centre of the scene
+vec3 findCentreOfScene(){
+  int n = faces.size();
+  vec3 sum (0,0,0);
+  // for each face
+  for (int i = 0 ; i < n ; i++){
+    ModelTriangle face = faces[i];
+    // for each vertex
+    for (int j = 0 ; j < 3 ; j++){
+      sum = sum + face.vertices[j];
+    }
+  }
+  sum = sum / (float)(n*3);
+  return sum;
+}
+
 
 void test(){
   faces = readOBJ(1);
   rasterize(faces);
+}
+
+void printVec3(vec3 name){
+  cout << "[" << name[0] << ", " << name[1] << ", " << name[2] << "]\n";
+}
+
+void test2(){
+  vec3 centre = findCentreOfScene();
+  printVec3(centre);
+  lookAt(centre);
 }
 
 
