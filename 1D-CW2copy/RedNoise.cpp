@@ -27,6 +27,8 @@ struct ImageFile {
 
 void update();
 void handleEvent(SDL_Event event);
+void render();
+void clear();
 vector<vec3> interpolate(vec3 from, vec3 to, float numberOfValues);
 uint32_t getColour(Colour colour);
 void printVec3(vec3 input);
@@ -45,7 +47,7 @@ vector<string> separateLine(string inputLine);
 vec3 getVertex(string inputLine);
 ModelTriangle getFace(string inputLine, vector<vec3> vertices, Colour colour, float scalingFactor);
 vector<ModelTriangle> readOBJ(float scalingFactor);
-void rasterize(vector<ModelTriangle> faces);
+void rasterize();
 void initializeDepthMap();
 void updateView(string input);
 /* FUNCTION Declarations */
@@ -77,6 +79,13 @@ vector<ModelTriangle> faces;
 
 // create a global depth map
 float depthMap [WIDTH*HEIGHT];
+
+
+// this is the state of whether we are viewing wireframe, rasterized or raytraced
+string STATE;
+// press '1' for wireframe
+// press '2' for rasterized
+// press '3' for raytraced
 
 
 // initial camera parameters
@@ -159,12 +168,45 @@ void handleEvent(SDL_Event event)
     else if(event.key.keysym.sym == SDLK_t) test();
     else if(event.key.keysym.sym == SDLK_y) test2();
     else if(event.key.keysym.sym == SDLK_r) rayTest();
-    else if(event.key.keysym.sym == SDLK_c) {
-      window.clearPixels();
-      initializeDepthMap();
+    else if(event.key.keysym.sym == SDLK_c) clear();
+    // pressing 1 changes to wireframe mode
+    else if(event.key.keysym.sym == SDLK_1){
+      STATE = "wireframe";
+      clear();
+      render();
+    }
+    // pressing 2 changes to rasterize mode
+    else if(event.key.keysym.sym == SDLK_2){
+      STATE = "rasterize";
+      clear();
+      render();
+    }
+    // pressing 3 changes to raytrace mode
+    else if(event.key.keysym.sym == SDLK_3){
+      STATE = "raytrace";
+      clear();
+      render();
     }
   }
   else if(event.type == SDL_MOUSEBUTTONDOWN) cout << "MOUSE CLICKED" << endl;
+}
+
+
+
+// this function renders the scene, depending on what the value of STATE is (so whether we use wireframe, rasterize or raytrace)
+void render(){
+  if (STATE == "raytrace"){
+    raytracer();
+  }
+  else {
+    rasterize();
+  }
+}
+
+
+void clear(){
+  window.clearPixels();
+  initializeDepthMap();
 }
 
 
@@ -690,7 +732,7 @@ vector<ModelTriangle> readOBJ(float scalingFactor){
 
 
 
-void rasterize(vector<ModelTriangle> faces){
+void rasterize(){
   // for each face
   for (int i = 0 ; i < faces.size() ; i++){
     ModelTriangle triangle = faces[i];
@@ -702,7 +744,7 @@ void rasterize(vector<ModelTriangle> faces){
       vec3 vertex = triangle.vertices[j];
       
       // change from world coordinates to camera
-      vec3 vertexCSpace = (cameraOrientation * vertex) - cameraPosition; // CSpace means camera space
+      vec3 vertexCSpace = cameraPosition - (cameraOrientation * vertex); // CSpace means camera space
       
       // save the depth of this point for later
       float depth = vertexCSpace[2];
@@ -712,7 +754,7 @@ void rasterize(vector<ModelTriangle> faces){
       if (depth > 0){
         float proportion = focalLength / depth;
         vec3 vertexProjected = vertexCSpace * proportion; // the coordinates of the 3D point (in camera space) projected onto the image plane
-        float x = vertexProjected[0];
+        float x = -vertexProjected[0];
         float y = vertexProjected[1];
 
         float xNormalised = (x / imageWidth) + 0.5;
@@ -742,8 +784,12 @@ void rasterize(vector<ModelTriangle> faces){
       }
     }
 
-    drawFilledTriangle(canvasTriangle);
-
+    if (STATE == "wireframe"){
+      drawStrokedTriangle(canvasTriangle);
+    }
+    else {
+      drawFilledTriangle(canvasTriangle);
+    }
   }
 }
 
@@ -781,7 +827,7 @@ void updateView(string input){
   
   //direction = normalize(direction);
   cameraPosition = cameraPosition + direction;
-  rasterize(faces);
+  rasterize();
 }
 
 void rotateView(string inputString){
@@ -836,7 +882,7 @@ void rotateView(string inputString){
   
   mat3 rotation (col1, col2, col3);
   cameraOrientation = cameraOrientation * rotation;
-  rasterize(faces);
+  rasterize();
 }
 
 
@@ -855,7 +901,7 @@ void lookAt(vec3 point){
   cameraUp = normalize(cameraUp);
   cameraOrientation = mat3 (cameraRight, cameraUp, cameraForward);
 
-  rasterize(faces);
+  rasterize();
 }
 
 // this function averages all the vertices in the scene to find the centre of the scene
@@ -877,7 +923,7 @@ vec3 findCentreOfScene(){
 
 void test(){
   faces = readOBJ(1);
-  rasterize(faces);
+  render();
 }
 
 void printVec3(vec3 name){
