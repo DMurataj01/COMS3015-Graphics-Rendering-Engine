@@ -100,6 +100,11 @@ float imageWidth = 2;
 float imageHeight = 2;
 
 
+// light parameters
+vec3 lightPosition (-0.2, 5, -3); // this is roughly the centre of the white light box
+float lightStrength 10;
+
+
 
 int main(int argc, char* argv[])
 {
@@ -993,32 +998,9 @@ void raytracer(){
 }
 
 
-/*
-// THIS IS PROBABY WRONG
-// DO NOT UNDERSTAND IT YET
-// given the pixel in pixel coordinates, this function generates the direction vector in which the ray is shot
-vec3 createRay(int i, int j){
-  vec3 start = cameraPosition;
 
-  float a = WIDTH * (((float)(j+0.5)/imageWidth) - 0.5);
-  float b = HEIGHT * (((float)(i+0.5)/imageHeight) - 0.5);
-  // converting to 3D coordinates of the pixel
-  vec3 pixel = start + (focalLength * (-cameraForward)) + (a*cameraRight) - (b*cameraUp);
-  vec3 direction = pixel - start;
-  direction = normalize(direction);
-  return direction;
-}
-*/
-
+// given the pixel coordinates, this function calculates the direction fot he ray (in vector format)
 vec3 createRay(int i, int j){
-  /*
-  // equations from scratchapixel.com
-  float xNormalised = ((float)i + 0.5) / imageWidth;
-  float yNormalised = ((float)j + 0.5) / imageHeight;
-  float aspectRatio = imageWidth / imageHeight;
-  float pixelX = ((2 * xNormalised) - 1) * aspectRatio;
-  float pixelY = 1 - (2 * yNormalised);
-  */
   vec2 pixel (i,j);
   pixel = pixel + vec2(0.5,0.5);
   vec2 distanceFromCentre = pixel - vec2(WIDTH/2, HEIGHT/2); // distance from the pixel to the centre of the image plane in terms of number of pixels
@@ -1032,6 +1014,10 @@ vec3 createRay(int i, int j){
   return direction;
 }
 
+
+// this function takes the ray and checks with all the faces to see which ones it intersects
+// it outputs a vector of vectors - a (t,u,v) vector for each face
+// if t>0, then that means that for that particular face the ray intersects it with u and v being local coordinates for the triangle
 vector<vec3> checkForIntersections(vec3 rayDirection){
   // this is the output vector, for every possible face it stores a possibleSolution
   vector<vec3> solutions;
