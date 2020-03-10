@@ -1,3 +1,6 @@
+// Note that in this code we use a left-handed coordinate system
+
+
 #include <ModelTriangle.h>
 #include <CanvasTriangle.h>
 #include <DrawingWindow.h>
@@ -10,8 +13,8 @@
 using namespace std;
 using namespace glm;
 
-#define WIDTH 640//640
-#define HEIGHT 480//480
+#define WIDTH 600//640
+#define HEIGHT 600//480
 
 
 /* STRUCTURE - ImageFile */
@@ -52,6 +55,11 @@ void rotateView(string inputString);
 void lookAt(vec3 point);
 vec3 findCentreOfScene();
 void test2();
+void raytracer();
+vec3 createRay(int i, int j);
+void rayTest();
+vector<vec3> checkForIntersections(vec3 rayDirection);
+int closestIntersection(vector<vec3> solutions);
 
 
 
@@ -72,12 +80,15 @@ float depthMap [WIDTH*HEIGHT];
 
 
 // initial camera parameters
-vec3 cameraPosition (0,-2,-3.5);
+vec3 cameraPosition (0,2,3.5);//(0,-2,-3.5);
 vec3 cameraRight (1,0,0);
-vec3 cameraUp (0,-1,0);
-vec3 cameraForward (0,0,-1);
-mat3 cameraOrientation (cameraRight, cameraUp, cameraForward);
-float focalLength = WIDTH / 2;
+vec3 cameraUp (0,1,0);//(0,-1,0);
+vec3 cameraForward (0,0,1);//(0,0,-1); // this is actually backwards
+mat3 cameraOrientation (cameraRight, cameraUp, cameraForward); // this creates a matrix with each entry as separate columns
+//float focalLength = WIDTH / 2;
+float focalLength = 1;
+float imageWidth = 2;
+float imageHeight = 2;
 
 
 
@@ -147,6 +158,11 @@ void handleEvent(SDL_Event event)
     else if(event.key.keysym.sym == SDLK_f) drawRandomFilledTriangle();
     else if(event.key.keysym.sym == SDLK_t) test();
     else if(event.key.keysym.sym == SDLK_y) test2();
+    else if(event.key.keysym.sym == SDLK_r) rayTest();
+    else if(event.key.keysym.sym == SDLK_c) {
+      window.clearPixels();
+      initializeDepthMap();
+    }
   }
   else if(event.type == SDL_MOUSEBUTTONDOWN) cout << "MOUSE CLICKED" << endl;
 }
@@ -675,7 +691,6 @@ vector<ModelTriangle> readOBJ(float scalingFactor){
 
 
 void rasterize(vector<ModelTriangle> faces){
-
   // for each face
   for (int i = 0 ; i < faces.size() ; i++){
     ModelTriangle triangle = faces[i];
@@ -700,8 +715,8 @@ void rasterize(vector<ModelTriangle> faces){
         float x = vertexProjected[0];
         float y = vertexProjected[1];
 
-        float xNormalised = (x / WIDTH) + 0.5;
-        float yNormalised = (y / HEIGHT) + 0.5;
+        float xNormalised = (x / imageWidth) + 0.5;
+        float yNormalised = (y / imageHeight) + 0.5;
         float xPixel = xNormalised * WIDTH;
         float yPixel = yNormalised * HEIGHT;
 
@@ -831,14 +846,14 @@ void lookAt(vec3 point){
   window.clearPixels();
 
   vec3 direction = point - cameraPosition;
-  cameraForward = -direction;
-  vec3 randomVector (0,0,1);
+  cameraForward = direction;
+  vec3 randomVector (0,-1,0);
   cameraRight = glm::cross(randomVector, cameraForward);
   cameraUp = glm::cross(cameraForward, cameraRight);
   cameraForward = normalize(cameraForward);
   cameraRight = normalize(cameraRight);
   cameraUp = normalize(cameraUp);
-  mat3 cameraOrientation (cameraRight, cameraUp, cameraForward);
+  cameraOrientation = mat3 (cameraRight, cameraUp, cameraForward);
 
   rasterize(faces);
 }
@@ -888,4 +903,143 @@ void renderImage(ImageFile imageFile){
     window.setPixelColour(col, row, colour);
   }
   cout << "\nImage render complete.\n";
+}
+
+
+
+
+
+
+
+////////////////////////////////////////////////////////
+// RAYTRACING CODE
+////////////////////////////////////////////////////////
+
+
+
+// this runs when you press the letter 'r' - used for testing functions
+void rayTest(){
+  faces = readOBJ(1);
+  raytracer();
+}
+
+// this will be the main function for the raytracer
+void raytracer(){
+  // for each pixel
+  for (int i = 0 ; i < WIDTH ; i++){
+    for (int j = 0 ; j < HEIGHT ; j++){
+
+      // send a ray
+      //vec3 point = cameraPosition;
+      vec3 rayDirection = createRay(i,j);
+
+      // does this ray intersect any of the faces?
+      vector<vec3> solutions = checkForIntersections(rayDirection);
+      
+      int closestFaceIndex = closestIntersection(solutions);
+
+      if (closestFaceIndex > -1){
+        Colour colour = faces[closestFaceIndex].colour;
+        window.setPixelColour(i, j, getColour(colour));
+      }
+    }
+  }
+}
+
+
+/*
+// THIS IS PROBABY WRONG
+// DO NOT UNDERSTAND IT YET
+// given the pixel in pixel coordinates, this function generates the direction vector in which the ray is shot
+vec3 createRay(int i, int j){
+  vec3 start = cameraPosition;
+
+  float a = WIDTH * (((float)(j+0.5)/imageWidth) - 0.5);
+  float b = HEIGHT * (((float)(i+0.5)/imageHeight) - 0.5);
+  // converting to 3D coordinates of the pixel
+  vec3 pixel = start + (focalLength * (-cameraForward)) + (a*cameraRight) - (b*cameraUp);
+  vec3 direction = pixel - start;
+  direction = normalize(direction);
+  return direction;
+}
+*/
+
+vec3 createRay(int i, int j){
+  /*
+  // equations from scratchapixel.com
+  float xNormalised = ((float)i + 0.5) / imageWidth;
+  float yNormalised = ((float)j + 0.5) / imageHeight;
+  float aspectRatio = imageWidth / imageHeight;
+  float pixelX = ((2 * xNormalised) - 1) * aspectRatio;
+  float pixelY = 1 - (2 * yNormalised);
+  */
+  vec2 pixel (i,j);
+  pixel = pixel + vec2(0.5,0.5);
+  vec2 distanceFromCentre = pixel - vec2(WIDTH/2, HEIGHT/2); // distance from the pixel to the centre of the image plane in terms of number of pixels
+  vec2 pixelSize = vec2 (imageWidth/WIDTH , imageHeight / HEIGHT); // the size of a pixel in world coordinates
+  float horizontalDistance = distanceFromCentre[0] * pixelSize[0];
+  float verticalDistance = distanceFromCentre[1] * pixelSize[1];
+  vec3 imagePlaneCentre = cameraPosition - (focalLength * cameraForward); // this is the 3D coordinate of the centre of the image plane
+  vec3 point = imagePlaneCentre + (horizontalDistance * cameraRight) + (verticalDistance * (-cameraUp));
+  vec3 direction = point - cameraPosition;
+  direction = normalize(direction);
+  return direction;
+}
+
+vector<vec3> checkForIntersections(vec3 rayDirection){
+  // this is the output vector, for every possible face it stores a possibleSolution
+  vector<vec3> solutions;
+  // for each face
+  int n = faces.size();
+  for (int i = 0 ; i < n ; i++){
+    ModelTriangle triangle = faces[i];
+    // got the following code from the worksheet
+    vec3 e0 = triangle.vertices[1] - triangle.vertices[0];
+    vec3 e1 = triangle.vertices[2] - triangle.vertices[0];
+    vec3 SPVector = cameraPosition - triangle.vertices[0];
+    mat3 DEMatrix(-rayDirection, e0, e1);
+    vec3 possibleSolution = glm::inverse(DEMatrix) * SPVector;
+    solutions.push_back(possibleSolution);
+  }
+  return solutions;
+}
+
+
+// this function gives back the index of the closest face for a particular ray
+int closestIntersection(vector<vec3> solutions){
+  float closestT = 1000000000;
+  int closestIndex = -1;
+  // for each possible solution / for each face
+  int n = solutions.size();
+  for (int i = 0 ; i < n ; i++){
+    
+    ModelTriangle triangle = faces[i];
+    vec3 possibleSolution = solutions[i];
+    float t = possibleSolution[0];
+    float u = possibleSolution[1];
+    float v = possibleSolution[2];
+    
+    // if it is actually a solution
+    bool bool1 = (t > 0);
+    bool bool2 = (0 <= u) && (u <= 1);
+    bool bool3 = (0 <= v) && (v <= 1);
+    bool bool4 = (u + v) <= 1;
+    if (bool1 && bool2 && bool3 && bool4){
+      
+      /*
+      vec3 p0 = triangle.vertices[0];
+      vec3 p1 = triangle.vertices[1];
+      vec3 p2 = triangle.vertices[2];
+      vec3 point = p0 + (u * (p1 - p0)) + (v * (p2 - p0));
+      vec3 distance = point - cameraPosition;
+      */
+      
+      // is it closer than what we currently have?
+      if (t < closestT){
+        closestT = t;
+        closestIndex = i;
+      }
+    }
+  }
+  return closestIndex;
 }
