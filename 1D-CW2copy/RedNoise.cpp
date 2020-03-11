@@ -9,6 +9,7 @@
 #include <fstream>
 #include <vector>
 #include <sstream>
+#include <RayTriangleIntersection.h>
 
 using namespace std;
 using namespace glm;
@@ -61,7 +62,9 @@ void raytracer();
 vec3 createRay(int i, int j);
 void rayTest();
 vector<vec3> checkForIntersections(vec3 rayDirection);
-int closestIntersection(vector<vec3> solutions);
+RayTriangleIntersection closestIntersection(vector<vec3> solutions);
+float intensityDropOff(vec3 point);
+float angleOfIncidence(RayTriangleIntersection intersection);
 
 
 
@@ -96,13 +99,13 @@ vec3 cameraForward (0,0,1);//(0,0,-1); // this is actually backwards
 mat3 cameraOrientation (cameraRight, cameraUp, cameraForward); // this creates a matrix with each entry as separate columns
 //float focalLength = WIDTH / 2;
 float focalLength = 1;
-float imageWidth = 2;
-float imageHeight = 2;
+float imageWidth = 2; // WIDTH
+float imageHeight = 2; // HEIGHT
 
 
 // light parameters
-vec3 lightPosition (-0.2, 5, -3); // this is roughly the centre of the white light box
-float lightStrength 10;
+vec3 lightPosition (-0.234011, 5, -3); // this is roughly the centre of the white light box
+float lightIntensity = 20;
 
 
 
@@ -987,10 +990,21 @@ void raytracer(){
       // does this ray intersect any of the faces?
       vector<vec3> solutions = checkForIntersections(rayDirection);
       
-      int closestFaceIndex = closestIntersection(solutions);
+      RayTriangleIntersection closest = closestIntersection(solutions);
 
-      if (closestFaceIndex > -1){
-        Colour colour = faces[closestFaceIndex].colour;
+      if (closest.distanceFromCamera >= 0){
+        Colour colour = closest.intersectedTriangle.colour;
+        float intensity = intensityDropOff(closest.intersectionPoint) * angleOfIncidence(closest);
+        if (intensity < 0.1){
+          intensity = 0.1;
+        }
+        colour.red = colour.red * intensity;
+        colour.green = colour.green * intensity;
+        colour.blue = colour.blue * intensity;
+        // clipping the colour for if it goes above 255
+        colour.red = glm::min(colour.red, 255);
+        colour.green = glm::min(colour.green, 255);
+        colour.blue = glm::min(colour.blue, 255);
         window.setPixelColour(i, j, getColour(colour));
       }
     }
@@ -1038,8 +1052,10 @@ vector<vec3> checkForIntersections(vec3 rayDirection){
 
 
 // this function gives back the index of the closest face for a particular ray
-int closestIntersection(vector<vec3> solutions){
-  float closestT = 1000000000;
+RayTriangleIntersection closestIntersection(vector<vec3> solutions){
+  RayTriangleIntersection closest; // this is where we store the closest triangle of intersection, the point it intersects and the distance
+  closest.distanceFromCamera = -1; // initialize this so we can tell when there are no intersections
+  float closestT = numeric_limits<float>::infinity();
   int closestIndex = -1;
   // for each possible solution / for each face
   int n = solutions.size();
@@ -1057,21 +1073,64 @@ int closestIntersection(vector<vec3> solutions){
     bool bool3 = (0 <= v) && (v <= 1);
     bool bool4 = (u + v) <= 1;
     if (bool1 && bool2 && bool3 && bool4){
-      
-      /*
-      vec3 p0 = triangle.vertices[0];
-      vec3 p1 = triangle.vertices[1];
-      vec3 p2 = triangle.vertices[2];
-      vec3 point = p0 + (u * (p1 - p0)) + (v * (p2 - p0));
-      vec3 distance = point - cameraPosition;
-      */
-      
       // is it closer than what we currently have?
       if (t < closestT){
         closestT = t;
         closestIndex = i;
+        
+        // calculating the point of intersection
+        vec3 p0 = triangle.vertices[0];
+        vec3 p1 = triangle.vertices[1];
+        vec3 p2 = triangle.vertices[2];
+        vec3 point = p0 + (u * (p1 - p0)) + (v * (p2 - p0));
+        vec3 d = point - cameraPosition;
+        float distance = sqrt( (d[0]*d[0]) + (d[1] * d[1]) + (d[2] * d[2]));
+        closest.intersectionPoint = point;
+        closest.distanceFromCamera = distance;
+        closest.intersectedTriangle = triangle;
       }
     }
   }
-  return closestIndex;
+  return closest;
+}
+
+
+
+
+
+
+////////////////////////////////////////////////////////
+// LIGHTING
+////////////////////////////////////////////////////////
+
+
+// given a point in the scene, this function calculates the intensity of the light
+float intensityDropOff(vec3 point){
+  vec3 d = point - lightPosition;
+  float distance = sqrt((d[0]*d[0]) + (d[1]*d[1]) + (d[2] * d[2]));
+  float intensity = lightIntensity / (2 * 3.1416 * distance * distance);
+  return intensity;
+}
+
+
+float angleOfIncidence(RayTriangleIntersection intersection){
+  ModelTriangle triangle = intersection.intersectedTriangle;
+  vec3 v0 = triangle.vertices[0];
+  vec3 v1 = triangle.vertices[1];
+  vec3 v2 = triangle.vertices[2];
+  vec3 e0 = (v1 - v0);
+  vec3 e1 = (v2 - v0);
+  vec3 normal = glm::cross(e0, e1);
+  normal = normalize(normal);
+  vec3 vectorToLight = lightPosition - intersection.intersectionPoint;
+  vectorToLight = normalize(vectorToLight);
+  float intensity = dot(normal, vectorToLight);
+  // the dot product returns 1 if they are parallel
+  // 0 if perpendicular
+  // <0 if the normal faces the other way
+  if (intensity < 0){
+    intensity = 0;
+  }
+  return (intensity);
+  cout << intensity << endl;
 }
