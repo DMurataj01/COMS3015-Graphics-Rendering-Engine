@@ -64,9 +64,11 @@ void rayTest();
 vector<vec3> checkForIntersections(vec3 rayDirection);
 RayTriangleIntersection closestIntersection(vector<vec3> solutions);
 float intensityDropOff(vec3 point);
+vec3 getNormalOfTriangle(ModelTriangle triangle);
 float angleOfIncidence(RayTriangleIntersection intersection);
 float distanceVec3(vec3 from, vec3 to);
 bool checkForShadows(vec3 point);
+float calculateSpecularLight(vec3 point, vec3 rayDirection, vec3 normal);
 
 
 
@@ -1001,11 +1003,21 @@ void raytracer(){
         bool inShadow = checkForShadows(closest.intersectionPoint);
         if (not(inShadow)){
           Colour colour = closest.intersectedTriangle.colour;
+          vec3 point = closest.intersectionPoint;
         
-          float intensity = intensityDropOff(closest.intersectionPoint) * angleOfIncidence(closest);
+          // diffuse light
+          float diffuseIntensity = intensityDropOff(point) * angleOfIncidence(closest);
+
+          // specular light
+          vec3 normal = getNormalOfTriangle(closest.intersectedTriangle);
+          float specularIntensity = calculateSpecularLight(point, rayDirection, normal);
+
+          // average the diffuse and specular intensities
+          float intensity = (diffuseIntensity + specularIntensity) / 2;
           if (intensity < 0.1){
             intensity = 0.1;
           }
+
           colour.red = colour.red * intensity;
           colour.green = colour.green * intensity;
           colour.blue = colour.blue * intensity;
@@ -1015,6 +1027,15 @@ void raytracer(){
           colour.green = glm::min(colour.green, 255);
           colour.blue = glm::min(colour.blue, 255);
         
+          window.setPixelColour(i, j, getColour(colour));
+        }
+
+        // if we are in shadow add a little bit of ambient light
+        if (inShadow){
+          Colour colour = closest.intersectedTriangle.colour;
+          colour.red = colour.red * 0.1;
+          colour.green = colour.green * 0.1;
+          colour.blue = colour.blue * 0.1;
           window.setPixelColour(i, j, getColour(colour));
         }
       }
@@ -1123,10 +1144,7 @@ float intensityDropOff(vec3 point){
 }
 
 
-// this function takes an intersection point and calculates the angle of incidence and
-// outputs an intensity value between 0 and 1
-float angleOfIncidence(RayTriangleIntersection intersection){
-  ModelTriangle triangle = intersection.intersectedTriangle;
+vec3 getNormalOfTriangle(ModelTriangle triangle){
   vec3 v0 = triangle.vertices[0];
   vec3 v1 = triangle.vertices[1];
   vec3 v2 = triangle.vertices[2];
@@ -1134,6 +1152,16 @@ float angleOfIncidence(RayTriangleIntersection intersection){
   vec3 e1 = (v2 - v0);
   vec3 normal = glm::cross(e0, e1);
   normal = normalize(normal);
+  return normal;
+}
+
+
+
+// this function takes an intersection point and calculates the angle of incidence and
+// outputs an intensity value between 0 and 1
+float angleOfIncidence(RayTriangleIntersection intersection){
+  ModelTriangle triangle = intersection.intersectedTriangle;
+  vec3 normal = getNormalOfTriangle(triangle);
   vec3 vectorToLight = lightPosition - intersection.intersectionPoint;
   vectorToLight = normalize(vectorToLight);
   float intensity = dot(normal, vectorToLight);
@@ -1143,7 +1171,7 @@ float angleOfIncidence(RayTriangleIntersection intersection){
   if (intensity < 0){
     intensity = 0;
   }
-  return (intensity);
+  return intensity;
 }
 
 
@@ -1192,4 +1220,20 @@ bool checkForShadows(vec3 point){
     }
   }
   return false;
+}
+
+
+float calculateSpecularLight(vec3 point, vec3 rayDirection, vec3 normal){
+  // got the method from the lecture slides
+  vec3 lightDirection = point - lightPosition;
+  vec3 incident = normalize(lightDirection);
+  normal = normalize(normal);
+  // equation form online
+  vec3 reflection = incident - (2 * dot(incident, normal) * normal);
+  vec3 viewerDirection = -rayDirection;
+  float intensity = dot(viewerDirection, reflection);
+  if (intensity < 0){
+    intensity = 0;
+  }
+  return intensity;
 }
