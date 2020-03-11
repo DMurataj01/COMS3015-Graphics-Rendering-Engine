@@ -65,6 +65,8 @@ vector<vec3> checkForIntersections(vec3 rayDirection);
 RayTriangleIntersection closestIntersection(vector<vec3> solutions);
 float intensityDropOff(vec3 point);
 float angleOfIncidence(RayTriangleIntersection intersection);
+float distanceVec3(vec3 from, vec3 to);
+bool checkForShadows(vec3 point);
 
 
 
@@ -105,7 +107,7 @@ float imageHeight = 2; // HEIGHT
 
 // light parameters
 vec3 lightPosition (-0.234011, 5, -3); // this is roughly the centre of the white light box
-float lightIntensity = 20;
+float lightIntensity = 40;
 
 
 
@@ -992,20 +994,29 @@ void raytracer(){
       
       RayTriangleIntersection closest = closestIntersection(solutions);
 
+      // if this ray actually intersects any faces
       if (closest.distanceFromCamera >= 0){
-        Colour colour = closest.intersectedTriangle.colour;
-        float intensity = intensityDropOff(closest.intersectionPoint) * angleOfIncidence(closest);
-        if (intensity < 0.1){
-          intensity = 0.1;
+        
+        // are we in shadow? only colour the pixel if we are not
+        bool inShadow = checkForShadows(closest.intersectionPoint);
+        if (not(inShadow)){
+          Colour colour = closest.intersectedTriangle.colour;
+        
+          float intensity = intensityDropOff(closest.intersectionPoint) * angleOfIncidence(closest);
+          if (intensity < 0.1){
+            intensity = 0.1;
+          }
+          colour.red = colour.red * intensity;
+          colour.green = colour.green * intensity;
+          colour.blue = colour.blue * intensity;
+        
+          // clipping the colour for if it goes above 255
+          colour.red = glm::min(colour.red, 255);
+          colour.green = glm::min(colour.green, 255);
+          colour.blue = glm::min(colour.blue, 255);
+        
+          window.setPixelColour(i, j, getColour(colour));
         }
-        colour.red = colour.red * intensity;
-        colour.green = colour.green * intensity;
-        colour.blue = colour.blue * intensity;
-        // clipping the colour for if it goes above 255
-        colour.red = glm::min(colour.red, 255);
-        colour.green = glm::min(colour.green, 255);
-        colour.blue = glm::min(colour.blue, 255);
-        window.setPixelColour(i, j, getColour(colour));
       }
     }
   }
@@ -1106,13 +1117,14 @@ RayTriangleIntersection closestIntersection(vector<vec3> solutions){
 
 // given a point in the scene, this function calculates the intensity of the light
 float intensityDropOff(vec3 point){
-  vec3 d = point - lightPosition;
-  float distance = sqrt((d[0]*d[0]) + (d[1]*d[1]) + (d[2] * d[2]));
+  float distance = distanceVec3(point, lightPosition);
   float intensity = lightIntensity / (2 * 3.1416 * distance * distance);
   return intensity;
 }
 
 
+// this function takes an intersection point and calculates the angle of incidence and
+// outputs an intensity value between 0 and 1
 float angleOfIncidence(RayTriangleIntersection intersection){
   ModelTriangle triangle = intersection.intersectedTriangle;
   vec3 v0 = triangle.vertices[0];
@@ -1132,5 +1144,52 @@ float angleOfIncidence(RayTriangleIntersection intersection){
     intensity = 0;
   }
   return (intensity);
-  cout << intensity << endl;
+}
+
+
+
+float distanceVec3(vec3 from, vec3 to){
+  vec3 d = from - to;
+  float a = d[0] * d[0];
+  float b = d[1] * d[1];
+  float c = d[2] * d[2];
+  return sqrt(a + b + c);
+}
+
+
+
+// this returns a true or false depending on if we are in shadow or not
+bool checkForShadows(vec3 point){
+  vec3 shadowRayDirection = lightPosition - point;
+  float distance = distanceVec3(lightPosition, point);
+  shadowRayDirection = normalize(shadowRayDirection);
+
+  // for each face, send a 'shadow ray' from the point to the light and check for intersections
+  int n = faces.size();
+  for (int i = 0 ; i < n ; i++){
+    ModelTriangle triangle = faces[i];
+    
+    // got the following code from the worksheet
+    vec3 e0 = triangle.vertices[1] - triangle.vertices[0];
+    vec3 e1 = triangle.vertices[2] - triangle.vertices[0];
+    vec3 SPVector = point - triangle.vertices[0];
+    mat3 DEMatrix(-shadowRayDirection, e0, e1);
+    vec3 possibleSolution = glm::inverse(DEMatrix) * SPVector; // this is a 1x3 vector of (t,u,v) (look at notes)
+    float t = possibleSolution[0];
+    float u = possibleSolution[1];
+    float v = possibleSolution[2];
+    
+    // if it is actually a solution
+    bool bool1 = (t > 0.0001); // this is not 0 to avoid self-intersection
+    bool bool2 = (0 <= u) && (u <= 1);
+    bool bool3 = (0 <= v) && (v <= 1);
+    bool bool4 = (u + v) <= 1;
+    bool bool5 = (t < distance); // an intersection beyond the light doesn't matter
+    // if we have an intersection then we can stop checking the other faces
+    // it is 0.000001 to avoid self intersection
+    if (bool1 && bool2 && bool3 && bool4 && bool5){
+      return true;
+    }
+  }
+  return false;
 }
