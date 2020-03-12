@@ -109,7 +109,7 @@ float imageHeight = 2; // HEIGHT
 
 // light parameters
 vec3 lightPosition (-0.234011, 5, -3); // this is roughly the centre of the white light box
-float lightIntensity = 40;
+float lightIntensity = 100;
 
 
 
@@ -745,6 +745,12 @@ vector<ModelTriangle> readOBJ(float scalingFactor){
 
 
 void rasterize(){
+  cout << "\n Forward: ";
+  printVec3(cameraForward);
+  cout << "\n Up: ";
+  printVec3(cameraUp);
+  cout << "\n Right: ";
+  printVec3(cameraRight);
   // for each face
   for (int i = 0 ; i < faces.size() ; i++){
     ModelTriangle triangle = faces[i];
@@ -905,12 +911,17 @@ void lookAt(vec3 point){
 
   vec3 direction = point - cameraPosition;
   cameraForward = direction;
-  vec3 randomVector (0,-1,0);
+  vec3 randomVector (0,1,0);
   cameraRight = glm::cross(randomVector, cameraForward);
   cameraUp = glm::cross(cameraForward, cameraRight);
-  cameraForward = normalize(cameraForward);
-  cameraRight = normalize(cameraRight);
+  
+  cameraForward = -normalize(cameraForward);
+  cameraRight = -normalize(cameraRight);
   cameraUp = normalize(cameraUp);
+
+  cout << "1: " << glm::dot(cameraForward,cameraUp)<< "\n";
+  cout << "2: " << glm::dot(cameraForward, cameraRight)<<"\n";
+  
   cameraOrientation = mat3 (cameraRight, cameraUp, cameraForward);
 
   rasterize();
@@ -1033,9 +1044,9 @@ void raytracer(){
         // if we are in shadow add a little bit of ambient light
         if (inShadow){
           Colour colour = closest.intersectedTriangle.colour;
-          colour.red = colour.red * 0.1;
-          colour.green = colour.green * 0.1;
-          colour.blue = colour.blue * 0.1;
+          colour.red = colour.red * 0.05;
+          colour.green = colour.green * 0.05;
+          colour.blue = colour.blue * 0.05;
           window.setPixelColour(i, j, getColour(colour));
         }
       }
@@ -1232,6 +1243,8 @@ float calculateSpecularLight(vec3 point, vec3 rayDirection, vec3 normal){
   vec3 reflection = incident - (2 * dot(incident, normal) * normal);
   vec3 viewerDirection = -rayDirection;
   float intensity = dot(viewerDirection, reflection);
+  // CAN CHANGE THE SPECULAR DROP OFF HERE
+  intensity = pow(intensity, 20);
   if (intensity < 0){
     intensity = 0;
   }
