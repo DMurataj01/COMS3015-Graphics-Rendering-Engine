@@ -59,6 +59,7 @@ void lookAt(vec3 point);
 vec3 findCentreOfScene();
 void test2();
 void raytracer();
+Colour solveLight(RayTriangleIntersection closest, vec3 rayDirection);
 vec3 createRay(int i, int j);
 void rayTest();
 vector<vec3> checkForIntersections(vec3 rayDirection);
@@ -1013,30 +1014,8 @@ void raytracer(){
         // are we in shadow? only colour the pixel if we are not
         bool inShadow = checkForShadows(closest.intersectionPoint);
         if (not(inShadow)){
-          Colour colour = closest.intersectedTriangle.colour;
-          vec3 point = closest.intersectionPoint;
-        
-          // diffuse light
-          float diffuseIntensity = intensityDropOff(point) * angleOfIncidence(closest);
-
-          // specular light
-          vec3 normal = getNormalOfTriangle(closest.intersectedTriangle);
-          float specularIntensity = calculateSpecularLight(point, rayDirection, normal);
-
-          // average the diffuse and specular intensities
-          float intensity = (diffuseIntensity + specularIntensity) / 2;
-          if (intensity < 0.1){
-            intensity = 0.1;
-          }
-
-          colour.red = colour.red * intensity;
-          colour.green = colour.green * intensity;
-          colour.blue = colour.blue * intensity;
-        
-          // clipping the colour for if it goes above 255
-          colour.red = glm::min(colour.red, 255);
-          colour.green = glm::min(colour.green, 255);
-          colour.blue = glm::min(colour.blue, 255);
+          
+          Colour colour = solveLight(closest, rayDirection);
         
           window.setPixelColour(i, j, getColour(colour));
         }
@@ -1052,6 +1031,46 @@ void raytracer(){
       }
     }
   }
+}
+
+
+
+Colour solveLight(RayTriangleIntersection closest, vec3 rayDirection){
+  /////////////////////////////
+  // PARAMETERS
+  /////////////////////////////
+  float Kd = 0.5; // diffuse constant
+  float Ks = 0.5; // specular constant
+  /////////////////////////////
+
+  Colour colour = closest.intersectedTriangle.colour;
+  vec3 point = closest.intersectionPoint;
+  
+  // diffuse light
+  float diffuseIntensity = intensityDropOff(point) * angleOfIncidence(closest);
+  
+  // specular light
+  vec3 normal = getNormalOfTriangle(closest.intersectedTriangle);
+  float specularIntensity = calculateSpecularLight(point, rayDirection, normal);
+  
+  // average the diffuse and specular intensities
+  float intensity = (diffuseIntensity + specularIntensity) / 2;
+  if (intensity < 0.1){
+    intensity = 0.1;
+  }
+
+  // average the diffuse and specular
+  // we don't multiply the specular Intensity by a colour because it should be white
+  colour.red = (Kd * colour.red * diffuseIntensity) + (Ks * specularIntensity);
+  colour.green = (Kd * colour.green * diffuseIntensity) + (Ks * specularIntensity);
+  colour.blue = (Kd * colour.blue * diffuseIntensity) + (Ks * specularIntensity);
+        
+  // clipping the colour for if it goes above 255
+  colour.red = glm::min(colour.red, 255);
+  colour.green = glm::min(colour.green, 255);
+  colour.blue = glm::min(colour.blue, 255);
+
+  return colour;
 }
 
 
@@ -1241,6 +1260,7 @@ float calculateSpecularLight(vec3 point, vec3 rayDirection, vec3 normal){
   normal = normalize(normal);
   // equation form online
   vec3 reflection = incident - (2 * dot(incident, normal) * normal);
+  reflection = normalize(reflection);
   vec3 viewerDirection = -rayDirection;
   float intensity = dot(viewerDirection, reflection);
   // CAN CHANGE THE SPECULAR DROP OFF HERE
@@ -1250,3 +1270,32 @@ float calculateSpecularLight(vec3 point, vec3 rayDirection, vec3 normal){
   }
   return intensity;
 }
+
+
+
+/*
+
+void phongBRDF(vec3 point, vec3 normal){
+  /////////////////////////////
+  // PARAMETERS
+  /////////////////////////////
+  float Ka = 0.2; // ambient constant
+  float Kd = 0.4; // diffuse constant
+  float Ks = 0.4; // specular constant
+  /////////////////////////////
+  
+  vec3 viewerDirection = cameraPosition - point;
+  vec3 lightDirection = point - lightPosition;
+  vec3 incident = normalize(lightDirection);
+  normal = normalize(normal);
+  // equation from online
+  vec3 reflection = incident - (2 * dot(incident, normal) * normal);
+  reflection = normalize(reflection);
+
+  // equation got from wikipedia
+  float value1 = dot(-lightDirection, normal);
+  float value2 = dot(reflection, viewerDirection);
+  float intensity = (Ka * lightIntensity) + (Kd * value1);
+
+}
+*/
