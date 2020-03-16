@@ -1,12 +1,43 @@
-/*#include <ModelTriangle.h>
-#include <CanvasTriangle.h>
-#include <DrawingWindow.h>
-#include <Utils.h>
-#include <glm/glm.hpp>
-#include <fstream>
-#include <vector>
-#include <sstream>
-*/
+#ifndef MODELTRIANGLE_H
+  #define MODELTRIANGLE_H
+  #include <ModelTriangle.h>
+#endif
+
+#ifndef CANVASTRIANGLE_H
+  #define CANVASTRIANGLE_H
+  #include <CanvasTriangle.h>
+#endif
+#ifndef DRAWINGWINDOW_H
+  #define DRAWINGWINDOW_H
+  #include <DrawingWindow.h>
+#endif
+
+#ifndef UTILS_H
+  #define UTILS_H
+  #include <Utils.h>
+#endif
+
+#ifndef GLM_H
+  #define GLM_H
+  #include <glm/glm.hpp>
+#endif
+
+#ifndef FSTREAM_H
+  #define FSTREAM_H
+  #include <fstream>
+#endif
+
+#ifndef SSTREAM_H
+  #define SSTREAM_H
+  #include <sstream>
+#endif
+#ifndef VECTOR_H
+  #define VECTOR_H
+  #include <vector>
+#endif
+
+using namespace std;
+using namespace glm;
 
 // given a line, say 'v 12 3 5', it retreives the values inbetween the spaces, outputting them as strings in a vector
 vector<string> separateLine(string inputLine){
@@ -40,8 +71,6 @@ vec3 getVertex(string inputLine){
 //  return vec3(stof(s[1]), stof(s[2]), stof(s[3]));
 //}
 
-
-
 // this function reads in an OBJ material file and stores it in a vector of Colour objects, so an output may look like:
 // [['Red','1','0','0'] , ['Green','0','1','0']]
 vector<Colour> readOBJMTL(string filename){
@@ -73,7 +102,6 @@ vector<Colour> readOBJMTL(string filename){
   return colours;
 }
 
-
 // given a line in the form 'f 1/1 2/2 3/3' and also all vertices found so far 
 // it returns a ModelTriangle object, which contains the 3 vertices and the colour too
 ModelTriangle getFace(string inputLine, vector<vec3> vertices, Colour colour, float scalingFactor){
@@ -94,8 +122,6 @@ ModelTriangle getFace(string inputLine, vector<vec3> vertices, Colour colour, fl
 
   return output;
 }
-
-
 
 vector<ModelTriangle> readOBJ(string objFileName, string mtlFileName, float scalingFactor){
   vector<Colour> colours = readOBJMTL(mtlFileName);
@@ -145,4 +171,95 @@ vector<ModelTriangle> readOBJ(string objFileName, string mtlFileName, float scal
   myfile.close();
 
   return faces;
+}
+
+
+
+/* STRUCTURE - ImageFile */
+struct ImageFile {
+  vector<Colour> vecPixelList;
+  int width;
+  int height;  
+};
+
+string removeLeadingWhitespace(string s){
+  s.erase(0, s.find_first_not_of(" "));
+  return s;
+}
+
+/* Read PPM P6 File */
+ImageFile readPPMImage(string fileName) {
+  std::ifstream ifs;
+  ifs.open (fileName, std::ifstream::in);
+
+  /* Parse Header */
+
+  //Check if header is a P6 file.
+  string headerInput = "";
+  getline(ifs, headerInput);
+
+  if (headerInput != "P6") {
+    cout << "Error - Header file is invalid";
+    ifs.close();
+    throw 1;
+  }
+
+  int width = -1;
+  int height = -1;
+  int maxvalue = -1;
+
+  /* Following Specification: http://netpbm.sourceforge.net/doc/ppm.html */ 
+  // 1) Check if header is a P6 file.
+  // 2) Ignore Comments.
+  // 3) Parse Width + whitespace + Height.
+  // 4) Parse Max value
+
+  while (true || !ifs.eof()) {
+    string inputLine = "";
+    getline(ifs,inputLine);
+    inputLine = removeLeadingWhitespace(inputLine);
+    if (inputLine[0] == '#'){
+      //This is a comment line -> ignore them.
+    }
+    else {
+      //Parse Width + Height.
+      stringstream ss_wh(inputLine);
+      ss_wh >> width >> height;
+      
+      //Read new line -> Parse Max value: // 0<val<65536.
+      getline(ifs,inputLine);
+      inputLine = removeLeadingWhitespace(inputLine);
+      
+      stringstream ss_ml(inputLine);
+      ss_ml >> maxvalue;
+
+      cout << "\nHeader Parse --  Width: " << width << " -- Height: " << height << " -- Max Value: " << maxvalue << "\n";
+      break;
+    }
+  }
+  
+  /* Body RGB Parse */
+
+  vector<Colour> vecPixelList; //RGB storage.
+
+  while (ifs.peek()!= EOF) {
+    vecPixelList.push_back(Colour ({ifs.get(), ifs.get(), ifs.get()})); //Create a Pixel element with three consecutive byte reads.
+  }
+  cout << "\nBody Parse -- Number of elements: " << vecPixelList.size() << "\n";
+  ifs.close();
+  ImageFile outputImageFile = ImageFile ({vecPixelList, width, height});
+  return outputImageFile;
+}
+
+void renderImageFile(DrawingWindow window, ImageFile imageFile){
+  for (int i=0; i<imageFile.vecPixelList.size(); i++){
+    int red = imageFile.vecPixelList.at(i).red;
+    int green = imageFile.vecPixelList.at(i).green;
+    int blue = imageFile.vecPixelList.at(i).blue;
+    uint32_t colour = (255<<24) + (red<<16) + (green<<8) + blue;
+    int row = int(i/imageFile.width);
+    int col = i - (row*imageFile.width);
+    window.setPixelColour(col, row, colour);
+  }
+  cout << "\nImage render complete.\n";
 }
