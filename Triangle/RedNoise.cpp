@@ -1,10 +1,5 @@
-#include <ModelTriangle.h>
-#include <CanvasTriangle.h>
-#include <DrawingWindow.h>
-#include <Utils.h>
-#include <glm/glm.hpp>
-#include <fstream>
-#include <vector>
+#include "OBJStream.cpp"
+#include "TriangleDrawing.cpp"
 #include <assert.h>
 
 using namespace std;
@@ -17,34 +12,28 @@ using namespace glm;
 void update();
 void handleEvent(SDL_Event event);
 
-/* Helper Functions */
-uint32_t getColour(Colour colour){
-  return (255<<24) + (colour.red<<16) + (colour.green<<8) + colour.blue;;
-}
-
-vector<vec3> interpolate(vec3 from, vec3 to, int numberOfValues);
-
 /* Custom Functions */
-
-void drawLine(CanvasPoint ptStart, CanvasPoint ptEnd, Colour ptClr);
-void drawRandomFilledTriangle();
+void drawAALine(CanvasPoint ptStart, CanvasPoint ptEnd, Colour ptClr);
 void drawStrokedTriangle(CanvasTriangle triangle);
-void drawFilledTriangle(CanvasTriangle triangle);
+void drawTexturedTriangle(ImageFile imageFile, CanvasTriangle triangle);
 
 
 DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false);
 
 int main(int argc, char* argv[]) {
-  
   SDL_Event event;
   window.clearPixels();
-  //** Draw a stroked triangle.
-  drawStrokedTriangle( CanvasTriangle(CanvasPoint(200, 50), CanvasPoint(100, 50), CanvasPoint(150, 0), Colour(0, 255, 255)) );
-  drawStrokedTriangle( CanvasTriangle(CanvasPoint(50, 0), CanvasPoint(0, 50), CanvasPoint(100, 50), Colour(255, 0, 255)) );
-  //** Draw a filled triangle.
 
-  drawFilledTriangle( CanvasTriangle(CanvasPoint(400, 300), CanvasPoint(300, 150), CanvasPoint(200, 350), Colour(205, 150, 50)) );
-  drawStrokedTriangle( CanvasTriangle(CanvasPoint(400, 300), CanvasPoint(300, 150), CanvasPoint(200, 350), Colour(50, 255, 255)) );
+  const ImageFile textureImageFile = readPPMImage("texture.ppm");
+  
+  //** Draw a stroked triangle.
+  CanvasTriangle tri_out (CanvasPoint(160, 10), CanvasPoint(300, 230), CanvasPoint(10, 150), Colour(0, 255, 255)); 
+  tri_out.vertices[0].texturePoint = TexturePoint(195,5);
+  tri_out.vertices[1].texturePoint = TexturePoint(395, 380);
+  tri_out.vertices[2].texturePoint = TexturePoint(65, 330);
+
+  drawTexturedTriangle(textureImageFile, tri_out);
+  drawStrokedTriangle(tri_out);
 
   while(true) {
     // We MUST poll for events - otherwise the window will freeze !
@@ -55,77 +44,94 @@ int main(int argc, char* argv[]) {
   }
 }
 
-vector<float> interpolate(float from, float to, int numberOfValues) {
-    vector<float> vec_list;
-    
-    float increment = (to - from) / (numberOfValues-1);
-    
-    for (int i = 0; i<numberOfValues; i++)
-        vec_list.push_back(from + (i*increment));
-    
-    return vec_list;
-}
-
-vector<CanvasPoint> interpolate(CanvasPoint from, CanvasPoint to, float numberOfValues) {
-  vector<CanvasPoint> vecInterpVectors;
-
-  //Add the first number in.
-  vecInterpVectors.push_back(from);
-  vec2 castedFrom = vec2(from.x, from.y);
-  vec2 castedTo = vec2(to.x, to.y);
-  vec2 stepValue = (castedTo - castedFrom) / (numberOfValues - 1); //numberOfValues - 1 as the first number is already counted
-  vec2 previous = castedFrom;
-
-  for (int i = 1; i < numberOfValues ; i++) {
-    vec2 input = previous + stepValue;
-    vecInterpVectors.push_back(CanvasPoint(input.x, input.y));
-    previous = input;
-  }
-  return vecInterpVectors;
-}
-
-vector<vec3> interpolate(vec3 from, vec3 to, float numberOfValues) {
-  vector<vec3> vecInterpVectors;
-
-  //Add the first number in.
-  vecInterpVectors.push_back(from);
-
-  vec3 stepValue = (to - from) / (numberOfValues - 1); //numberOfValues - 1 as the first number is already counted
-  vec3 previous = from;
-
-  //For each step
-  for (int i = 1; i < numberOfValues ; i++) {
-    vec3 input = previous + stepValue;
-    vecInterpVectors.push_back(input);
-    previous = input;
-  }
-  return vecInterpVectors;
-}
-
-
-void drawLine(CanvasPoint ptStart, CanvasPoint ptEnd, Colour ptClr) {
+void drawAALine(CanvasPoint ptStart, CanvasPoint ptEnd, Colour ptClr) {
   float diffX = (ptEnd.x - ptStart.x);
   float diffY = (ptEnd.y - ptStart.y);
-  float noOfSteps = glm::max(abs(diffX), abs(diffY));
-  //cout << "Diff: x " << diffX << " y " << diffY << " max " << noOfSteps << "\n";
   
-  if (noOfSteps == 0.f) {
-    //Draw a point!
-    window.setPixelColour( ptStart.x, ptStart.y, getColour(ptClr));
-  }
-  else {
-    float stepSizeX = diffX/noOfSteps;
-    float stepSizeY = diffY/noOfSteps;
-    //cout << "Step X: " << stepSizeX << " .. Step Y: " << stepSizeY << "\n";
-    
-    for (int i = 0 ; i < noOfSteps ; i++){
-      int x = int(ptStart.x + (i * stepSizeX));
-      int y = int(ptStart.y + (i * stepSizeY));
+  int x1 = ptStart.x;
+  int x2 = ptEnd.x;
+  int y1 = ptStart.y;
+  int y2 = ptEnd.y;
 
-      window.setPixelColour( x, y, getColour(ptClr));
+  if (abs(diffX) > abs(diffY)) {
+    // horizontal line.
+    if(x2 < x1) { swap(x1, x2); swap(y1, y2); }
+
+    float gradient = diffY / diffX;
+
+    float xend = float(round(x1));
+    float yend = y1 + gradient * (xend - x1);
+    float xgap = rfpart(x1 + 0.5f);
+    
+    int xpxl1 = int(xend);
+    int ypxl1 = floor(yend);
+    
+    // Add the first endpoint.
+    window.setPixelColour(xpxl1, ypxl1, getColour(ptClr, rfpart(yend) * xgap));
+    window.setPixelColour(xpxl1, ypxl1 + 1, getColour(ptClr, fpart(yend) * xgap));
+    
+    float intery = yend + gradient;
+
+    xend = float(round(x2));
+    yend = y2 + gradient * (xend - x2);
+    xgap = fpart(x2 + 0.5f);
+    
+    int xpxl2 = int(xend);
+    int ypxl2 = floor(yend);
+    
+    // Add the second endpoint
+    window.setPixelColour(xpxl2, ypxl2, getColour(ptClr, rfpart(yend) * xgap));
+    window.setPixelColour(xpxl2, ypxl2 + 1, getColour(ptClr, fpart(yend) * xgap));
+    
+    // Add all the points between the endpoints
+    for(int x = xpxl1 + 1; x <= xpxl2 - 1; ++x){
+      int i_intery = floor(intery);
+      
+      window.setPixelColour(x, i_intery, getColour(ptClr, rfpart(intery)));
+      window.setPixelColour(x, i_intery + 1, getColour(ptClr, fpart(intery)));
+
+      intery += gradient;
+    }
+
+  }   
+  else {
+    if(y2 < y1) { swap(x1, x2); swap(y1, y2); }
+
+    float gradient = diffX / diffY;
+    float yend = float(round(y1));
+    float xend = x1 + gradient * (yend - y1);
+    float ygap = rfpart(y1 + 0.5f);
+    
+    int ypxl1 = int(yend);
+    int xpxl1 = floor(xend);
+
+    // Add the first endpoint
+    window.setPixelColour( xpxl1, ypxl1, getColour(ptClr, rfpart(xend) * ygap));
+    window.setPixelColour( xpxl1, ypxl1 + 1, getColour(ptClr, fpart(xend) * ygap));
+    
+    float interx = xend + gradient;
+
+    yend = float(round(y2));
+    xend = x2 + gradient * (yend - y2);
+    ygap = fpart(y2 + 0.5f);
+    
+    int ypxl2 = int(yend);
+    int xpxl2 = floor(xend);
+    
+    // Add the second endpoint
+    window.setPixelColour( xpxl2, ypxl2, getColour(ptClr, rfpart(xend) * ygap));
+    window.setPixelColour( xpxl2, ypxl2 + 1, getColour(ptClr, fpart(xend) * ygap));
+    
+    // Add all the points between the endpoints
+    for(int y = ypxl1 + 1; y <= ypxl2 - 1; ++y){
+
+      int i_interx = floor(interx);
+
+      window.setPixelColour( i_interx, y, getColour(ptClr, rfpart(interx)));
+      window.setPixelColour( i_interx + 1, y, getColour(ptClr, fpart(interx)));
+      interx += gradient;
     }
   }
-  return;
 }
 
 CanvasTriangle sortTriangleVertices(CanvasTriangle tri) {
@@ -152,44 +158,41 @@ CanvasTriangle sortTriangleVertices(CanvasTriangle tri) {
   return tri;
 }
 
-void drawStrokedTriangle(CanvasTriangle triangle){
-  /* Vertex sorting NOT required */
-  CanvasPoint pt0 = triangle.vertices[0];
-  CanvasPoint pt1 = triangle.vertices[1];
-  CanvasPoint pt2 = triangle.vertices[2];
-
-  drawLine(pt0, pt1, triangle.colour);
-  drawLine(pt2, pt0, triangle.colour);
-  drawLine(pt1, pt2, triangle.colour);
-
-  return;
-}
-
-void fillFlatBottomTriangle(CanvasTriangle triangle) {
+void textureFlatBottomTriangle(ImageFile imageFile, CanvasTriangle triangle) {
   //Assumption: last two vertices represent the flat bottom.
   //Assumption: last two y values are both the same.
   assert( triangle.vertices[1].y == triangle.vertices[2].y);
 
-  if (triangle.vertices[2].x < triangle.vertices[1].x)
+  if (triangle.vertices[2].x < triangle.vertices[1].x) 
     swap(triangle.vertices[1], triangle.vertices[2]);
   
   int noOfRows = triangle.vertices[1].y - triangle.vertices[0].y;
 
-  //cout << "FlatBot X0:  x: " << triangle.vertices[0].x << " y: " << triangle.vertices[0].y << "\n";
-  //cout << "FlatBot X1:  x: " << triangle.vertices[1].x << " y: " << triangle.vertices[1].y << "\n";
-  //cout << "FlatBot X2:  x: " << triangle.vertices[2].x << " y: " << triangle.vertices[2].y << "\n";
-
-
   vector<CanvasPoint> interpLeft = interpolate(triangle.vertices[0], triangle.vertices[1], noOfRows);
   vector<CanvasPoint> interpRight = interpolate(triangle.vertices[0], triangle.vertices[2], noOfRows);
 
-  //** Do line by line interp.
-  for (int i=0; i< noOfRows; i++)
-    drawLine(CanvasPoint(interpLeft[i].x, triangle.vertices[0].y + i), CanvasPoint(interpRight[i].x, triangle.vertices[0].y + i), triangle.colour);
+  vector<TexturePoint> interpLeftTexture = interpolate(triangle.vertices[0].texturePoint, triangle.vertices[1].texturePoint, noOfRows);
+  vector<TexturePoint> interpRightTexture = interpolate(triangle.vertices[0].texturePoint, triangle.vertices[2].texturePoint, noOfRows);
 
+  //** Do line by line interp.
+  for (int i=0; i< noOfRows; i++) {
+    CanvasPoint xy_start (interpLeft[i].x, triangle.vertices[0].y + i);
+    CanvasPoint xy_end (interpRight[i].x, triangle.vertices[0].y + i);
+
+    int noOfRowValues = xy_end.x - xy_start.x;
+
+    vector<TexturePoint> interpTexLine = interpolate(interpLeftTexture[i], interpRightTexture[i], noOfRowValues);
+
+    for (int j = 0; j<noOfRowValues; j++) {
+      int x = xy_start.x + j;
+      int y = xy_start.y;
+      window.setPixelColour( x, y, getColour(getPixelColour(imageFile, interpTexLine[j].x, interpTexLine[j].y)));
+    }
+  }
   return;
 }
-void fillFlatTopTriangle(CanvasTriangle triangle) {
+
+void textureFlatTopTriangle(ImageFile imageFile, CanvasTriangle triangle) {
   //Assumption: last two vertices represent the flat bottom.
   //Assumption: last two y values are both the same.
   assert( triangle.vertices[0].y == triangle.vertices[1].y);
@@ -199,89 +202,105 @@ void fillFlatTopTriangle(CanvasTriangle triangle) {
   
   int noOfRows = triangle.vertices[2].y - triangle.vertices[0].y;
 
-  //cout << "FlatTop X0:  x: " << triangle.vertices[0].x << " y: " << triangle.vertices[0].y << "\n";
-  //cout << "FlatTop X1:  x: " << triangle.vertices[1].x << " y: " << triangle.vertices[1].y << "\n";
-  //cout << "FlatTop X2:  x: " << triangle.vertices[2].x << " y: " << triangle.vertices[2].y << "\n";
-
   vector<CanvasPoint> interpLeft = interpolate(triangle.vertices[0], triangle.vertices[2], noOfRows);
   vector<CanvasPoint> interpRight = interpolate(triangle.vertices[1], triangle.vertices[2], noOfRows);
 
+  vector<TexturePoint> interpLeftTexture = interpolate(triangle.vertices[0].texturePoint, triangle.vertices[2].texturePoint, noOfRows);
+  vector<TexturePoint> interpRightTexture = interpolate(triangle.vertices[1].texturePoint, triangle.vertices[2].texturePoint, noOfRows);
+
   //** Do line by line interp.
-  for (int i=0; i< noOfRows; i++)
-    drawLine(CanvasPoint(interpLeft[i].x, triangle.vertices[0].y + i), CanvasPoint(interpRight[i].x, triangle.vertices[0].y + i), triangle.colour);
+  for (int i=0; i< noOfRows; i++) {
+    CanvasPoint xy_start (interpLeft[i].x, triangle.vertices[0].y + i);
+    CanvasPoint xy_end (interpRight[i].x, triangle.vertices[0].y + i);
+
+    int noOfRowValues = xy_end.x - xy_start.x;
+
+    vector<TexturePoint> interpTexLine = interpolate(interpLeftTexture[i], interpRightTexture[i], noOfRowValues);
+
+    for (int j = 0; j<noOfRowValues; j++) {
+      int x = xy_start.x + j;
+      int y = xy_start.y;
+      window.setPixelColour( x, y, getColour(getPixelColour(imageFile, interpTexLine[j].x, interpTexLine[j].y)));
+    }
+  }
 
   return;
 }
-void drawFilledTriangle(CanvasTriangle triangle){
-  
-  //** 1. Draw outline.
-  drawStrokedTriangle(triangle);
 
-  //** 2. Sort Vertices before fill.  
+void drawTexturedTriangle(ImageFile imageFile, CanvasTriangle triangle){
+  // 1) Sort Vertices.  
   triangle = sortTriangleVertices(triangle);
 
-  //** 3. Get the Cut Point & Fill.
-    
-  float yDiff = glm::abs(triangle.vertices[2].y - triangle.vertices[0].y);
+  // 2) Get difference between top vertex & bottom vertex.
+  const float xDiff = glm::abs(triangle.vertices[2].x - triangle.vertices[0].x);
+  const float yDiff = glm::abs(triangle.vertices[2].y - triangle.vertices[0].y);
 
   if (yDiff == 0.f) {
-    //** TODO: Draw a line.
-    cout << "Y diff is zero.\n\n";
-  } else {
+    cout << "Y diff is zero.\n\n"; //** TODO: Draw a line.
+  } 
+  else {
+    float cutX;
 
-    /* Get y difference to left_most vertex */
-    float minorYDiff;
-    if (triangle.vertices[0].x < triangle.vertices[2].x) minorYDiff = triangle.vertices[1].y - triangle.vertices[0].y;
-    else minorYDiff = triangle.vertices[2].y - triangle.vertices[1].y;
+    if (triangle.vertices[0].x <= triangle.vertices[2].x) {
+      const float minorYDiff = triangle.vertices[1].y - triangle.vertices[0].y;
+      cutX = triangle.vertices[0].x + (minorYDiff * xDiff/yDiff);
+    }
+    else {
+      const float minorYDiff = triangle.vertices[2].y - triangle.vertices[1].y; 
+      cutX = triangle.vertices[2].x + (minorYDiff * xDiff/yDiff);
+    }
 
-    float xDiff = glm::abs(triangle.vertices[2].x - triangle.vertices[0].x);
-
-    float cut_x = glm::min(triangle.vertices[0].x, triangle.vertices[2].x) + ( minorYDiff * xDiff/yDiff );
+    CanvasPoint cutPoint = CanvasPoint(cutX, triangle.vertices[1].y);
     
-    CanvasPoint cutPoint = CanvasPoint(cut_x, triangle.vertices[1].y);
+    // Calculate the proportion -> how far down the line the cut point is.
+    const float distFromTop = sqrtf ( pow(triangle.vertices[0].x - cutPoint.x, 2) + pow(triangle.vertices[0].y - cutPoint.y, 2));
+    const float distLine = sqrtf ( pow(triangle.vertices[0].x - triangle.vertices[2].x, 2) + pow(triangle.vertices[0].y - triangle.vertices[2].y, 2));
+    const float p = distFromTop/distLine;
+    //Get texture cut point using proportion & SOHCAHTOA.
+    const float distLineTex = sqrtf ( pow(triangle.vertices[0].texturePoint.x - triangle.vertices[2].texturePoint.x, 2) + pow(triangle.vertices[0].texturePoint.y - triangle.vertices[2].texturePoint.y, 2));
+    const float distFromTopTex = p*distLineTex;
 
-    //cout << "Start Point:  x: " << triangle.vertices[0].x << " y: " << triangle.vertices[0].y << "\n"; 
-    //cout << "Middle Point:  x: " << triangle.vertices[1].x << " y: " << triangle.vertices[1].y << "\n"; 
-    //cout << "End Point:  x: " << triangle.vertices[2].x << " y: " << triangle.vertices[2].y << "\n"; 
-    //cout << "Cutting Point:  x: " << cut_x << " y: " << triangle.vertices[1].y << "\n\n\n"; 
+    if (triangle.vertices[0].x <= triangle.vertices[2].x) {
+      float cutTextureX = triangle.vertices[0].texturePoint.x + (distFromTopTex * xDiff/distLine);
+      float cutTextureY = triangle.vertices[0].texturePoint.y + (distFromTopTex * yDiff/distLine);
+      cutPoint.texturePoint = TexturePoint(cutTextureX, cutTextureY);
+    } else {
+      float cutTextureX = triangle.vertices[0].texturePoint.x - (distFromTopTex * xDiff/distLine);
+      float cutTextureY = triangle.vertices[0].texturePoint.y + (distFromTopTex * yDiff/distLine);
+      cutPoint.texturePoint = TexturePoint(cutTextureX, cutTextureY);
+    }
 
+    /*
+    cout << "\n\nTriangle Vertices\n";
+    cout << "Start Point:  x: " << triangle.vertices[0].x << " y: " << triangle.vertices[0].y << "\n"; 
+    cout << "Middle Point:  x: " << triangle.vertices[1].x << " y: " << triangle.vertices[1].y << "\n"; 
+    cout << "End Point:  x: " << triangle.vertices[2].x << " y: " << triangle.vertices[2].y << "\n"; 
+    cout << "Cutting Point:  x: " << cutPoint.x << " y: " << cutPoint.y << "\n"; 
+
+    cout << "\n\nTexture Point Vertices\n";
+    print(triangle.vertices[0].texturePoint);
+    print(triangle.vertices[1].texturePoint);
+    print(triangle.vertices[2].texturePoint);
+    print(cutPoint.texturePoint);
+    */
+    
     //** 4.1. Fill the Top Flat Bottom Triangle.
-    fillFlatBottomTriangle(CanvasTriangle(triangle.vertices[0], cutPoint, triangle.vertices[1], triangle.colour));
+    textureFlatBottomTriangle(imageFile, CanvasTriangle(triangle.vertices[0], cutPoint, triangle.vertices[1], triangle.colour));
     //** 4.2. Fill the Bottom Flat Top Triangle.
-    fillFlatTopTriangle(CanvasTriangle(cutPoint, triangle.vertices[1], triangle.vertices[2], triangle.colour));
+    textureFlatTopTriangle(imageFile, CanvasTriangle(triangle.vertices[1], cutPoint, triangle.vertices[2], triangle.colour));
   }
-  
-
-  return;
 }
 
+void drawStrokedTriangle(CanvasTriangle triangle){
+  /* Vertex sorting NOT required */
+  CanvasPoint pt0 = triangle.vertices[0];
+  CanvasPoint pt1 = triangle.vertices[1];
+  CanvasPoint pt2 = triangle.vertices[2];
 
-void drawRandomFilledTriangle(){
-   int x1 = round(rand()%WIDTH);
-  int x2 = round(rand()%WIDTH);
-  int x3 = round(rand()%WIDTH);
-  int y1 = round(rand()%HEIGHT);
-  int y2 = round(rand()%HEIGHT);
-  int y3 = round(rand()%HEIGHT);
-
-  CanvasPoint point1 (x1, y1);
-  CanvasPoint point2 (x2, y2);
-  CanvasPoint point3 (x3, y3);
-
-  int red = round(rand()%255);
-  int green = round(rand()%255);
-  int blue = round(rand()%255);
-
-  Colour colour (red, green, blue);
-  CanvasTriangle triangle (point1, point2, point3, colour);
-
-  cout << "Point 1: " << x1 << ", " << y1 << "\n";
-  cout << "Point 2: " << x2 << ", " << y2 << "\n";
-  cout << "Point 3: " << x3 << ", " << y3 << "\n\n";
-
-  drawFilledTriangle(triangle);
+  drawAALine(pt0, pt1, triangle.colour);
+  drawAALine(pt2, pt0, triangle.colour);
+  drawAALine(pt1, pt2, triangle.colour);
 }
-
 
 void update() {
   // Function for performing animation (shifting artifacts or moving the camera)
@@ -293,7 +312,6 @@ void handleEvent(SDL_Event event) {
     else if(event.key.keysym.sym == SDLK_RIGHT) cout << "RIGHT" << endl;
     else if(event.key.keysym.sym == SDLK_UP) cout << "UP" << endl;
     else if(event.key.keysym.sym == SDLK_DOWN) cout << "DOWN" << endl;
-    else if(event.key.keysym.sym == SDLK_f) drawRandomFilledTriangle();
   }
   else if(event.type == SDL_MOUSEBUTTONDOWN) cout << "MOUSE CLICKED" << endl;
 }
