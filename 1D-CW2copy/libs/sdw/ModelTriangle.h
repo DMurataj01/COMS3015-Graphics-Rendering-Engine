@@ -7,6 +7,7 @@ class ModelTriangle
   public:
     glm::vec3 vertices[3];
     Colour colour;
+    glm::vec3 normals[3]; // these correspond to the averaged normals of the vertices
 
     ModelTriangle()
     {
@@ -18,6 +19,9 @@ class ModelTriangle
       vertices[1] = v1;
       vertices[2] = v2;
       colour = trigColour;
+      normals[0] = glm::vec3 (0,0,0);
+      normals[1] = glm::vec3 (0,0,0);
+      normals[2] = glm::vec3 (0,0,0);
     }
 };
 

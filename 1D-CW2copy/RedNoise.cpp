@@ -70,6 +70,7 @@ float angleOfIncidence(RayTriangleIntersection intersection);
 float distanceVec3(vec3 from, vec3 to);
 bool checkForShadows(vec3 point);
 float calculateSpecularLight(vec3 point, vec3 rayDirection, vec3 normal);
+void averageVertexNormals();
 
 
 
@@ -947,6 +948,7 @@ vec3 findCentreOfScene(){
 
 void test(){
   faces = readOBJ(1);
+  averageVertexNormals();
   render();
 }
 
@@ -989,7 +991,6 @@ void renderImage(ImageFile imageFile){
 
 // this runs when you press the letter 'r' - used for testing functions
 void rayTest(){
-  faces = readOBJ(1);
   raytracer();
 }
 
@@ -1050,7 +1051,7 @@ Colour solveLight(RayTriangleIntersection closest, vec3 rayDirection){
   float diffuseIntensity = intensityDropOff(point) * angleOfIncidence(closest);
   
   // specular light
-  vec3 normal = getNormalOfTriangle(closest.intersectedTriangle);
+  vec3 normal = closest.normal; //getNormalOfTriangle(closest.intersectedTriangle);
   float specularIntensity = calculateSpecularLight(point, rayDirection, normal);
   
   // average the diffuse and specular intensities
@@ -1061,9 +1062,9 @@ Colour solveLight(RayTriangleIntersection closest, vec3 rayDirection){
 
   // average the diffuse and specular
   // we don't multiply the specular Intensity by a colour because it should be white
-  colour.red = (Kd * colour.red * diffuseIntensity) + (Ks * specularIntensity);
-  colour.green = (Kd * colour.green * diffuseIntensity) + (Ks * specularIntensity);
-  colour.blue = (Kd * colour.blue * diffuseIntensity) + (Ks * specularIntensity);
+  colour.red = (Kd * colour.red * diffuseIntensity) + (Ks * specularIntensity * 255);
+  colour.green = (Kd * colour.green * diffuseIntensity) + (Ks * specularIntensity * 255);
+  colour.blue = (Kd * colour.blue * diffuseIntensity) + (Ks * specularIntensity * 255);
         
   // clipping the colour for if it goes above 255
   colour.red = glm::min(colour.red, 255);
@@ -1145,11 +1146,18 @@ RayTriangleIntersection closestIntersection(vector<vec3> solutions){
         vec3 p1 = triangle.vertices[1];
         vec3 p2 = triangle.vertices[2];
         vec3 point = p0 + (u * (p1 - p0)) + (v * (p2 - p0));
+        // calculating the distance between the camera and intersection point
         vec3 d = point - cameraPosition;
         float distance = sqrt( (d[0]*d[0]) + (d[1] * d[1]) + (d[2] * d[2]));
+        // calculating the normal of the intersection
+        vec3 n0 = triangle.normals[0];
+        vec3 n1 = triangle.normals[1];
+        vec3 n2 = triangle.normals[2];
+        vec3 normal = n0 + (u * (n1 - n0)) + (v * (n2 - n0));
         closest.intersectionPoint = point;
         closest.distanceFromCamera = distance;
         closest.intersectedTriangle = triangle;
+        closest.normal = normal;
       }
     }
   }
@@ -1362,17 +1370,12 @@ void phongBRDF(vec3 point, vec3 normal){
 
 
 void gouraudShading() {
-  // go through each vertex in the model and store the face normal
-  int n = faces.size();
-  for (int i = 0 ; i < n ; i++){
-    ModelTriangle face = faces[i];
-    vec3 normal = getNormalOfTriangle(face);
-  }
 }
 
 
-vector<vec3> averageVertexNormals(){
+void averageVertexNormals(){
   int currentFaceIndex = 0; // stores the number of how many faces we have gone through yet
+  vector<vec3> faceVertices; // stores the indices of which vertices make up each face
   
   // Attempt to open OBJFile.
   ifstream myfile(objFileName);
@@ -1409,10 +1412,10 @@ vector<vec3> averageVertexNormals(){
       ModelTriangle face = faces[currentFaceIndex];
       vec3 normal = getNormalOfTriangle(face);
       currentFaceIndex = currentFaceIndex + 1;
-      
-      cout << normal[0];
 
       vector<string> faceLine = separateLine(line); // this turns 'f 1/1 2/2 3/3' into ['f','1/1','2/2','3/3']
+
+      vec3 verticesIndex (0,0,0);
 
       // go through the face and for each vertex, store the normal in the corresponding space in the vector
       for (int i = 1 ; i < 4 ; i++){
@@ -1420,8 +1423,10 @@ vector<vec3> averageVertexNormals(){
         int slashIndex = element.find('/');
         string number = element.substr(0, slashIndex);
         int index = stoi(number) - 1;// -1 as the vertices are numbered from 1, but c++ indexes from 0
+        verticesIndex[i-1] = index;
         vertexNormals[index].push_back(normal);
       }
+      faceVertices.push_back(verticesIndex);
     }
   }
 
@@ -1437,10 +1442,23 @@ vector<vec3> averageVertexNormals(){
     }
     sum = sum / (float)n;
     averagedNormals[i] = sum;
-    printVec3(sum);
-    cout << endl;
   }
 
-return averagedNormals;
+  // go through the faces again and store the average normal in the ModelTriangle object
+  for (int i = 0 ; i < faces.size() ; i++){
+    vec3 v = faceVertices[i];
+    // for each vertex
+    for (int j = 0 ; j < 3 ; j++){
+      int index = v[j];
+      vec3 normal = averagedNormals[index];
+      faces[i].normals[j] = normal;
+      cout << "n: ";
+      printVec3(normal);
+      cout << endl;
+    }
+  }
+}
 
+
+void getPhongNormal(RayTriangleIntersection intersection, vector<vec3> vertexNormals){
 }
