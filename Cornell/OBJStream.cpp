@@ -1,4 +1,4 @@
-/*#include <ModelTriangle.h>
+#include <ModelTriangle.h>
 #include <CanvasTriangle.h>
 #include <DrawingWindow.h>
 #include <Utils.h>
@@ -6,7 +6,9 @@
 #include <fstream>
 #include <vector>
 #include <sstream>
-*/
+
+using namespace std;
+using namespace glm;
 
 // given a line, say 'v 12 3 5', it retreives the values inbetween the spaces, outputting them as strings in a vector
 vector<string> separateLine(string inputLine){
@@ -27,19 +29,9 @@ vector<string> separateLine(string inputLine){
 
 // given a string in form 'v 12 5 4' -> return vec3(12,5,4)
 vec3 getVertex(string inputLine){
-  vector<string> points = separateLine(inputLine);
-  vec3 output;
-  output[0] = stof(points[1]); // it is points[1] as the first element is 'v'
-  output[1] = stof(points[2]);
-  output[2] = stof(points[3]);
-  return output;
+  string *s = split(inputLine, ' ');
+  return vec3(stof(s[1]), stof(s[2]), stof(s[3]));
 }
-
-//vec3 getVertex(string inputLine){
-//  string *s = split(inputLine, ' ');
-//  return vec3(stof(s[1]), stof(s[2]), stof(s[3]));
-//}
-
 
 
 // this function reads in an OBJ material file and stores it in a vector of Colour objects, so an output may look like:
@@ -98,6 +90,7 @@ ModelTriangle getFace(string inputLine, vector<vec3> vertices, Colour colour, fl
 
 
 vector<ModelTriangle> readOBJ(string objFileName, string mtlFileName, float scalingFactor){
+
   vector<Colour> colours = readOBJMTL(mtlFileName);
 
   vector<vec3> vertices;
