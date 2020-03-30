@@ -59,11 +59,13 @@ void lookAt(vec3 point);
 vec3 findCentreOfScene();
 void test2();
 void raytracer();
-Colour solveLight(RayTriangleIntersection closest, vec3 rayDirection);
+Colour solveLight(RayTriangleIntersection closest, vec3 rayDirection, float Ka, float Kd, float Ks);
 vec3 createRay(int i, int j);
 void rayTest();
-vector<vec3> checkForIntersections(vec3 rayDirection);
-RayTriangleIntersection closestIntersection(vector<vec3> solutions);
+vector<vec3> checkForIntersections(vec3 point, vec3 rayDirection);
+RayTriangleIntersection closestIntersection(vector<vec3> solutions, vec3 rayPoint);
+Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth);
+Colour getFinalColour(Colour colour, float Ka, float Kd, float Ks);
 float intensityDropOff(vec3 point);
 vec3 getNormalOfTriangle(ModelTriangle triangle);
 float angleOfIncidence(RayTriangleIntersection intersection);
@@ -71,6 +73,7 @@ float distanceVec3(vec3 from, vec3 to);
 bool checkForShadows(vec3 point);
 float calculateSpecularLight(vec3 point, vec3 rayDirection, vec3 normal);
 void averageVertexNormals();
+Colour mirror(RayTriangleIntersection intersection, vec3 incident);
 
 
 
@@ -95,6 +98,8 @@ string STATE;
 // press '1' for wireframe
 // press '2' for rasterized
 // press '3' for raytraced
+
+bool print = false;
 
 
 // initial camera parameters
@@ -205,6 +210,12 @@ void handleEvent(SDL_Event event)
   else if(event.type == SDL_MOUSEBUTTONDOWN) cout << "MOUSE CLICKED" << endl;
 }
 
+
+
+void textures(){
+  faces[6].mirrorTexture = true;
+  faces[7].mirrorTexture = true;
+}
 
 
 // this function renders the scene, depending on what the value of STATE is (so whether we use wireframe, rasterize or raytrace)
@@ -996,82 +1007,37 @@ void rayTest(){
 
 // this will be the main function for the raytracer
 void raytracer(){
+  textures();
   // for each pixel
   for (int i = 0 ; i < WIDTH ; i++){
     for (int j = 0 ; j < HEIGHT ; j++){
 
       // send a ray
-      //vec3 point = cameraPosition;
       vec3 rayDirection = createRay(i,j);
-
-      // does this ray intersect any of the faces?
-      vector<vec3> solutions = checkForIntersections(rayDirection);
-      
-      RayTriangleIntersection closest = closestIntersection(solutions);
-
-      // if this ray actually intersects any faces
-      if (closest.distanceFromCamera >= 0){
-        
-        // are we in shadow? only colour the pixel if we are not
-        bool inShadow = checkForShadows(closest.intersectionPoint);
-        if (not(inShadow)){
-          
-          Colour colour = solveLight(closest, rayDirection);
-        
-          window.setPixelColour(i, j, getColour(colour));
-        }
-
-        // if we are in shadow add a little bit of ambient light
-        if (inShadow){
-          Colour colour = closest.intersectedTriangle.colour;
-          colour.red = colour.red * 0.05;
-          colour.green = colour.green * 0.05;
-          colour.blue = colour.blue * 0.05;
-          window.setPixelColour(i, j, getColour(colour));
-        }
-      }
+      // shoot the ray and check for intersections
+      Colour colour = shootRay(cameraPosition, rayDirection, 0);
+      // colour the pixel accordingly
+      window.setPixelColour(i, j, getColour(colour));
     }
   }
 }
 
 
 
-Colour solveLight(RayTriangleIntersection closest, vec3 rayDirection){
-  /////////////////////////////
-  // PARAMETERS
-  /////////////////////////////
-  float Kd = 0.5; // diffuse constant
-  float Ks = 0.5; // specular constant
-  /////////////////////////////
-
+Colour solveLight(RayTriangleIntersection closest, vec3 rayDirection, float Ka, float Kd, float Ks){
   Colour colour = closest.intersectedTriangle.colour;
   vec3 point = closest.intersectionPoint;
   
   // diffuse light
   float diffuseIntensity = intensityDropOff(point) * angleOfIncidence(closest);
+  Kd = Kd * diffuseIntensity;
   
   // specular light
-  vec3 normal = closest.normal; //getNormalOfTriangle(closest.intersectedTriangle);
+  vec3 normal = closest.normal; // this is the interpolated noral for Phong shading (it is previously calculated and stored in the RayTriangleIntersection object)
   float specularIntensity = calculateSpecularLight(point, rayDirection, normal);
-  
-  // average the diffuse and specular intensities
-  float intensity = (diffuseIntensity + specularIntensity) / 2;
-  if (intensity < 0.1){
-    intensity = 0.1;
-  }
+  Ks = Ks * specularIntensity;
 
-  // average the diffuse and specular
-  // we don't multiply the specular Intensity by a colour because it should be white
-  colour.red = (Kd * colour.red * diffuseIntensity) + (Ks * specularIntensity * 255);
-  colour.green = (Kd * colour.green * diffuseIntensity) + (Ks * specularIntensity * 255);
-  colour.blue = (Kd * colour.blue * diffuseIntensity) + (Ks * specularIntensity * 255);
-        
-  // clipping the colour for if it goes above 255
-  colour.red = glm::min(colour.red, 255);
-  colour.green = glm::min(colour.green, 255);
-  colour.blue = glm::min(colour.blue, 255);
-
-  return colour;
+  return getFinalColour(colour, Ka, Kd, Ks);
 }
 
 
@@ -1095,7 +1061,7 @@ vec3 createRay(int i, int j){
 // this function takes the ray and checks with all the faces to see which ones it intersects
 // it outputs a vector of vectors - a (t,u,v) vector for each face
 // if t>0, then that means that for that particular face the ray intersects it with u and v being local coordinates for the triangle
-vector<vec3> checkForIntersections(vec3 rayDirection){
+vector<vec3> checkForIntersections(vec3 point, vec3 rayDirection){
   // this is the output vector, for every possible face it stores a possibleSolution
   vector<vec3> solutions;
   // for each face
@@ -1105,7 +1071,7 @@ vector<vec3> checkForIntersections(vec3 rayDirection){
     // got the following code from the worksheet
     vec3 e0 = triangle.vertices[1] - triangle.vertices[0];
     vec3 e1 = triangle.vertices[2] - triangle.vertices[0];
-    vec3 SPVector = cameraPosition - triangle.vertices[0];
+    vec3 SPVector = point - triangle.vertices[0];
     mat3 DEMatrix(-rayDirection, e0, e1);
     vec3 possibleSolution = glm::inverse(DEMatrix) * SPVector;
     solutions.push_back(possibleSolution);
@@ -1115,7 +1081,7 @@ vector<vec3> checkForIntersections(vec3 rayDirection){
 
 
 // this function gives back the index of the closest face for a particular ray
-RayTriangleIntersection closestIntersection(vector<vec3> solutions){
+RayTriangleIntersection closestIntersection(vector<vec3> solutions, vec3 rayPoint){
   RayTriangleIntersection closest; // this is where we store the closest triangle of intersection, the point it intersects and the distance
   closest.distanceFromCamera = -1; // initialize this so we can tell when there are no intersections
   float closestT = numeric_limits<float>::infinity();
@@ -1145,16 +1111,16 @@ RayTriangleIntersection closestIntersection(vector<vec3> solutions){
         vec3 p0 = triangle.vertices[0];
         vec3 p1 = triangle.vertices[1];
         vec3 p2 = triangle.vertices[2];
-        vec3 point = p0 + (u * (p1 - p0)) + (v * (p2 - p0));
+        vec3 intersection = p0 + (u * (p1 - p0)) + (v * (p2 - p0));
         // calculating the distance between the camera and intersection point
-        vec3 d = point - cameraPosition;
+        vec3 d = intersection - rayPoint;
         float distance = sqrt( (d[0]*d[0]) + (d[1] * d[1]) + (d[2] * d[2]));
         // calculating the normal of the intersection
         vec3 n0 = triangle.normals[0];
         vec3 n1 = triangle.normals[1];
         vec3 n2 = triangle.normals[2];
         vec3 normal = n0 + (u * (n1 - n0)) + (v * (n2 - n0));
-        closest.intersectionPoint = point;
+        closest.intersectionPoint = intersection;
         closest.distanceFromCamera = distance;
         closest.intersectedTriangle = triangle;
         closest.normal = normal;
@@ -1172,6 +1138,84 @@ RayTriangleIntersection closestIntersection(vector<vec3> solutions){
 ////////////////////////////////////////////////////////
 // LIGHTING
 ////////////////////////////////////////////////////////
+
+
+Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth){
+  if (depth == 2){
+    return Colour(0,0,0);
+  }
+  // does this ray intersect any of the faces?
+  vector<vec3> solutions = checkForIntersections(rayPoint, rayDirection);
+      
+  RayTriangleIntersection closest = closestIntersection(solutions, rayPoint);
+  Colour colour = closest.intersectedTriangle.colour;
+  vec3 point = closest.intersectionPoint;
+
+  // if this ray doesn't intersect anything, then we return the colour black
+  if (closest.distanceFromCamera <= 0) {
+    return Colour (0,0,0);
+  }
+
+  // the ambient, diffuse and specular light constants
+  float Ka = 0.1;
+  float Kd = 0.45;
+  float Ks = 0.45;
+
+  
+  // if this face is a mirror, create a reflected ray and shoot this ray (recurse this function)
+  if (closest.intersectedTriangle.mirrorTexture){
+    print = true;
+    vec3 incident = rayDirection;
+    vec3 normal = getNormalOfTriangle(closest.intersectedTriangle);
+    vec3 reflection = incident - (2 * dot(incident, normal) * normal);
+    reflection = normalize(reflection);
+    point = point + ((float)0.00001 * normal); // avoid self-intersection
+    Colour col = shootRay(point, reflection, depth + 1);
+    print = false;
+    return col;
+  }
+
+
+  // are we in shadow? only colour the pixel if we are not
+  bool inShadow = checkForShadows(closest.intersectionPoint);
+  if (inShadow){
+    Ka = Ka/2;
+    Kd = 0;
+    Ks = 0;
+    Colour cc = getFinalColour(colour, Ka, Kd, Ks);
+    return cc;
+  }
+
+  
+  // if it is not a texture and not in sshadow, solve to find the specular and diffuse constants
+  // diffuse light
+  float diffuseIntensity = intensityDropOff(point) * angleOfIncidence(closest);
+  Kd = Kd * diffuseIntensity;
+  
+  // specular light
+  vec3 normal = closest.normal; // this is the interpolated noral for Phong shading (it is previously calculated and stored in the RayTriangleIntersection object)
+  float specularIntensity = calculateSpecularLight(point, rayDirection, normal);
+  Ks = Ks * specularIntensity;
+
+  Colour c =  getFinalColour(colour, Ka, Kd, Ks);
+  return c;
+}
+
+
+Colour getFinalColour(Colour colour, float Ka, float Kd, float Ks){
+  // this takes the ambient, diffuse and specular constants and gets the output colour
+  // note that we do not multiply the specular light by the colour (it is white hence the 255)
+  colour.red = ((Ka + Kd) * colour.red) + (Ks * 255);
+  colour.green = ((Ka + Kd) * colour.green) + (Ks * 255);
+  colour.blue = ((Ka + Kd) * colour.blue) + (Ks * 255);
+
+  // clipping the colour for if it goes above 255
+  colour.red = glm::min(colour.red, 255);
+  colour.green = glm::min(colour.green, 255);
+  colour.blue = glm::min(colour.blue, 255);
+
+  return colour;
+}
 
 
 // given a point in the scene, this function calculates the intensity of the light
@@ -1374,6 +1418,7 @@ void gouraudShading() {
 
 
 void averageVertexNormals(){
+  textures();
   int currentFaceIndex = 0; // stores the number of how many faces we have gone through yet
   vector<vec3> faceVertices; // stores the indices of which vertices make up each face
   
@@ -1452,13 +1497,7 @@ void averageVertexNormals(){
       int index = v[j];
       vec3 normal = averagedNormals[index];
       faces[i].normals[j] = normal;
-      cout << "n: ";
-      printVec3(normal);
-      cout << endl;
     }
   }
 }
 
-
-void getPhongNormal(RayTriangleIntersection intersection, vector<vec3> vertexNormals){
-}
