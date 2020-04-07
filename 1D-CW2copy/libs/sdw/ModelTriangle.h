@@ -8,14 +8,15 @@ class ModelTriangle
     glm::vec3 vertices[3];
     Colour colour;
     glm::vec3 normals[3]; // these correspond to the averaged normals of the vertices
-    bool mirrorTexture;
+    std::string texture;
+    int faceIndex; // stores the number of which face it is out of all of them
 
     ModelTriangle()
     {
       normals[0] = glm::vec3 (0,0,0);
       normals[1] = glm::vec3 (0,0,0);
       normals[2] = glm::vec3 (0,0,0);
-      mirrorTexture = false;
+      texture = "none";
     }
 
     ModelTriangle(glm::vec3 v0, glm::vec3 v1, glm::vec3 v2, Colour trigColour)
@@ -27,7 +28,7 @@ class ModelTriangle
       normals[0] = glm::vec3 (0,0,0);
       normals[1] = glm::vec3 (0,0,0);
       normals[2] = glm::vec3 (0,0,0);
-      mirrorTexture = false;
+      texture = "none";
     }
 };
 
