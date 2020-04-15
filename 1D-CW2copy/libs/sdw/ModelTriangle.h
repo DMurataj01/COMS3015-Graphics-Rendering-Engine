@@ -1,5 +1,5 @@
 #include <glm/glm.hpp>
-#include "Colour.h"
+#include <Colour.h>
 #include <string>
 
 class ModelTriangle
@@ -10,6 +10,7 @@ class ModelTriangle
     glm::vec3 normals[3]; // these correspond to the averaged normals of the vertices
     std::string texture;
     int faceIndex; // stores the number of which face it is out of all of them
+    bool culled; // has this face been culled or not? do we need to check for intersections with it?
 
     ModelTriangle()
     {
@@ -17,6 +18,8 @@ class ModelTriangle
       normals[1] = glm::vec3 (0,0,0);
       normals[2] = glm::vec3 (0,0,0);
       texture = "none";
+      culled = false;
+      faceIndex = -1;
     }
 
     ModelTriangle(glm::vec3 v0, glm::vec3 v1, glm::vec3 v2, Colour trigColour)
@@ -29,6 +32,8 @@ class ModelTriangle
       normals[1] = glm::vec3 (0,0,0);
       normals[2] = glm::vec3 (0,0,0);
       texture = "none";
+      culled = false;
+      faceIndex = -1;
     }
 };
 

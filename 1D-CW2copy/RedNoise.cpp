@@ -10,6 +10,7 @@
 #include <vector> 
 #include <sstream> 
 #include <RayTriangleIntersection.h> 
+#include <Object.h>
  
 using namespace std; 
 using namespace glm; 
@@ -62,8 +63,9 @@ void raytracer();
 Colour solveLight(RayTriangleIntersection closest, vec3 rayDirection, float Ka, float Kd, float Ks); 
 vec3 createRay(int i, int j); 
 void rayTest(); 
-vector<vec3> checkForIntersections(vec3 point, vec3 rayDirection); 
-RayTriangleIntersection closestIntersection(vector<vec3> solutions, vec3 rayPoint); 
+vector<vec4> checkForIntersections(vec3 point, vec3 rayDirection);
+vector<vec4> faceIntersections(vector<ModelTriangle> inputFaces, vec3 point, vec3 rayDirection);
+RayTriangleIntersection closestIntersection(vector<vec4> solutions, vec3 rayPoint); 
 Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR); 
 Colour getFinalColour(Colour colour, float Ka, float Kd, float Ks); 
 float intensityDropOff(vec3 point); 
@@ -78,6 +80,8 @@ Colour mirror(RayTriangleIntersection intersection, vec3 incident);
 Colour glass(vec3 rayDirection, RayTriangleIntersection closest, int depth);
 vec4 refract(vec3 I, vec3 N, float ior);
 float fresnel(vec3 incident, vec3 normal, float ior);
+void backfaceCulling(vec3 rayDirection);
+vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces);
  
  
  
@@ -90,7 +94,9 @@ string objFileName = "cornell-box.obj";
 string mtlFileName = "cornell-box.mtl"; 
  
 // this is where we will store the faces of the OBJ file 
-vector<ModelTriangle> faces; 
+vector<ModelTriangle> faces;
+// this stores the faces split up into separate objects
+vector<Object> objects;
  
  
 // create a global depth map 
@@ -213,6 +219,18 @@ void handleEvent(SDL_Event event)
   } 
   else if(event.type == SDL_MOUSEBUTTONDOWN) cout << "MOUSE CLICKED" << endl; 
 } 
+
+
+// use this function to split the faces into separate objects (an 'Object' object has been created)
+// if you want, you can store a bounding box with the object too
+void createObjects(){
+  Object object1;
+  object1.faces = faces;
+  //object1.hasBoundingBox = true;
+  //object1.boxFaces = boundingBox(object1.faces);
+
+  objects.push_back(object1);
+}
  
  
  
@@ -724,7 +742,7 @@ vector<ModelTriangle> readOBJ(float scalingFactor){
   // this is where we will save the correct colour for each face once found 
   Colour colour (255,255,255); 
  
- 
+  int numberOfFaces = 0;
   // while we have a new line, get it 
   while (getline(myfile, line)){ 
     // if the line starts with 'usemtl', then we retrieve the new colour and use this colour until we get a new one 
@@ -752,7 +770,9 @@ vector<ModelTriangle> readOBJ(float scalingFactor){
  
     // if we have a face, then get the corresponding vertices and store it as a ModelTriangle object, then add it to the collection of faces 
     else if (line.find('f') == 0){ 
-      ModelTriangle triangle = getFace(line, vertices, colour, scalingFactor); 
+      ModelTriangle triangle = getFace(line, vertices, colour, scalingFactor);
+      triangle.faceIndex = numberOfFaces;
+      numberOfFaces = numberOfFaces + 1;
       faces.push_back(triangle); 
     } 
   } 
@@ -968,6 +988,7 @@ vec3 findCentreOfScene(){
  
 void test(){ 
   faces = readOBJ(1); 
+  createObjects();
   averageVertexNormals(); 
   render(); 
 } 
@@ -1015,14 +1036,15 @@ void rayTest(){
 } 
  
 // this will be the main function for the raytracer 
-void raytracer(){ 
+void raytracer(){
   textures(); 
   // for each pixel 
   for (int i = 0 ; i < WIDTH ; i++){ 
     for (int j = 0 ; j < HEIGHT ; j++){ 
- 
+      cout << i << ", " << j << endl;
       // send a ray 
-      vec3 rayDirection = createRay(i,j); 
+      vec3 rayDirection = createRay(i,j);
+
       // shoot the ray and check for intersections 
       Colour colour = shootRay(cameraPosition, rayDirection, 0, 1); // depth starts at 0, IOR is 1 as travelling in air
       // colour the pixel accordingly 
@@ -1052,7 +1074,7 @@ Colour solveLight(RayTriangleIntersection closest, vec3 rayDirection, float Ka, 
  
  
 // given the pixel coordinates, this function calculates the direction fot he ray (in vector format) 
-vec3 createRay(int i, int j){ 
+vec3 createRay(int i, int j){
   vec2 pixel (i,j); 
   pixel = pixel + vec2(0.5,0.5); 
   vec2 distanceFromCentre = pixel - vec2(WIDTH/2, HEIGHT/2); // distance from the pixel to the centre of the image plane in terms of number of pixels 
@@ -1070,27 +1092,81 @@ vec3 createRay(int i, int j){
 // this function takes the ray and checks with all the faces to see which ones it intersects 
 // it outputs a vector of vectors - a (t,u,v) vector for each face 
 // if t>0, then that means that for that particular face the ray intersects it with u and v being local coordinates for the triangle 
-vector<vec3> checkForIntersections(vec3 point, vec3 rayDirection){ 
+vector<vec4> checkForIntersections(vec3 point, vec3 rayDirection){ 
   // this is the output vector, for every possible face it stores a possibleSolution 
-  vector<vec3> solutions; 
+  // the 4th value in this evctor is the index of the face if there is an intersection
+  vector<vec4> solutions;
+
+  // for each object, does it have a bounding box?
+  // if so, does the ray intersect it?
+  // if so, which of the faces in that object does the ray intersect?
+  int n = objects.size();
+  for (int i = 0 ; i < n ; i++){
+    vector<vec4> objectSolutions; // to store the solutions if any for this object
+    Object object = objects[i];
+    if (object.hasBoundingBox){
+      vector<vec4> boxSolutions = faceIntersections(object.boxFaces, point, rayDirection);
+      // do we intersect the bounding box?
+      for (int j = 0 ; j < boxSolutions.size() ; j++){
+        vec4 solution = boxSolutions[j];
+        // if we have an intersection, then check for intersections with all the faces
+        if (solution[0] > 0){
+          objectSolutions = faceIntersections(object.faces, point, rayDirection);
+          break;
+        }
+      }
+    }
+    // if this object doesn't have a bounding box, then just check each face as normal
+    else {
+      objectSolutions = faceIntersections(object.faces, point, rayDirection);
+    }
+    // for all the object solutions (if there is any, put each solution into the main solutions)
+    int len = objectSolutions.size();
+    for (int j = 0 ; j < len ; j++){
+      solutions.push_back(objectSolutions[j]);
+    }
+  }
+  return solutions;
+} 
+
+
+vector<vec4> faceIntersections(vector<ModelTriangle> inputFaces, vec3 point, vec3 rayDirection){
+  // this is the output vector, for every possible face it stores a possibleSolution 
+  vector<vec4> solutions;
+
+  // cull the faces which face away from the camera
+  //backfaceCulling(rayDirection);
+
   // for each face 
-  int n = faces.size(); 
+  int n = inputFaces.size(); 
   for (int i = 0 ; i < n ; i++){ 
-    ModelTriangle triangle = faces[i]; 
-    // got the following code from the worksheet 
-    vec3 e0 = triangle.vertices[1] - triangle.vertices[0]; 
-    vec3 e1 = triangle.vertices[2] - triangle.vertices[0]; 
-    vec3 SPVector = point - triangle.vertices[0]; 
-    mat3 DEMatrix(-rayDirection, e0, e1); 
-    vec3 possibleSolution = glm::inverse(DEMatrix) * SPVector; 
-    solutions.push_back(possibleSolution); 
+    ModelTriangle triangle = inputFaces[i];
+    // only check for intersections on the faces that face the camera
+    if (triangle.culled == false) {
+      // got the following code from the worksheet 
+      vec3 e0 = triangle.vertices[1] - triangle.vertices[0]; 
+      vec3 e1 = triangle.vertices[2] - triangle.vertices[0]; 
+      vec3 SPVector = point - triangle.vertices[0]; 
+      mat3 DEMatrix(-rayDirection, e0, e1); 
+      vec3 possibleSolution = glm::inverse(DEMatrix) * SPVector;
+      vec4 possibleSolutionWithIndex;
+      possibleSolutionWithIndex[0] = possibleSolution[0];
+      possibleSolutionWithIndex[1] = possibleSolution[1];
+      possibleSolutionWithIndex[2] = possibleSolution[2];
+      possibleSolutionWithIndex[3] = triangle.faceIndex;
+      solutions.push_back(possibleSolutionWithIndex); 
+    }
+    // if it has been culled then return a fake solution
+    else {
+      solutions.push_back(vec4 (-1,0,0,-1));
+    } 
   } 
   return solutions; 
-} 
+}
  
  
 // this function gives back the index of the closest face for a particular ray 
-RayTriangleIntersection closestIntersection(vector<vec3> solutions, vec3 rayPoint){ 
+RayTriangleIntersection closestIntersection(vector<vec4> solutions, vec3 rayPoint){ 
   RayTriangleIntersection closest; // this is where we store the closest triangle of intersection, the point it intersects and the distance 
   closest.distanceFromCamera = -1; // initialize this so we can tell when there are no intersections 
   float closestT = numeric_limits<float>::infinity(); 
@@ -1099,11 +1175,11 @@ RayTriangleIntersection closestIntersection(vector<vec3> solutions, vec3 rayPoin
   int n = solutions.size(); 
   for (int i = 0 ; i < n ; i++){ 
      
-    ModelTriangle triangle = faces[i]; 
-    vec3 possibleSolution = solutions[i]; 
+    vec4 possibleSolution = solutions[i]; 
     float t = possibleSolution[0]; 
     float u = possibleSolution[1]; 
-    float v = possibleSolution[2]; 
+    float v = possibleSolution[2];
+    int index = possibleSolution[3];
      
     // if it is actually a solution 
     bool bool1 = (t > 0); 
@@ -1111,6 +1187,7 @@ RayTriangleIntersection closestIntersection(vector<vec3> solutions, vec3 rayPoin
     bool bool3 = (0 <= v) && (v <= 1); 
     bool bool4 = (u + v) <= 1; 
     if (bool1 && bool2 && bool3 && bool4){ 
+      ModelTriangle triangle = faces[index]; 
       // is it closer than what we currently have? 
       if (t < closestT){ 
         closestT = t; 
@@ -1159,7 +1236,7 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
   } 
 
   // does this ray intersect any of the faces?
-  vector<vec3> solutions = checkForIntersections(rayPoint, rayDirection); 
+  vector<vec4> solutions = checkForIntersections(rayPoint, rayDirection); 
   // find the closest intersection
   RayTriangleIntersection closest = closestIntersection(solutions, rayPoint); 
   Colour colour = closest.intersectedTriangle.colour; 
@@ -1636,3 +1713,120 @@ float fresnel(vec3 incident, vec3 normal, float ior) {
     // kt = 1 - kr;
     return kr;
 } 
+
+
+
+////////////////////
+// CULLING CODE
+////////////////////
+
+// when we have the direction of the ray, we can filter out any faces that face the other direction (this reduces time in checking for intersections)
+void backfaceCulling(vec3 rayDirection){
+  int n = faces.size();
+  for (int i = 0 ; i < n ; i++) {
+    ModelTriangle triangle = faces[i];
+    vec3 normal = getNormalOfTriangle(triangle);
+    // if our face faces away from the camera then cull it
+    if (dot(cameraForward, normal) < 0) {
+      triangle.culled = true;
+    }
+  }
+}
+
+
+// for a set of vertices (an object maybe), create a bounding box
+vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces){
+  // we want to find the minimum and maximum values of x,y,z in all the vertices
+  // first set the min to be (inf, inf, inf)
+  // set max to be (-inf, -inf, -inf)
+  vec3 min (numeric_limits<float>::infinity(), numeric_limits<float>::infinity(), numeric_limits<float>::infinity());
+  vec3 max = -min;
+  printVec3(min);
+  printVec3(max);
+  int n = inputFaces.size();
+  // for each face
+  for (int i = 0 ; i < n ; i++){
+    ModelTriangle triangle = inputFaces[i];
+    // for each vertex
+    for (int j = 0 ; j < 3 ; j++){
+      vec3 vertex = triangle.vertices[j];
+      // check for all the x,y,z values separately to see if it is a new min or maximum
+      for (int k = 0 ; k < 3 ; k++){
+        float value = vertex[k];
+        if (value < min[k]){
+          min[k] = value;
+        }
+        if (value > max[k]){
+          max[k] = value;
+        }
+      }
+    }
+  }
+
+  printVec3(min);
+  printVec3(max);
+
+  // create the box object
+  vector<ModelTriangle> boxFaces; // this is a cube so will have 12 faces
+  vector<vec3> vertices; // these must be in a particular order so the faces can be constructed facing the right way and also the right faces are constructed
+  vertices.push_back( vec3 (min[0], min[1], min[2]) ); // bottom-left-forward   v1
+  vertices.push_back( vec3 (max[0], min[1], min[2]) ); // bottom-right-forward  v2 
+  vertices.push_back( vec3 (min[0], max[1], min[2]) ); // top-left-forward      v3
+  vertices.push_back( vec3 (max[0], max[1], min[2]) ); // top-right-forward     v4
+  vertices.push_back( vec3 (min[0], min[1], max[2]) ); // bottom-left-back      v5
+  vertices.push_back( vec3 (max[0], min[1], max[2]) ); // bottom-right-back     v6
+  vertices.push_back( vec3 (min[0], max[1], max[2]) ); // top-left-back         v7
+  vertices.push_back( vec3 (max[0], max[1], max[2]) ); // top-right-back        v8
+
+  cout << "n: " << vertices.size() << endl;
+
+  /*
+  front face:
+  1 2 3
+  2 4 3
+  top face:
+  3 4 7
+  4 8 7
+  back face:
+  7 8 5
+  8 6 5
+  bottom face:
+  5 6 1
+  6 2 1
+  left face:
+  5 1 7
+  1 3 7
+  right face:
+  2 6 4
+  6 8 4
+  */
+
+ vector<vec3> vertexIndices;
+ vertexIndices.push_back(vec3 (1,2,3));
+ vertexIndices.push_back(vec3 (2,4,3));
+ vertexIndices.push_back(vec3 (3,4,7));
+ vertexIndices.push_back(vec3 (4,8,7));
+ vertexIndices.push_back(vec3 (7,8,5));
+ vertexIndices.push_back(vec3 (8,6,5));
+ vertexIndices.push_back(vec3 (5,6,1));
+ vertexIndices.push_back(vec3 (6,2,1));
+ vertexIndices.push_back(vec3 (5,1,7));
+ vertexIndices.push_back(vec3 (1,3,7));
+ vertexIndices.push_back(vec3 (2,6,4));
+ vertexIndices.push_back(vec3 (6,8,4));
+
+
+  // make the vertices into faces
+  for (int i = 0 ; i < 12 ; i++){
+    vec3 indices = vertexIndices[i];
+    ModelTriangle triangle;
+    triangle.colour = Colour (255,255,255); // arbitrarily set colour to white (for testing)
+    for (int j = 0 ; j < 3 ; j ++){
+      int index = indices[j] - 1;
+      triangle.vertices[j] = vertices[index];
+      printVec3(vertices[index]);
+    }
+    boxFaces.push_back(triangle);
+  }
+  return boxFaces;
+}
