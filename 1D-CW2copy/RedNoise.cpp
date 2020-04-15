@@ -57,9 +57,7 @@ uint32_t getColour(Colour colour);
 void printVec3(vec3 input); 
 void drawLine(CanvasPoint start, CanvasPoint end, Colour colour); 
 void drawStrokedTriangle(CanvasTriangle triangle); 
-void drawRandomTriangle(); 
 void drawFilledTriangle(CanvasTriangle triangle); 
-void drawRandomFilledTriangle(); 
 void readPPM(); 
 void createObjects();
 vector<Colour> readOBJMTL(string filename); 
@@ -436,31 +434,6 @@ void drawStrokedTriangle(CanvasTriangle triangle){
 } 
  
  
-// draws a random unfilled triangle (this can be activated by pressing 'u') 
-void drawRandomTriangle(){ 
-  // getting random points 
-  int x1 = round(rand()%WIDTH); 
-  int x2 = round(rand()%WIDTH); 
-  int x3 = round(rand()%WIDTH); 
-  int y1 = round(rand()%HEIGHT); 
-  int y2 = round(rand()%HEIGHT); 
-  int y3 = round(rand()%HEIGHT); 
- 
-  CanvasPoint point1 (x1, y1); 
-  CanvasPoint point2 (x2, y2); 
-  CanvasPoint point3 (x3, y3); 
- 
-  // getting random colour 
-  int red = round(rand()%255); 
-  int green = round(rand()%255); 
-  int blue = round(rand()%255); 
- 
-  Colour colour (red, green, blue); 
-  CanvasTriangle triangle (point1, point2, point3, colour); 
- 
-  drawStrokedTriangle(triangle); 
-} 
- 
  
 void drawFilledTriangle(CanvasTriangle triangle){ 
   //Sort vertices.
@@ -546,36 +519,7 @@ void drawFilledTriangle(CanvasTriangle triangle){
   drawLine(point3,point1,Colour (255,255,255)); 
   drawLine(points[1],cutterPoint,Colour (255,255,255)); 
   */ 
-} 
- 
- 
- 
-void drawRandomFilledTriangle(){ 
-  int x1 = round(rand()%WIDTH); 
-  int x2 = round(rand()%WIDTH); 
-  int x3 = round(rand()%WIDTH); 
-  int y1 = round(rand()%HEIGHT); 
-  int y2 = round(rand()%HEIGHT); 
-  int y3 = round(rand()%HEIGHT); 
- 
-  CanvasPoint point1 (x1, y1); 
-  CanvasPoint point2 (x2, y2); 
-  CanvasPoint point3 (x3, y3); 
- 
-  int red = round(rand()%255); 
-  int green = round(rand()%255); 
-  int blue = round(rand()%255); 
- 
-  Colour colour (red, green, blue); 
-  CanvasTriangle triangle (point1, point2, point3, colour); 
- 
-  cout << "Point 1: " << x1 << ", " << y1 << "\n"; 
-  cout << "Point 2: " << x2 << ", " << y2 << "\n"; 
-  cout << "Point 3: " << x3 << ", " << y3 << "\n\n"; 
- 
-  drawFilledTriangle(triangle); 
-} 
- 
+}  
  
 void readPPM(){ 
   // open the file, we then go through each line storing it in a string 
