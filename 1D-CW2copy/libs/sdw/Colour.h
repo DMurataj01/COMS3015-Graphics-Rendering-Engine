@@ -27,6 +27,7 @@ class Colour
       green = g;
       blue = b;
     }
+    
 };
 
 std::ostream& operator<<(std::ostream& os, const Colour& colour)

@@ -1,7 +1,10 @@
 // Note that in this code we use a left-handed coordinate system 
  
- 
-#include <ModelTriangle.h> 
+#ifndef MODELTRIANGLE_H
+  #define MODELTRIANGLE_H
+  #include <ModelTriangle.h>
+#endif
+
 #include <CanvasTriangle.h> 
 #include <DrawingWindow.h> 
 #include <Utils.h> 
@@ -15,9 +18,27 @@
 using namespace std; 
 using namespace glm; 
  
-#define WIDTH 600//640 
-#define HEIGHT 600//480 
+#define W 600//2400//640 
+#define H 600//2400//480 
+
+const int ssScale = 1;
+
+const int WIDTH = W * ssScale;
+const int HEIGHT = H * ssScale;
+
+vector<uint32_t> pixelBuffer; 
+vector<float> depthMap;
  
+enum MOVEMENT {UP, DOWN, LEFT, RIGHT, ROLL_LEFT, ROLL_RIGHT, PAN_LEFT, PAN_RIGHT, TILT_UP, TILT_DOWN};
+
+enum RENDERTYPE{RAYTRACE, RASTERIZE, WIREFRAME};
+
+RENDERTYPE currentRender = RAYTRACE; //Default to Raytrace.
+
+// press '1' for wireframe 
+// press '2' for rasterized 
+// press '3' for raytraced  
+
  
 /* STRUCTURE - ImageFile */ 
 struct ImageFile { 
@@ -39,9 +60,8 @@ void drawStrokedTriangle(CanvasTriangle triangle);
 void drawRandomTriangle(); 
 void drawFilledTriangle(CanvasTriangle triangle); 
 void drawRandomFilledTriangle(); 
-void a(); 
 void readPPM(); 
-void test(); 
+void createObjects();
 vector<Colour> readOBJMTL(string filename); 
 string removeLeadingWhitespace(string s); 
 ImageFile readImage(string fileName); 
@@ -51,18 +71,16 @@ ModelTriangle getFace(string inputLine, vector<vec3> vertices, Colour colour, fl
 vector<ModelTriangle> readOBJ(float scalingFactor); 
 void rasterize(); 
 void initializeDepthMap(); 
-void updateView(string input); 
+void updateView (MOVEMENT movement);
 /* FUNCTION Declarations */ 
 ImageFile readImage(string fileName); 
 void renderImage(ImageFile imageFile); 
-void rotateView(string inputString); 
 void lookAt(vec3 point); 
 vec3 findCentreOfScene(); 
 void test2(); 
 void raytracer(); 
 Colour solveLight(RayTriangleIntersection closest, vec3 rayDirection, float Ka, float Kd, float Ks); 
 vec3 createRay(int i, int j); 
-void rayTest(); 
 vector<vec4> checkForIntersections(vec3 point, vec3 rayDirection);
 vector<vec4> faceIntersections(vector<ModelTriangle> inputFaces, vec3 point, vec3 rayDirection);
 RayTriangleIntersection closestIntersection(vector<vec4> solutions, vec3 rayPoint); 
@@ -86,7 +104,7 @@ vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces);
  
  
  
-DrawingWindow window = DrawingWindow(WIDTH, HEIGHT, false); 
+DrawingWindow window; //= DrawingWindow(WIDTH, HEIGHT, false); 
  
  
 // the files (scene) which we want to render 
@@ -98,17 +116,8 @@ vector<ModelTriangle> faces;
 // this stores the faces split up into separate objects
 vector<Object> objects;
  
- 
-// create a global depth map 
-float depthMap [WIDTH*HEIGHT]; 
- 
- 
-// this is the state of whether we are viewing wireframe, rasterized or raytraced 
-string STATE; 
-// press '1' for wireframe 
-// press '2' for rasterized 
-// press '3' for raytraced 
- 
+  
+
 bool print = false; 
  
  
@@ -130,11 +139,30 @@ float lightIntensity = 100;
  
  
  
-int main(int argc, char* argv[]) 
-{ 
-  initializeDepthMap(); 
- 
+int main(int argc, char* argv[]) { 
+  // 1) Create New Display.
+  window = DrawingWindow(W, H, false); 
   window.clearPixels(); 
+  // 2) Initialise Depth Map.
+  for (int i=0; i< WIDTH*HEIGHT; i++) {
+    pixelBuffer.push_back(0);
+    depthMap.push_back(std::numeric_limits<float>::infinity());
+  }
+
+  // 3) Read In OBJ.
+  faces = readOBJ(1); 
+  
+  // mirrored floor
+  //faces[6].texture = "mirror"; 
+  //faces[7].texture = "mirror";
+  // making the 'red' box glass
+  for (int i = 12 ; i < 22 ; i++){
+    faces[i].texture = "glass";
+  }
+  
+  createObjects();
+  averageVertexNormals(); 
+  render();
  
   SDL_Event event; 
   while(true) 
@@ -154,71 +182,126 @@ void update()
 { 
   // Function for performing animation (shifting artifacts or moving the camera) 
 } 
+
+void SetBufferColour(int x, int y, uint32_t col) {
+  const int i = x + (y*WIDTH);
+  pixelBuffer[i] = col;
+}
+
+
+uint8_t getRedValueFromColor(uint32_t c) {
+  return (c >> 16);
+}
+uint8_t getGreenValueFromColor(uint32_t c) {
+    return (c >> 8);
+}
+uint8_t getBlueValueFromColor(uint32_t c) {
+    return (c);
+}
+
  
+// this function renders the scene, depending on what the value of STATE is (so whether we use wireframe, rasterize or raytrace) 
+void render(){ 
+  switch (currentRender) {
+    case RAYTRACE:
+      raytracer();
+      break;
+    case RASTERIZE:
+      rasterize();
+      break;
+    default:
+      rasterize();
+      break;
+  }
+
+  /* pixelBuffer ---> Display */
+
+  for (int j=0; j<HEIGHT; j+=ssScale) {
+    for (int i=0; i<WIDTH; i+=ssScale) {
+      /* average [ i j ||  i+1 j ||  i j+1 || i+1 j+1 ] per channel. */
+      
+      //ssScale * ssScale Block.
+      int R=0; int G=0; int B=0;
+      for (int jj=0; jj<ssScale; jj++){
+        for (int ii=0; ii<ssScale; ii++){
+          int x = i + ii; 
+          int y = j + jj;
+          int index = x + (WIDTH*y);
+          R += getRedValueFromColor(pixelBuffer[index]);
+          G += getGreenValueFromColor(pixelBuffer[index]);
+          B += getBlueValueFromColor(pixelBuffer[index]);
+
+          //cout << "i j ii jj [RGB]: " << i << " " << j << " " << " " << ii << " " << jj << "[ " << R << "," << G << "," << B << "]\n";
+        }
+      }
+      R /= (ssScale*ssScale);
+      G /= (ssScale*ssScale);
+      B /= (ssScale*ssScale);
+      uint32_t colour = (255<<24) + (int(R)<<16) + (int(G)<<8) + int(B); 
+      window.setPixelColour(i/ssScale, j/ssScale, colour);
+    }
+  }
+
+  //uint32_t col = (255<<24) + (colour.red<<16) + (colour.green<<8) + colour.blue; 
+  //return col; 
+
+} 
  
- 
-void handleEvent(SDL_Event event) 
-{ 
+void handleEvent(SDL_Event event) { 
   if(event.type == SDL_KEYDOWN) { 
-    if(event.key.keysym.sym == SDLK_LEFT){ 
-      cout << "LEFT" << endl; 
-      updateView("left"); 
-    } 
-    else if(event.key.keysym.sym == SDLK_RIGHT){ 
-      cout << "RIGHT" << endl; 
-      updateView("right"); 
-    } 
-    else if(event.key.keysym.sym == SDLK_UP){ 
-      cout << "UP" << endl; 
-      updateView("up"); 
-    } 
-    else if(event.key.keysym.sym == SDLK_DOWN){ 
-      cout << "DOWN" << endl; 
-      updateView("down"); 
-    } 
-    else if(event.key.keysym.sym == SDLK_a){ 
-      cout << "PAN RIGHT" << endl; 
-      rotateView("panRight"); 
-    } 
-    else if(event.key.keysym.sym == SDLK_s){ 
-      cout << "PAN LEFT" << endl; 
-      rotateView("panLeft"); 
-    } 
-    else if(event.key.keysym.sym == SDLK_w){ 
-      cout << "TILT DOWN" << endl; 
-      rotateView("tiltDown"); 
-    } 
-    else if(event.key.keysym.sym == SDLK_z){ 
-      cout << "TILT UP" << endl; 
-      rotateView("tiltUp"); 
-    } 
-    else if(event.key.keysym.sym == SDLK_u) drawRandomTriangle(); 
-    else if(event.key.keysym.sym == SDLK_f) drawRandomFilledTriangle(); 
-    else if(event.key.keysym.sym == SDLK_t) test(); 
-    else if(event.key.keysym.sym == SDLK_y) test2(); 
-    else if(event.key.keysym.sym == SDLK_r) rayTest(); 
-    else if(event.key.keysym.sym == SDLK_c) clear(); 
+    if(event.key.keysym.sym == SDLK_LEFT)       updateView(LEFT);  
+    else if(event.key.keysym.sym == SDLK_RIGHT) updateView(RIGHT);
+    else if(event.key.keysym.sym == SDLK_UP)    updateView(UP);
+    else if(event.key.keysym.sym == SDLK_DOWN)  updateView(DOWN);  
+    else if(event.key.keysym.sym == SDLK_a)     updateView(PAN_RIGHT);
+    else if(event.key.keysym.sym == SDLK_d)     updateView(PAN_LEFT);
+    else if(event.key.keysym.sym == SDLK_w)     updateView(TILT_DOWN); 
+    else if(event.key.keysym.sym == SDLK_s)     updateView(TILT_UP); 
+    else if(event.key.keysym.sym == SDLK_y)     test2(); 
+    else if(event.key.keysym.sym == SDLK_c)     clear(); 
+
     // pressing 1 changes to wireframe mode 
     else if(event.key.keysym.sym == SDLK_1){ 
-      STATE = "wireframe"; 
-      clear(); 
+      currentRender = WIREFRAME;
       render(); 
     } 
     // pressing 2 changes to rasterize mode 
     else if(event.key.keysym.sym == SDLK_2){ 
-      STATE = "rasterize"; 
-      clear(); 
+      currentRender = RASTERIZE;
       render(); 
     } 
     // pressing 3 changes to raytrace mode 
     else if(event.key.keysym.sym == SDLK_3){ 
-      STATE = "raytrace"; 
-      clear(); 
+      currentRender = RAYTRACE;
       render(); 
     } 
   } 
-  else if(event.type == SDL_MOUSEBUTTONDOWN) cout << "MOUSE CLICKED" << endl; 
 } 
+ 
+ 
+ 
+void clear(){ 
+  window.clearPixels(); 
+  for (int i = 0 ; i < (HEIGHT*WIDTH) ; i++){ 
+    pixelBuffer[i] = 0;
+    depthMap[i] = numeric_limits<float>::infinity(); 
+  } 
+} 
+ 
+
+
+
+void setDepthPixelColour(int x, int y, double z, uint32_t clr) { 
+  int index = (WIDTH*(y)) + x; 
+  if (x > 0 && y > 0 ) {
+    if (x < WIDTH && y< HEIGHT) {
+      if (z < depthMap.at(index)){
+        SetBufferColour(x,y, clr);
+        depthMap.at(index) = z;
+      }
+    }
+  }
+};
 
 
 // use this function to split the faces into separate objects (an 'Object' object has been created)
@@ -243,24 +326,6 @@ void textures(){
     faces[i].texture = "glass";
   }
 } 
- 
- 
-// this function renders the scene, depending on what the value of STATE is (so whether we use wireframe, rasterize or raytrace) 
-void render(){ 
-  if (STATE == "raytrace"){ 
-    raytracer(); 
-  } 
-  else { 
-    rasterize(); 
-  } 
-} 
- 
- 
-void clear(){ 
-  window.clearPixels(); 
-  initializeDepthMap(); 
-} 
- 
  
  
 // given a start and an end value, step from the start to the end with the right number of steps 
@@ -291,7 +356,6 @@ uint32_t getColour(Colour colour){
 } 
  
  
- 
 // draws a 2D line from start to end (colour is in (r,g,b) format with 255 as max) 
 void drawLine(CanvasPoint start, CanvasPoint end, Colour colour) { 
   float diffX = end.x - start.x; 
@@ -303,7 +367,7 @@ void drawLine(CanvasPoint start, CanvasPoint end, Colour colour) {
  
   // if we are starting and ending on the same pixel 
   if (numberOfSteps == 0){ 
-    //window.setPixelColour(start.x, start.y, col); 
+    //SetBufferColour(start.x, start.y, col); 
   } 
  
   else { 
@@ -326,7 +390,7 @@ void drawLine(CanvasPoint start, CanvasPoint end, Colour colour) {
       if (x > 0 && y > 0 ) { 
         if (x < WIDTH && y< HEIGHT) { 
           if (depth < depthMap[index]){ 
-            window.setPixelColour(x,y,col); 
+            SetBufferColour(x,y,col); 
             depthMap[index] = depth; 
           } 
         } 
@@ -335,7 +399,30 @@ void drawLine(CanvasPoint start, CanvasPoint end, Colour colour) {
   } 
 } 
  
- 
+CanvasTriangle sortTriangleVertices(CanvasTriangle tri) {
+  //** Unrolled 'Bubble Sort' for 3 items.
+
+  if (tri.vertices[1].y < tri.vertices[0].y)
+    swap(tri.vertices[0], tri.vertices[1]);
+  else if (tri.vertices[1].y == tri.vertices[0].y)
+      if (tri.vertices[1].x < tri.vertices[0].x)
+        swap(tri.vertices[0], tri.vertices[1]);
+
+  if (tri.vertices[2].y < tri.vertices[1].y)
+    swap(tri.vertices[1], tri.vertices[2]);
+  else if (tri.vertices[2].y == tri.vertices[1].y)
+      if (tri.vertices[2].x < tri.vertices[1].x)
+        swap(tri.vertices[1], tri.vertices[2]);
+
+  if (tri.vertices[1].y < tri.vertices[0].y)
+    swap(tri.vertices[0], tri.vertices[1]);
+  else if (tri.vertices[1].y == tri.vertices[0].y)
+      if (tri.vertices[1].x < tri.vertices[0].x)
+        swap(tri.vertices[0], tri.vertices[1]);
+
+  return tri;
+}
+
 // draws an unfilled triangle with the input points as vertices 
 void drawStrokedTriangle(CanvasTriangle triangle){ 
   CanvasPoint point1 = triangle.vertices[0]; 
@@ -376,39 +463,12 @@ void drawRandomTriangle(){
  
  
 void drawFilledTriangle(CanvasTriangle triangle){ 
-  // separating the CanvasTriangle object and storing the vertices and colour separately 
-  CanvasPoint point1 = triangle.vertices[0]; 
-  CanvasPoint point2 = triangle.vertices[1]; 
-  CanvasPoint point3 = triangle.vertices[2]; 
-  Colour colour = triangle.colour; 
-   
-  // putting all the points in a vector so they can be retrieved by index 
-  vector<CanvasPoint> points; 
-  points.push_back(point1); 
-  points.push_back(point2); 
-  points.push_back(point3); 
- 
-  // sort the points by the y value 
-  for (int i = 0 ; i < 2 ; i++){ 
-    CanvasPoint pointOne = points[i]; 
-    CanvasPoint pointTwo = points[i+1]; 
-    // if the next point has a lower y value then swap them 
-    if (pointOne.y > pointTwo.y){ 
-      points[i+1] = pointOne; 
-      points[i] = pointTwo; 
-    } 
-  } 
-  // still sorting : check the first two again 
-  CanvasPoint pointOne = points[0]; 
-  CanvasPoint pointTwo = points[1]; 
-  if (pointOne.y > pointTwo.y){ 
-    points[0] = pointTwo; 
-    points[1] = pointOne; 
-  } 
- 
-  CanvasPoint maxPoint = points[0]; 
-  CanvasPoint middlePoint = points[1]; 
-  CanvasPoint minPoint = points[2]; 
+  //Sort vertices.
+  triangle = sortTriangleVertices(triangle);
+  
+  CanvasPoint maxPoint = triangle.vertices[0]; 
+  CanvasPoint middlePoint = triangle.vertices[1]; 
+  CanvasPoint minPoint = triangle.vertices[2]; 
   // the vertical distance between the highest point and the middle point 
   float yDistance = middlePoint.y - maxPoint.y; 
   // interpolating to find the cutting point 
@@ -428,7 +488,7 @@ void drawFilledTriangle(CanvasTriangle triangle){
   float steps = middlePoint.y - maxPoint.y; // how many rows 
   // if the two vertices are on the same y line, then just draw a line between the two 
   if (steps == 0){ 
-    drawLine(middlePoint, maxPoint, colour); 
+    drawLine(middlePoint, maxPoint, triangle.colour); 
   } 
   else { 
     for (int i = 0 ; i < steps ; i++){ 
@@ -448,7 +508,7 @@ void drawFilledTriangle(CanvasTriangle triangle){
       float depthPoint2 = 1 / inverseDepthPoint2; 
       CanvasPoint start(xStart, maxPoint.y + i, depthPoint1); 
       CanvasPoint end(xEnd, maxPoint.y + i, depthPoint2); 
-      drawLine(start,end,colour); 
+      drawLine(start, end, triangle.colour); 
     } 
   } 
    
@@ -456,7 +516,7 @@ void drawFilledTriangle(CanvasTriangle triangle){
   // for each row, fill it in 
   float steps2 = minPoint.y - middlePoint.y; // how many rows 
   if (steps2 == 0) { 
-    drawLine(minPoint, middlePoint, colour); 
+    drawLine(minPoint, middlePoint, triangle.colour); 
   } 
   else { 
     for (int i = steps2 ; i >= 0 ; i--){ 
@@ -476,7 +536,7 @@ void drawFilledTriangle(CanvasTriangle triangle){
       float depthPoint2 = 1 / inverseDepthPoint2; 
       CanvasPoint start(xStart, cutterPoint.y + i, depthPoint1); 
       CanvasPoint end(xEnd, cutterPoint.y + i, depthPoint2); 
-      drawLine(start,end,colour); 
+      drawLine(start, end, triangle.colour); 
     } 
   } 
   /* 
@@ -843,13 +903,10 @@ void rasterize(){
  
       } 
     } 
- 
-    if (STATE == "wireframe"){ 
-      drawStrokedTriangle(canvasTriangle); 
-    } 
-    else { 
-      drawFilledTriangle(canvasTriangle); 
-    } 
+
+    if (currentRender == WIREFRAME) drawStrokedTriangle(canvasTriangle); 
+    else drawFilledTriangle(canvasTriangle); 
+     
   } 
 } 
  
@@ -863,86 +920,73 @@ void initializeDepthMap(){
  
  
  
-void updateView(string input){ 
- 
-  initializeDepthMap(); 
-  window.clearPixels(); 
-  vec3 direction (0, 0, 0); 
- 
-  if (input == "up"){ 
-    direction = cameraUp; 
-  } 
- 
-  else if (input == "down"){ 
-    direction = -cameraUp; 
-  } 
- 
-  else if (input == "right"){ 
-    direction = cameraRight; 
-  } 
- 
-  else if (input == "left"){ 
-    direction = -cameraRight; 
-  } 
-   
-  //direction = normalize(direction); 
-  cameraPosition = cameraPosition + direction; 
-  rasterize(); 
-} 
- 
-void rotateView(string inputString){ 
- 
-  initializeDepthMap(); 
-  window.clearPixels(); 
- 
-  vec3 col1 (0,0,0); 
-  vec3 col2 (0,0,0); 
-  vec3 col3 (0,0,0); 
- 
-  if (inputString == "rollRight"){ 
-    float alpha = -0.5; 
-    col1 = vec3 (cos(alpha), sin(alpha), 0); 
-    col2 = vec3 (-sin(alpha), cos(alpha), 0); 
-    col3 = vec3 (0, 0, 1); 
-  } 
- 
-  else if (inputString == "rollLeft"){ 
-    float alpha = 0.5; 
-    col1 = vec3 (cos(alpha), sin(alpha), 0); 
-    col2 = vec3 (-sin(alpha), cos(alpha), 0); 
-    col3 = vec3 (0, 0, 1); 
-  } 
- 
-  else if (inputString == "panLeft"){ 
-    float beta = 0.5; 
-    col1 = vec3 (cos(beta), 0, -sin(beta)); 
-    col2 = vec3 (0, 1, 0); 
-    col3 = vec3 (sin(beta), 0, cos(beta)); 
-  } 
- 
-  else if (inputString == "panRight"){ 
-    float beta = -0.5; 
-    col1 = vec3 (cos(beta), 0, -sin(beta)); 
-    col2 = vec3 (0, 1, 0); 
-    col3 = vec3 (sin(beta), 0, cos(beta)); 
-  } 
-  else if (inputString == "tiltDown"){ 
-    float gamma = 0.5; 
-    col1 = vec3 (1, 0, 0); 
-    col2 = vec3 (0, cos(gamma), sin(gamma)); 
-    col3 = vec3 (0, -sin(gamma), cos(gamma)); 
-  } 
- 
-  else if (inputString == "tiltUp"){ 
-    float gamma = -0.5; 
-    col1 = vec3 (1, 0, 0); 
-    col2 = vec3 (0, cos(gamma), sin(gamma)); 
-    col3 = vec3 (0, -sin(gamma), cos(gamma)); 
-  } 
-   
-  mat3 rotation (col1, col2, col3); 
-  cameraOrientation = cameraOrientation * rotation; 
-  rasterize(); 
+void updateView (MOVEMENT movement) {
+  
+  clear();
+
+  float alpha, beta, gamma;
+  vec3 col1, col2, col3;
+
+  switch (movement) {
+    /* Camera Position = Camera Position + Unit Vector */
+    case UP: 
+      cameraPosition += cameraUp;
+      break;
+    case DOWN:
+      cameraPosition -= cameraUp;
+      break;
+    case RIGHT: 
+      cameraPosition += cameraRight;
+      break;
+    case LEFT: 
+      cameraPosition -= cameraRight;
+      break;
+    /* Camera Orientation = Camera Orientation * rotation */
+    case ROLL_LEFT:
+      alpha = 0.5; 
+      col1 = vec3 (cos(alpha), sin(alpha), 0); 
+      col2 = vec3 (-sin(alpha), cos(alpha), 0); 
+      col3 = vec3 (0, 0, 1); 
+      cameraOrientation *= mat3(col1, col2, col3); 
+      break;
+    case ROLL_RIGHT:
+      alpha = -0.5; 
+      col1 = vec3 (cos(alpha), sin(alpha), 0); 
+      col2 = vec3 (-sin(alpha), cos(alpha), 0); 
+      col3 = vec3 (0, 0, 1); 
+      cameraOrientation *= mat3(col1, col2, col3); 
+      break;
+    case PAN_LEFT:
+      beta = 0.5; 
+      col1 = vec3 (cos(beta), 0, -sin(beta)); 
+      col2 = vec3 (0, 1, 0); 
+      col3 = vec3 (sin(beta), 0, cos(beta)); 
+      cameraOrientation *= mat3(col1, col2, col3); 
+      break;
+    case PAN_RIGHT:
+      beta = -0.5; 
+      col1 = vec3 (cos(beta), 0, -sin(beta)); 
+      col2 = vec3 (0, 1, 0); 
+      col3 = vec3 (sin(beta), 0, cos(beta)); 
+      cameraOrientation *= mat3(col1, col2, col3); 
+      break;      
+    case TILT_UP:
+      gamma = 0.5; 
+      col1 = vec3 (1, 0, 0); 
+      col2 = vec3 (0, cos(gamma), sin(gamma)); 
+      col3 = vec3 (0, -sin(gamma), cos(gamma)); 
+      cameraOrientation *= mat3(col1, col2, col3); 
+      break;
+    case TILT_DOWN:
+      gamma = -0.5; 
+      col1 = vec3 (1, 0, 0); 
+      col2 = vec3 (0, cos(gamma), sin(gamma)); 
+      col3 = vec3 (0, -sin(gamma), cos(gamma)); 
+      cameraOrientation *= mat3(col1, col2, col3); 
+      break;
+  }
+
+  render();
 } 
  
  
@@ -984,15 +1028,7 @@ vec3 findCentreOfScene(){
   sum = sum / (float)(n*3); 
   return sum; 
 } 
- 
- 
-void test(){ 
-  faces = readOBJ(1); 
-  createObjects();
-  averageVertexNormals(); 
-  render(); 
-} 
- 
+  
 void printVec3(vec3 name){ 
   cout << "[" << name[0] << ", " << name[1] << ", " << name[2] << "]\n"; 
 } 
@@ -1013,7 +1049,7 @@ void renderImage(ImageFile imageFile){
     uint32_t colour = (255<<24) + (red<<16) + (green<<8) + blue; 
     int row = int(i/imageFile.width); 
     int col = i - (row*imageFile.width); 
-    window.setPixelColour(col, row, colour); 
+    SetBufferColour(col, row, colour); 
   } 
   cout << "\nImage render complete.\n"; 
 } 
@@ -1027,28 +1063,21 @@ void renderImage(ImageFile imageFile){
 //////////////////////////////////////////////////////// 
 // RAYTRACING CODE 
 //////////////////////////////////////////////////////// 
- 
- 
- 
-// this runs when you press the letter 'r' - used for testing functions 
-void rayTest(){ 
-  raytracer(); 
-} 
- 
+  
 // this will be the main function for the raytracer 
 void raytracer(){
   textures(); 
   // for each pixel 
   for (int i = 0 ; i < WIDTH ; i++){ 
     for (int j = 0 ; j < HEIGHT ; j++){ 
-      cout << i << ", " << j << endl;
+      //cout << i << ", " << j << endl;
       // send a ray 
-      vec3 rayDirection = createRay(i,j);
+      vec3 rayDirection = cameraOrientation * createRay(i,j);
 
       // shoot the ray and check for intersections 
       Colour colour = shootRay(cameraPosition, rayDirection, 0, 1); // depth starts at 0, IOR is 1 as travelling in air
       // colour the pixel accordingly 
-      window.setPixelColour(i, j, getColour(colour)); 
+      SetBufferColour(i, j, getColour(colour)); 
     } 
   } 
 } 

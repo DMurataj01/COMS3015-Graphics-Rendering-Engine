@@ -1,4 +1,7 @@
-//#include <ModelTriangle.h>
+#ifndef MODELTRIANGLE_H
+  #define MODELTRIANGLE_H
+  #include <ModelTriangle.h>
+#endif
 
 class Object
 {
