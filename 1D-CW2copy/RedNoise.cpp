@@ -96,13 +96,13 @@ Colour mirror(RayTriangleIntersection intersection, vec3 incident);
 Colour glass(vec3 rayDirection, RayTriangleIntersection closest, int depth);
 vec4 refract(vec3 I, vec3 N, float ior);
 float fresnel(vec3 incident, vec3 normal, float ior);
-void backfaceCulling(vec3 rayDirection);
+void backfaceCulling(vec3 cameraPosition);
 vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces);
  
  
  
  
-DrawingWindow window; //= DrawingWindow(WIDTH, HEIGHT, false); 
+DrawingWindow window;// = DrawingWindow(WIDTH, HEIGHT, false); 
  
  
 // the files (scene) which we want to render 
@@ -140,7 +140,8 @@ float lightIntensity = 100;
 int main(int argc, char* argv[]) { 
   // 1) Create New Display.
   window = DrawingWindow(W, H, false); 
-  window.clearPixels(); 
+  window.clearPixels();
+
   // 2) Initialise Depth Map.
   for (int i=0; i< WIDTH*HEIGHT; i++) {
     pixelBuffer.push_back(0);
@@ -148,8 +149,9 @@ int main(int argc, char* argv[]) {
   }
 
   // 3) Read In OBJ.
-  faces = readOBJ(1); 
-  
+  faces = readOBJ(1);
+
+  // 4) Create textures
   // mirrored floor
   //faces[6].texture = "mirror"; 
   //faces[7].texture = "mirror";
@@ -158,10 +160,15 @@ int main(int argc, char* argv[]) {
     faces[i].texture = "glass";
   }
   
+  // 5) Split the faces into objects
   createObjects();
-  averageVertexNormals(); 
+  
+  // 6) Run set-up funtions for lighting and culling
+  averageVertexNormals();
+  backfaceCulling(cameraPosition);
+
+  // 7) Render the image
   render();
- 
   SDL_Event event; 
   while(true) 
   { 
@@ -199,7 +206,7 @@ uint8_t getBlueValueFromColor(uint32_t c) {
 
  
 // this function renders the scene, depending on what the value of STATE is (so whether we use wireframe, rasterize or raytrace) 
-void render(){ 
+void render(){
   switch (currentRender) {
     case RAYTRACE:
       raytracer();
@@ -930,6 +937,15 @@ void updateView (MOVEMENT movement) {
       break;
   }
 
+  // the camera position has changed to we need to redo the culling of faces
+  int n = faces.size();
+  for (int i = 0 ; i < n ; i++){
+    // reset the faces
+    faces[i].culled = false;
+  }
+  // cull them
+  backfaceCulling(cameraPosition);
+
   render();
 } 
  
@@ -1013,13 +1029,13 @@ void raytracer(){
   textures(); 
   // for each pixel 
   for (int i = 0 ; i < WIDTH ; i++){ 
-    for (int j = 0 ; j < HEIGHT ; j++){ 
-      //cout << i << ", " << j << endl;
-      // send a ray 
+    for (int j = 0 ; j < HEIGHT ; j++){
+      // create a ray 
       vec3 rayDirection = cameraOrientation * createRay(i,j);
 
       // shoot the ray and check for intersections 
       Colour colour = shootRay(cameraPosition, rayDirection, 0, 1); // depth starts at 0, IOR is 1 as travelling in air
+
       // colour the pixel accordingly 
       SetBufferColour(i, j, getColour(colour)); 
     } 
@@ -1106,9 +1122,6 @@ vector<vec4> checkForIntersections(vec3 point, vec3 rayDirection){
 vector<vec4> faceIntersections(vector<ModelTriangle> inputFaces, vec3 point, vec3 rayDirection){
   // this is the output vector, for every possible face it stores a possibleSolution 
   vector<vec4> solutions;
-
-  // cull the faces which face away from the camera
-  //backfaceCulling(rayDirection);
 
   // for each face 
   int n = inputFaces.size(); 
@@ -1693,15 +1706,24 @@ float fresnel(vec3 incident, vec3 normal, float ior) {
 // CULLING CODE
 ////////////////////
 
-// when we have the direction of the ray, we can filter out any faces that face the other direction (this reduces time in checking for intersections)
-void backfaceCulling(vec3 rayDirection){
+
+// we cull the faces in the scene that face away from the camera
+// we do this by taking vectors from the camera to the centre of each face and dotting it with the normal
+void backfaceCulling(vec3 cameraPosition){
   int n = faces.size();
-  for (int i = 0 ; i < n ; i++) {
-    ModelTriangle triangle = faces[i];
-    vec3 normal = getNormalOfTriangle(triangle);
-    // if our face faces away from the camera then cull it
-    if (dot(cameraForward, normal) < 0) {
-      triangle.culled = true;
+  // for each face
+  for (int i = 0 ; i < n ; i++){
+    ModelTriangle face = faces[i];
+    // get the normal of the face
+    vec3 normal = getNormalOfTriangle(face);
+    // get the centre of the face by averaging the vertices
+    vec3 faceCentre = face.vertices[0] + face.vertices[1] + face.vertices[2];
+    faceCentre = faceCentre * float(1/3);
+    vec3 cameraToFace = faceCentre - cameraPosition;
+
+    // if the face faces away
+    if (dot(cameraToFace, normal) > 0){
+      face.culled = true;
     }
   }
 }
@@ -1803,3 +1825,4 @@ vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces){
   }
   return boxFaces;
 }
+
