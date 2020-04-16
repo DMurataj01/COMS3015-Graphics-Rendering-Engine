@@ -97,6 +97,7 @@ Colour glass(vec3 rayDirection, RayTriangleIntersection closest, int depth);
 vec4 refract(vec3 I, vec3 N, float ior);
 float fresnel(vec3 incident, vec3 normal, float ior);
 void backfaceCulling(vec3 cameraPosition);
+void backfaceCulling2 (vec3 rayDirection);
 vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces);
  
  
@@ -159,7 +160,7 @@ int main(int argc, char* argv[]) {
   
 
   for (int i=8; i<10; i++) {
-    faces[i].texture = "texture";
+    //faces[i].texture = "texture";
   }
   // || Glass Red Box ||
   for (int i = 12 ; i < 22 ; i++){
@@ -175,8 +176,14 @@ int main(int argc, char* argv[]) {
   //  averageVertexNormals(objects[o].faces);
   //}
 
-  backfaceCulling(cameraPosition);
-
+  //backfaceCulling(cameraPosition);
+  for (int i = 0 ; i < objects[0].faces.size() ; i++){
+    ModelTriangle face = objects[0].faces[i];
+    vec3 normal = getNormalOfTriangle(face);
+    cout << face.colour;
+    cout << "normal: ";
+    printVec3(normal);
+  }
   // 7) Render the image
   render();
   SDL_Event event; 
@@ -960,7 +967,7 @@ void updateView (MOVEMENT movement) {
     cameraForward = cameraOrientation[2];
   }
 
-
+  /*
   // if the camera position has changed we need to redo the culling of faces
   if (move){
     for (int o = 0; o< objects.size(); o++)
@@ -970,6 +977,7 @@ void updateView (MOVEMENT movement) {
     // cull them
     backfaceCulling(cameraPosition);
   }
+  */
 
   render();
 } 
@@ -1080,6 +1088,8 @@ void raytracer(){
     for (int j = 0 ; j < HEIGHT ; j++){
       // create a ray 
       vec3 rayDirection = createRay(i,j);
+      // cull the faces
+      backfaceCulling2(rayDirection);
       // shoot the ray and check for intersections 
       Colour colour = shootRay(cameraPosition, rayDirection, 0, 1); // depth starts at 0, IOR is 1 as travelling in air
       // colour the pixel accordingly 
@@ -1755,6 +1765,8 @@ float fresnel(vec3 incident, vec3 normal, float ior) {
 // we cull the faces in the scene that face away from the camera
 // we do this by taking vectors from the camera to the centre of each face and dotting it with the normal
 void backfaceCulling(vec3 cameraPosition){
+
+  // for each object
   for (int o=0; o<objects.size(); o++) {
     // for each face
     for (int i = 0 ; i < objects[o].faces.size() ; i++){
@@ -1767,8 +1779,39 @@ void backfaceCulling(vec3 cameraPosition){
       vec3 cameraToFace = faceCentre - cameraPosition;
 
       // if the face faces away
+      cout << dot(cameraToFace, normal) << endl;
       if (dot(cameraToFace, normal) > 0){
-        face.culled = true;
+        // do not cull the face if it is glass
+        if (face.texture != "glass") {
+          objects[o].faces[i].culled = true;
+        }
+      }
+      
+    }
+  }
+  Object object = objects[0];
+  for (int i = 0 ; i < object.faces.size() ; i++){
+    cout << object.faces[i].culled << "   ";
+  }
+}
+
+
+void backfaceCulling2 (vec3 rayDirection){
+  // for each object
+  for (int o = 0 ; o < objects.size() ; o++){
+    // for each face
+    for (int i = 0 ; i < objects[o].faces.size() ; i++){
+      ModelTriangle face = objects[o].faces[i];
+      vec3 normal = getNormalOfTriangle(face);
+      // if the face faces the other way
+      if (dot(normal, rayDirection) > 0){
+        // don't cull if it is glass
+        if (objects[o].faces[i].texture != "glass"){
+          objects[o].faces[i].culled = true;
+        }
+      }
+      else {
+        objects[o].faces[i].culled = false;
       }
     }
   }
