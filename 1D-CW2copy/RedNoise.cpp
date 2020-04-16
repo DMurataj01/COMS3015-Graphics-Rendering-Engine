@@ -91,7 +91,7 @@ float distanceVec3(vec3 from, vec3 to);
 bool checkForShadows(vec3 point); 
 float calculateSpecularLight(vec3 point, vec3 rayDirection, vec3 normal);
 float softShadows(RayTriangleIntersection intersection);
-void averageVertexNormals(vector<ModelTriangle> faces); 
+vector<ModelTriangle> averageVertexNormals(vector<ModelTriangle> faces); 
 Colour mirror(RayTriangleIntersection intersection, vec3 incident);
 Colour glass(vec3 rayDirection, RayTriangleIntersection closest, int depth);
 vec4 refract(vec3 I, vec3 N, float ior);
@@ -136,8 +136,6 @@ float imageHeight = 2; // HEIGHT
 vec3 lightPosition (-0.234011, 5, -3); // this is roughly the centre of the white light box 
 float lightIntensity = 100; 
  
- void averageVertexNormals();
- 
 int main(int argc, char* argv[]) { 
   // 1) Create New Display.
   window = DrawingWindow(W, H, false); 
@@ -172,7 +170,7 @@ int main(int argc, char* argv[]) {
   objects = createObjects(faces);
   
   // 6) Run set-up funtions for lighting and culling
-  averageVertexNormals();
+  objects[0].faces = averageVertexNormals(objects[0].faces);
   //for (int o=0; o<objects.size(); o++) {
   //  averageVertexNormals(objects[o].faces);
   //}
@@ -1554,96 +1552,11 @@ float softShadows(RayTriangleIntersection intersection){
 } 
  
  
-
- 
- 
 void gouraudShading() { 
 } 
- 
- void averageVertexNormals(){ 
-  int currentFaceIndex = 0; // stores the number of how many faces we have gone through yet 
-  vector<vec3> faceVertices; // stores the indices of which vertices make up each face 
-   
-  // Attempt to open OBJFile. 
-  ifstream myfile(objFileName); 
- 
-  // if we cannot open the file, print an error 
-  if (myfile.is_open() == 0) cout << "Unable to open file" << "\n"; 
- 
-  string line; //used as buffer for ifstream. 
- 
-  // go through and figure out how many vertices we have 
-  int numberOfVertices = 0; 
-  while (getline(myfile, line)){ 
-    if (line.find('v')==0){ 
-      numberOfVertices = numberOfVertices + 1; 
-    } 
-  } 
- 
-  // open and close the file again 
-  myfile.close(); 
-  ifstream myfile2(objFileName); 
- 
-  // make a vector to store the normals for each vertex (so each element in the vector will be another 
-  // vector containing all the normals of the faces in which that vertex is a part of) 
-  vector<vector<vec3>> vertexNormals(numberOfVertices); 
-  vector<vec3> averagedNormals(numberOfVertices); // once all normals for each vertex have been found, this stores the average of them 
- 
-  // take the OBJ file again and go through each face, get the normal and then store that normal 
-  // in the vector for all 3 vertices 
- 
-   
-  while (getline(myfile2, line)){ 
-    if (line.find('f') == 0){   
-      // if this line is a face, then get the normal of it (we have pre-stored the faces so can do this) 
-      ModelTriangle face = objects[0].faces[currentFaceIndex]; 
-      vec3 normal = getNormalOfTriangle(face); 
-      currentFaceIndex = currentFaceIndex + 1; 
- 
-      vector<string> faceLine = separateLine(line); // this turns 'f 1/1 2/2 3/3' into ['f','1/1','2/2','3/3'] 
- 
-      vec3 verticesIndex (0,0,0); 
- 
-      // go through the face and for each vertex, store the normal in the corresponding space in the vector 
-      for (int i = 1 ; i < 4 ; i++){ 
-        string element = faceLine[i]; // this will be '1/1' for example 
-        int slashIndex = element.find('/'); 
-        string number = element.substr(0, slashIndex); 
-        int index = stoi(number) - 1;// -1 as the vertices are numbered from 1, but c++ indexes from 0 
-        verticesIndex[i-1] = index; 
-        vertexNormals[index].push_back(normal); 
-      } 
-      faceVertices.push_back(verticesIndex); 
-    } 
-  } 
- 
-  myfile2.close(); 
- 
-  // for each vertex, go through and average each of the normals 
-  for (int i = 0 ; i < numberOfVertices ; i++){ 
-    vector<vec3> normals = vertexNormals[i]; 
-    int n = normals.size(); 
-    vec3 sum (0,0,0); 
-    for (int j = 0 ; j < n ; j++){ 
-      sum = sum + normals[j]; 
-    } 
-    sum = sum / (float)n; 
-    averagedNormals[i] = sum; 
-  } 
- 
-  // go through the faces again and store the average normal in the ModelTriangle object 
-  for (int i = 0 ; i < objects[0].faces.size() ; i++){ 
-    vec3 v = faceVertices[i]; 
-    // for each vertex 
-    for (int j = 0 ; j < 3 ; j++){ 
-      int index = v[j]; 
-      vec3 normal = averagedNormals[index]; 
-      objects[0].faces[i].normals[j] = normal; 
-    } 
-  } 
-} 
 
-void averageVertexNormals(vector<ModelTriangle> faces){ 
+ 
+vector<ModelTriangle> averageVertexNormals(vector<ModelTriangle> faces){ 
   int currentFaceIndex = 0; // stores the number of how many faces we have gone through yet 
   vector<vec3> faceVertices; // stores the indices of which vertices make up each face 
    
@@ -1659,7 +1572,7 @@ void averageVertexNormals(vector<ModelTriangle> faces){
   int numberOfVertices = 0; 
   while (getline(myfile, line)){ 
     if (line.find('v')==0){ 
-      numberOfVertices = numberOfVertices + 1; 
+      numberOfVertices++; 
     } 
   } 
  
@@ -1724,6 +1637,7 @@ void averageVertexNormals(vector<ModelTriangle> faces){
       faces[i].normals[j] = normal; 
     } 
   } 
+  return faces;
 } 
  
 
@@ -1743,10 +1657,7 @@ Colour glass(vec3 rayDirection, RayTriangleIntersection closest, int depth){
   float refractiveIndex = 1.3;
   vec4 refraction = refract(incident, normal, refractiveIndex);
   int direction = refraction[3];
-  vec3 refracted;
-  refracted[0] = refraction[0];
-  refracted[1] = refraction[1];
-  refracted[2] = refraction[2];
+  vec3 refracted (refraction[0], refraction[1], refraction[2]);
   if (refracted == vec3 (0,0,0)){
     return reflectionColour;
   }
