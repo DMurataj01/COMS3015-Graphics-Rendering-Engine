@@ -59,7 +59,7 @@ void drawLine(CanvasPoint start, CanvasPoint end, Colour colour);
 void drawStrokedTriangle(CanvasTriangle triangle); 
 void drawFilledTriangle(CanvasTriangle triangle); 
 void readPPM(); 
-void createObjects();
+vector<Object> createObjects(vector<ModelTriangle> inputFaces);
 vector<Colour> readOBJMTL(string filename); 
 string removeLeadingWhitespace(string s); 
 ImageFile readImage(string fileName); 
@@ -91,7 +91,7 @@ float distanceVec3(vec3 from, vec3 to);
 bool checkForShadows(vec3 point); 
 float calculateSpecularLight(vec3 point, vec3 rayDirection, vec3 normal);
 float softShadows(RayTriangleIntersection intersection);
-void averageVertexNormals(); 
+void averageVertexNormals(vector<ModelTriangle> faces); 
 Colour mirror(RayTriangleIntersection intersection, vec3 incident);
 Colour glass(vec3 rayDirection, RayTriangleIntersection closest, int depth);
 vec4 refract(vec3 I, vec3 N, float ior);
@@ -109,8 +109,9 @@ DrawingWindow window;// = DrawingWindow(WIDTH, HEIGHT, false);
 string objFileName = "cornell-box.obj"; 
 string mtlFileName = "cornell-box.mtl"; 
  
-// this is where we will store the faces of the OBJ file 
-vector<ModelTriangle> faces;
+
+
+
 // this stores the faces split up into separate objects
 vector<Object> objects;
  
@@ -135,7 +136,7 @@ float imageHeight = 2; // HEIGHT
 vec3 lightPosition (-0.234011, 5, -3); // this is roughly the centre of the white light box 
 float lightIntensity = 100; 
  
- 
+ void averageVertexNormals();
  
 int main(int argc, char* argv[]) { 
   // 1) Create New Display.
@@ -149,22 +150,33 @@ int main(int argc, char* argv[]) {
   }
 
   // 3) Read In OBJ.
-  faces = readOBJ(1);
+  vector<ModelTriangle> faces = readOBJ(1);
 
   // 4) Create textures
-  // mirrored floor
+
+  // || Mirrored floor ||
+
   //faces[6].texture = "mirror"; 
   //faces[7].texture = "mirror";
-  // making the 'red' box glass
+  
+
+  for (int i=8; i<10; i++) {
+    faces[i].texture = "texture";
+  }
+  // || Glass Red Box ||
   for (int i = 12 ; i < 22 ; i++){
     faces[i].texture = "glass";
   }
   
   // 5) Split the faces into objects
-  createObjects();
+  objects = createObjects(faces);
   
   // 6) Run set-up funtions for lighting and culling
   averageVertexNormals();
+  //for (int o=0; o<objects.size(); o++) {
+  //  averageVertexNormals(objects[o].faces);
+  //}
+
   backfaceCulling(cameraPosition);
 
   // 7) Render the image
@@ -183,8 +195,7 @@ int main(int argc, char* argv[]) {
  
  
  
-void update() 
-{ 
+void update() { 
   // Function for performing animation (shifting artifacts or moving the camera) 
 } 
 
@@ -321,26 +332,18 @@ void setDepthPixelColour(int x, int y, double z, uint32_t clr) {
 
 // use this function to split the faces into separate objects (an 'Object' object has been created)
 // if you want, you can store a bounding box with the object too
-void createObjects(){
-  Object object1;
-  object1.faces = faces;
-  //object1.hasBoundingBox = true;
-  //object1.boxFaces = boundingBox(object1.faces);
+vector<Object> createObjects(vector<ModelTriangle> inputFaces){
+  vector<Object> outputVec;
+  
+  Object object;
+  object.faces = inputFaces;
 
-  objects.push_back(object1);
+  //object.hasBoundingBox = true;
+  //object.boxFaces = boundingBox(object1.faces);
+  
+  outputVec.push_back(object);
+  return outputVec;
 }
- 
- 
- 
-void textures(){ 
-  // mirrored floor
-  //faces[6].texture = "mirror"; 
-  //faces[7].texture = "mirror";
-  // making the 'red' box glass
-  for (int i = 12 ; i < 22 ; i++){
-    faces[i].texture = "glass";
-  }
-} 
  
  
 // given a start and an end value, step from the start to the end with the right number of steps 
@@ -808,72 +811,59 @@ vector<ModelTriangle> readOBJ(float scalingFactor){
  
  
 void rasterize(){  
-  // for each face 
-  for (int i = 0 ; i < faces.size() ; i++){ 
-    ModelTriangle triangle = faces[i]; 
-    CanvasTriangle canvasTriangle; 
-    canvasTriangle.colour = triangle.colour; 
-     
-    // for each vertex 
-    for (int j = 0 ; j < 3 ; j++){ 
-      vec3 vertex = triangle.vertices[j]; 
-       
-      // change from world coordinates to camera
+  //for each object.
+    for (int o = 0; o < objects.size(); o++){
+    // for each face 
+    for (int i = 0 ; i < objects[o].faces.size() ; i++){ 
+      ModelTriangle triangle = objects[o].faces[i]; 
+      CanvasTriangle canvasTriangle; 
+      canvasTriangle.colour = triangle.colour; 
+      
+      // for each vertex 
+      for (int j = 0 ; j < 3 ; j++){ 
+        vec3 vertex = triangle.vertices[j]; 
+        
+        // change from world coordinates to camera
 
-      vec3 col1 (cameraRight[0], cameraUp[0], cameraForward[0]);
-      vec3 col2 (cameraRight[1], cameraUp[1], cameraForward[1]);
-      vec3 col3 (cameraRight[2], cameraUp[2], cameraForward[2]);
-      mat3 rotationMatrix (col1, col2, col3);
+        vec3 col1 (cameraRight[0], cameraUp[0], cameraForward[0]);
+        vec3 col2 (cameraRight[1], cameraUp[1], cameraForward[1]);
+        vec3 col3 (cameraRight[2], cameraUp[2], cameraForward[2]);
+        mat3 rotationMatrix (col1, col2, col3);
 
-      vec3 vertexCSpace = rotationMatrix * vertex;
-      vertexCSpace = vertexCSpace - cameraPosition;
-      vertexCSpace[2] = -vertexCSpace[2];
+        vec3 vertexCSpace = rotationMatrix * vertex;
+        vertexCSpace = vertexCSpace - cameraPosition;
+        vertexCSpace[2] = -vertexCSpace[2];
 
-       
-      // save the depth of this point for later 
-      float depth = vertexCSpace[2]; 
- 
-      // calculating the projection onto the 2D image plane by using interpolation and the z depth 
-      // only worth doing if the vertex is in front of camera 
-      if ((depth < 0) || (depth > 0)){ 
-        float proportion = focalLength / depth; 
-        vec3 vertexProjected = vertexCSpace * proportion; // the coordinates of the 3D point (in camera space) projected onto the image plane 
-        //float x = vertexProjected[0]; 
-        //float y = vertexProjected[1]; 
+        
+        // save the depth of this point for later 
+        float depth = vertexCSpace[2]; 
+  
+        // calculating the projection onto the 2D image plane by using interpolation and the z depth 
+        // only worth doing if the vertex is in front of camera 
+        if ((depth < 0) || (depth > 0)){ 
+          float proportion = focalLength / depth; 
+          vec3 vertexProjected = vertexCSpace * proportion; // the coordinates of the 3D point (in camera space) projected onto the image plane 
+          //float x = vertexProjected[0]; 
+          //float y = vertexProjected[1]; 
 
-        // converting to get the pixel numbers
-        // finding position of top left corner of image plane in camera space
-        vec3 topLeft = vec3 (-imageWidth/2, imageHeight/2, focalLength);//(focalLength * cameraForward) + ((imageHeight/2) * cameraUp) - ((imageWidth/2) * cameraRight);
-        vec3 topLeftToPoint = vertexProjected - topLeft;
-        float xPixel = (topLeftToPoint[0] / imageWidth) * WIDTH;
-        float yPixel = (-topLeftToPoint[1] / imageHeight) * HEIGHT;
- 
-        /* 
-        // if the pixel goes off screen 
-        if (xPixel < 0){ 
-          xPixel = 0; 
+          // converting to get the pixel numbers
+          // finding position of top left corner of image plane in camera space
+          vec3 topLeft = vec3 (-imageWidth/2, imageHeight/2, focalLength);//(focalLength * cameraForward) + ((imageHeight/2) * cameraUp) - ((imageWidth/2) * cameraRight);
+          vec3 topLeftToPoint = vertexProjected - topLeft;
+          float xPixel = (topLeftToPoint[0] / imageWidth) * WIDTH;
+          float yPixel = (-topLeftToPoint[1] / imageHeight) * HEIGHT;
+    
+          // store the pixel values as a Canvas Point and save it for this triangle 
+          canvasTriangle.vertices[j] = CanvasPoint(xPixel, yPixel, depth); // we save the depth of the 2D point too 
+  
         } 
-        else if (xPixel > WIDTH){ 
-          xPixel = WIDTH; 
-        } 
-        if (yPixel < 0){ 
-          yPixel = 0; 
-        } 
-        else if (yPixel > HEIGHT){ 
-          yPixel = HEIGHT; 
-        } 
-        */ 
- 
-        // store the pixel values as a Canvas Point and save it for this triangle 
-        canvasTriangle.vertices[j] = CanvasPoint(xPixel, yPixel, depth); // we save the depth of the 2D point too 
- 
       } 
-    } 
 
-    if (currentRender == WIREFRAME) drawStrokedTriangle(canvasTriangle); 
-    else drawFilledTriangle(canvasTriangle); 
-     
-  } 
+      if (currentRender == WIREFRAME) drawStrokedTriangle(canvasTriangle); 
+      else drawFilledTriangle(canvasTriangle); 
+      
+    } 
+  }
 } 
  
  
@@ -975,11 +965,10 @@ void updateView (MOVEMENT movement) {
 
   // if the camera position has changed we need to redo the culling of faces
   if (move){
-    int n = faces.size();
-    for (int i = 0 ; i < n ; i++){
-      // reset the faces
-      faces[i].culled = false;
-    }
+    for (int o = 0; o< objects.size(); o++)
+      for (int i = 0 ; i < objects[o].faces.size(); i++)
+        objects[o].faces[i].culled = false;
+    
     // cull them
     backfaceCulling(cameraPosition);
   }
@@ -1031,16 +1020,21 @@ void lookAt(vec3 point){
  
 // this function averages all the vertices in the scene to find the centre of the scene 
 vec3 findCentreOfScene(){ 
-  int n = faces.size(); 
+
+  int n=0; //overall faces count.
+
   vec3 sum (0,0,0); 
-  // for each face 
-  for (int i = 0 ; i < n ; i++){ 
-    ModelTriangle face = faces[i]; 
-    // for each vertex 
-    for (int j = 0 ; j < 3 ; j++){ 
-      sum = sum + face.vertices[j]; 
-    } 
-  } 
+  for (int o=0; o<objects.size(); o++){
+    for (int i = 0 ; i < objects[o].faces.size(); i++){ 
+      ModelTriangle face = objects[o].faces[i]; 
+      // for each vertex 
+      for (int j = 0 ; j < 3 ; j++){ 
+        sum += face.vertices[j]; 
+      } 
+    }
+    n += objects[o].faces.size(); 
+  }
+  
   sum = sum / (float)(n*3); 
   return sum; 
 } 
@@ -1083,11 +1077,8 @@ void renderImage(ImageFile imageFile){
   
 // this will be the main function for the raytracer 
 void raytracer(){
-  textures(); 
   // for each pixel 
-  #pragma omp parallel for
   for (int i = 0 ; i < WIDTH ; i++){ 
-    #pragma omp simd
     for (int j = 0 ; j < HEIGHT ; j++){
       // create a ray 
       vec3 rayDirection = createRay(i,j);
@@ -1209,54 +1200,56 @@ vector<vec4> faceIntersections(vector<ModelTriangle> inputFaces, vec3 point, vec
  
  
 // this function gives back the index of the closest face for a particular ray 
-RayTriangleIntersection closestIntersection(vector<vec4> solutions, vec3 rayPoint){ 
+RayTriangleIntersection closestIntersection(vector<vec4> solutions, vec3 rayPoint) { 
   RayTriangleIntersection closest; // this is where we store the closest triangle of intersection, the point it intersects and the distance 
   closest.distanceFromCamera = -1; // initialize this so we can tell when there are no intersections 
   float closestT = numeric_limits<float>::infinity(); 
   int closestIndex = -1; 
   // for each possible solution / for each face 
   int n = solutions.size(); 
-  for (int i = 0 ; i < n ; i++){ 
-     
-    vec4 possibleSolution = solutions[i]; 
-    float t = possibleSolution[0]; 
-    float u = possibleSolution[1]; 
-    float v = possibleSolution[2];
-    int index = possibleSolution[3];
-     
-    // if it is actually a solution 
-    bool bool1 = (t > 0); 
-    bool bool2 = (0 <= u) && (u <= 1); 
-    bool bool3 = (0 <= v) && (v <= 1); 
-    bool bool4 = (u + v) <= 1; 
-    if (bool1 && bool2 && bool3 && bool4){ 
-      ModelTriangle triangle = faces[index]; 
-      // is it closer than what we currently have? 
-      if (t < closestT){ 
-        closestT = t; 
-        closestIndex = i; 
-         
-        // calculating the point of intersection 
-        vec3 p0 = triangle.vertices[0]; 
-        vec3 p1 = triangle.vertices[1]; 
-        vec3 p2 = triangle.vertices[2]; 
-        vec3 intersection = p0 + (u * (p1 - p0)) + (v * (p2 - p0)); 
-        // calculating the distance between the camera and intersection point 
-        vec3 d = intersection - rayPoint; 
-        float distance = sqrt( (d[0]*d[0]) + (d[1] * d[1]) + (d[2] * d[2])); 
-        // calculating the normal of the intersection 
-        vec3 n0 = triangle.normals[0]; 
-        vec3 n1 = triangle.normals[1]; 
-        vec3 n2 = triangle.normals[2]; 
-        vec3 normal = n0 + (u * (n1 - n0)) + (v * (n2 - n0)); 
-        closest.intersectionPoint = intersection; 
-        closest.intersectUV = vec2(u, v);
-        closest.distanceFromCamera = distance; 
-        closest.intersectedTriangle = triangle; 
-        closest.normal = normal; 
+  for (int o=0; o<objects.size(); o++) {
+    for (int i = 0 ; i < n ; i++){ 
+      
+      vec4 possibleSolution = solutions[i]; 
+      float t = possibleSolution[0]; 
+      float u = possibleSolution[1]; 
+      float v = possibleSolution[2];
+      int index = possibleSolution[3];
+      
+      // if it is actually a solution 
+      bool bool1 = (t > 0); 
+      bool bool2 = (0 <= u) && (u <= 1); 
+      bool bool3 = (0 <= v) && (v <= 1); 
+      bool bool4 = (u + v) <= 1; 
+      if (bool1 && bool2 && bool3 && bool4){ 
+        ModelTriangle triangle = objects[o].faces[index]; 
+        // is it closer than what we currently have? 
+        if (t < closestT){ 
+          closestT = t; 
+          closestIndex = i; 
+          
+          // calculating the point of intersection 
+          vec3 p0 = triangle.vertices[0]; 
+          vec3 p1 = triangle.vertices[1]; 
+          vec3 p2 = triangle.vertices[2]; 
+          vec3 intersection = p0 + (u * (p1 - p0)) + (v * (p2 - p0)); 
+          // calculating the distance between the camera and intersection point 
+          vec3 d = intersection - rayPoint; 
+          float distance = sqrt( (d[0]*d[0]) + (d[1] * d[1]) + (d[2] * d[2])); 
+          // calculating the normal of the intersection 
+          vec3 n0 = triangle.normals[0]; 
+          vec3 n1 = triangle.normals[1]; 
+          vec3 n2 = triangle.normals[2]; 
+          vec3 normal = n0 + (u * (n1 - n0)) + (v * (n2 - n0)); 
+          closest.intersectionPoint = intersection; 
+          closest.intersectUV = vec2(u, v);
+          closest.distanceFromCamera = distance; 
+          closest.intersectedTriangle = triangle; 
+          closest.normal = normal; 
+        } 
       } 
     } 
-  } 
+  }
   return closest; 
 } 
  
@@ -1436,34 +1429,34 @@ bool checkForShadows(vec3 point){
   vec3 shadowRayDirection = lightPosition - point; 
   float distance = distanceVec3(lightPosition, point); 
   shadowRayDirection = normalize(shadowRayDirection); 
- 
-  // for each face, send a 'shadow ray' from the point to the light and check for intersections 
-  int n = faces.size(); 
-  for (int i = 0 ; i < n ; i++){ 
-    ModelTriangle triangle = faces[i]; 
-     
-    // got the following code from the worksheet 
-    vec3 e0 = triangle.vertices[1] - triangle.vertices[0]; 
-    vec3 e1 = triangle.vertices[2] - triangle.vertices[0]; 
-    vec3 SPVector = point - triangle.vertices[0]; 
-    mat3 DEMatrix(-shadowRayDirection, e0, e1); 
-    vec3 possibleSolution = glm::inverse(DEMatrix) * SPVector; // this is a 1x3 vector of (t,u,v) (look at notes) 
-    float t = possibleSolution[0]; 
-    float u = possibleSolution[1]; 
-    float v = possibleSolution[2]; 
-     
-    // if it is actually a solution 
-    bool bool1 = (t > 0.0001); // this is not 0 to avoid self-intersection 
-    bool bool2 = (0 <= u) && (u <= 1); 
-    bool bool3 = (0 <= v) && (v <= 1); 
-    bool bool4 = (u + v) <= 1; 
-    bool bool5 = (t < distance); // an intersection beyond the light doesn't matter 
-    // if we have an intersection then we can stop checking the other faces 
-    // it is 0.000001 to avoid self intersection 
-    if (bool1 && bool2 && bool3 && bool4 && bool5){ 
-      return true; 
+  for (int o=0; o<objects.size(); o++) {
+    // for each face, send a 'shadow ray' from the point to the light and check for intersections 
+    for (int i = 0 ; i < objects[o].faces.size(); i++){ 
+      ModelTriangle triangle = objects[o].faces[i]; 
+        
+      // got the following code from the worksheet 
+      vec3 e0 = triangle.vertices[1] - triangle.vertices[0]; 
+      vec3 e1 = triangle.vertices[2] - triangle.vertices[0]; 
+      vec3 SPVector = point - triangle.vertices[0]; 
+      mat3 DEMatrix(-shadowRayDirection, e0, e1); 
+      vec3 possibleSolution = glm::inverse(DEMatrix) * SPVector; // this is a 1x3 vector of (t,u,v) (look at notes) 
+      float t = possibleSolution[0]; 
+      float u = possibleSolution[1]; 
+      float v = possibleSolution[2]; 
+        
+      // if it is actually a solution 
+      bool bool1 = (t > 0.0001); // this is not 0 to avoid self-intersection 
+      bool bool2 = (0 <= u) && (u <= 1); 
+      bool bool3 = (0 <= v) && (v <= 1); 
+      bool bool4 = (u + v) <= 1; 
+      bool bool5 = (t < distance); // an intersection beyond the light doesn't matter 
+      // if we have an intersection then we can stop checking the other faces 
+      // it is 0.000001 to avoid self intersection 
+      if (bool1 && bool2 && bool3 && bool4 && bool5){ 
+        return true; 
+      } 
     } 
-  } 
+  }
   return false; 
 } 
  
@@ -1567,9 +1560,90 @@ float softShadows(RayTriangleIntersection intersection){
 void gouraudShading() { 
 } 
  
+ void averageVertexNormals(){ 
+  int currentFaceIndex = 0; // stores the number of how many faces we have gone through yet 
+  vector<vec3> faceVertices; // stores the indices of which vertices make up each face 
+   
+  // Attempt to open OBJFile. 
+  ifstream myfile(objFileName); 
  
-void averageVertexNormals(){ 
-  textures(); 
+  // if we cannot open the file, print an error 
+  if (myfile.is_open() == 0) cout << "Unable to open file" << "\n"; 
+ 
+  string line; //used as buffer for ifstream. 
+ 
+  // go through and figure out how many vertices we have 
+  int numberOfVertices = 0; 
+  while (getline(myfile, line)){ 
+    if (line.find('v')==0){ 
+      numberOfVertices = numberOfVertices + 1; 
+    } 
+  } 
+ 
+  // open and close the file again 
+  myfile.close(); 
+  ifstream myfile2(objFileName); 
+ 
+  // make a vector to store the normals for each vertex (so each element in the vector will be another 
+  // vector containing all the normals of the faces in which that vertex is a part of) 
+  vector<vector<vec3>> vertexNormals(numberOfVertices); 
+  vector<vec3> averagedNormals(numberOfVertices); // once all normals for each vertex have been found, this stores the average of them 
+ 
+  // take the OBJ file again and go through each face, get the normal and then store that normal 
+  // in the vector for all 3 vertices 
+ 
+   
+  while (getline(myfile2, line)){ 
+    if (line.find('f') == 0){   
+      // if this line is a face, then get the normal of it (we have pre-stored the faces so can do this) 
+      ModelTriangle face = objects[0].faces[currentFaceIndex]; 
+      vec3 normal = getNormalOfTriangle(face); 
+      currentFaceIndex = currentFaceIndex + 1; 
+ 
+      vector<string> faceLine = separateLine(line); // this turns 'f 1/1 2/2 3/3' into ['f','1/1','2/2','3/3'] 
+ 
+      vec3 verticesIndex (0,0,0); 
+ 
+      // go through the face and for each vertex, store the normal in the corresponding space in the vector 
+      for (int i = 1 ; i < 4 ; i++){ 
+        string element = faceLine[i]; // this will be '1/1' for example 
+        int slashIndex = element.find('/'); 
+        string number = element.substr(0, slashIndex); 
+        int index = stoi(number) - 1;// -1 as the vertices are numbered from 1, but c++ indexes from 0 
+        verticesIndex[i-1] = index; 
+        vertexNormals[index].push_back(normal); 
+      } 
+      faceVertices.push_back(verticesIndex); 
+    } 
+  } 
+ 
+  myfile2.close(); 
+ 
+  // for each vertex, go through and average each of the normals 
+  for (int i = 0 ; i < numberOfVertices ; i++){ 
+    vector<vec3> normals = vertexNormals[i]; 
+    int n = normals.size(); 
+    vec3 sum (0,0,0); 
+    for (int j = 0 ; j < n ; j++){ 
+      sum = sum + normals[j]; 
+    } 
+    sum = sum / (float)n; 
+    averagedNormals[i] = sum; 
+  } 
+ 
+  // go through the faces again and store the average normal in the ModelTriangle object 
+  for (int i = 0 ; i < objects[0].faces.size() ; i++){ 
+    vec3 v = faceVertices[i]; 
+    // for each vertex 
+    for (int j = 0 ; j < 3 ; j++){ 
+      int index = v[j]; 
+      vec3 normal = averagedNormals[index]; 
+      objects[0].faces[i].normals[j] = normal; 
+    } 
+  } 
+} 
+
+void averageVertexNormals(vector<ModelTriangle> faces){ 
   int currentFaceIndex = 0; // stores the number of how many faces we have gone through yet 
   vector<vec3> faceVertices; // stores the indices of which vertices make up each face 
    
@@ -1770,20 +1844,21 @@ float fresnel(vec3 incident, vec3 normal, float ior) {
 // we cull the faces in the scene that face away from the camera
 // we do this by taking vectors from the camera to the centre of each face and dotting it with the normal
 void backfaceCulling(vec3 cameraPosition){
-  int n = faces.size();
-  // for each face
-  for (int i = 0 ; i < n ; i++){
-    ModelTriangle face = faces[i];
-    // get the normal of the face
-    vec3 normal = getNormalOfTriangle(face);
-    // get the centre of the face by averaging the vertices
-    vec3 faceCentre = face.vertices[0] + face.vertices[1] + face.vertices[2];
-    faceCentre = faceCentre * float(1/3);
-    vec3 cameraToFace = faceCentre - cameraPosition;
+  for (int o=0; o<objects.size(); o++) {
+    // for each face
+    for (int i = 0 ; i < objects[o].faces.size() ; i++){
+      ModelTriangle face = objects[o].faces[i];
+      // get the normal of the face
+      vec3 normal = getNormalOfTriangle(face);
+      // get the centre of the face by averaging the vertices
+      vec3 faceCentre = face.vertices[0] + face.vertices[1] + face.vertices[2];
+      faceCentre = faceCentre * float(1/3);
+      vec3 cameraToFace = faceCentre - cameraPosition;
 
-    // if the face faces away
-    if (dot(cameraToFace, normal) > 0){
-      face.culled = true;
+      // if the face faces away
+      if (dot(cameraToFace, normal) > 0){
+        face.culled = true;
+      }
     }
   }
 }
