@@ -259,9 +259,9 @@ void handleEvent(SDL_Event event) {
     else if(event.key.keysym.sym == SDLK_UP)    updateView(UP);
     else if(event.key.keysym.sym == SDLK_DOWN)  updateView(DOWN);  
     else if(event.key.keysym.sym == SDLK_a)     updateView(PAN_RIGHT);
-    else if(event.key.keysym.sym == SDLK_d)     updateView(PAN_LEFT);
+    else if(event.key.keysym.sym == SDLK_s)     updateView(PAN_LEFT);
     else if(event.key.keysym.sym == SDLK_w)     updateView(TILT_DOWN); 
-    else if(event.key.keysym.sym == SDLK_s)     updateView(TILT_UP); 
+    else if(event.key.keysym.sym == SDLK_z)     updateView(TILT_UP); 
     else if(event.key.keysym.sym == SDLK_y)     test2(); 
     else if(event.key.keysym.sym == SDLK_c)     clear(); 
 
@@ -878,73 +878,98 @@ void updateView (MOVEMENT movement) {
   float alpha, beta, gamma;
   vec3 col1, col2, col3;
 
+  bool move = false;
+  bool rotate = false;
+
   switch (movement) {
     /* Camera Position = Camera Position + Unit Vector */
     case UP: 
       cameraPosition += cameraUp;
+      move = true;
       break;
     case DOWN:
       cameraPosition -= cameraUp;
+      move = true;
       break;
     case RIGHT: 
       cameraPosition += cameraRight;
+      move = true;
       break;
     case LEFT: 
       cameraPosition -= cameraRight;
+      move = true;
       break;
     /* Camera Orientation = Camera Orientation * rotation */
     case ROLL_LEFT:
       alpha = 0.5; 
       col1 = vec3 (cos(alpha), sin(alpha), 0); 
       col2 = vec3 (-sin(alpha), cos(alpha), 0); 
-      col3 = vec3 (0, 0, 1); 
-      cameraOrientation *= mat3(col1, col2, col3); 
+      col3 = vec3 (0, 0, 1);
+      rotate = true;
+      //cameraOrientation *= mat3(col1, col2, col3); 
       break;
     case ROLL_RIGHT:
       alpha = -0.5; 
       col1 = vec3 (cos(alpha), sin(alpha), 0); 
       col2 = vec3 (-sin(alpha), cos(alpha), 0); 
-      col3 = vec3 (0, 0, 1); 
-      cameraOrientation *= mat3(col1, col2, col3); 
+      col3 = vec3 (0, 0, 1);
+      rotate = true;
+      //cameraOrientation *= mat3(col1, col2, col3); 
       break;
     case PAN_LEFT:
-      beta = 0.5; 
-      col1 = vec3 (cos(beta), 0, -sin(beta)); 
-      col2 = vec3 (0, 1, 0); 
-      col3 = vec3 (sin(beta), 0, cos(beta)); 
-      cameraOrientation *= mat3(col1, col2, col3); 
-      break;
-    case PAN_RIGHT:
       beta = -0.5; 
       col1 = vec3 (cos(beta), 0, -sin(beta)); 
       col2 = vec3 (0, 1, 0); 
-      col3 = vec3 (sin(beta), 0, cos(beta)); 
-      cameraOrientation *= mat3(col1, col2, col3); 
+      col3 = vec3 (sin(beta), 0, cos(beta));
+      rotate = true;
+      //cameraOrientation *= mat3(col1, col2, col3); 
+      break;
+    case PAN_RIGHT:
+      beta = 0.5; 
+      col1 = vec3 (cos(beta), 0, -sin(beta)); 
+      col2 = vec3 (0, 1, 0); 
+      col3 = vec3 (sin(beta), 0, cos(beta));
+      rotate = true;
+      //cameraOrientation *= mat3(col1, col2, col3); 
       break;      
     case TILT_UP:
-      gamma = 0.5; 
-      col1 = vec3 (1, 0, 0); 
-      col2 = vec3 (0, cos(gamma), sin(gamma)); 
-      col3 = vec3 (0, -sin(gamma), cos(gamma)); 
-      cameraOrientation *= mat3(col1, col2, col3); 
-      break;
-    case TILT_DOWN:
       gamma = -0.5; 
       col1 = vec3 (1, 0, 0); 
       col2 = vec3 (0, cos(gamma), sin(gamma)); 
-      col3 = vec3 (0, -sin(gamma), cos(gamma)); 
-      cameraOrientation *= mat3(col1, col2, col3); 
+      col3 = vec3 (0, -sin(gamma), cos(gamma));
+      rotate = true;
+      //cameraOrientation *= mat3(col1, col2, col3); 
+      break;
+    case TILT_DOWN:
+      gamma = 0.5; 
+      col1 = vec3 (1, 0, 0); 
+      col2 = vec3 (0, cos(gamma), sin(gamma)); 
+      col3 = vec3 (0, -sin(gamma), cos(gamma));
+      rotate = true;
+      //cameraOrientation *= mat3(col1, col2, col3); 
       break;
   }
 
-  // the camera position has changed to we need to redo the culling of faces
-  int n = faces.size();
-  for (int i = 0 ; i < n ; i++){
-    // reset the faces
-    faces[i].culled = false;
+  if (rotate) {
+    mat3 rotation (col1, col2, col3); 
+    cameraOrientation = cameraOrientation * rotation; 
+    // getting the camera directions from the orientation matrix
+    cameraRight = cameraOrientation[0];
+    cameraUp = cameraOrientation[1];
+    cameraForward = cameraOrientation[2];
   }
-  // cull them
-  backfaceCulling(cameraPosition);
+
+
+  // if the camera position has changed we need to redo the culling of faces
+  if (move){
+    int n = faces.size();
+    for (int i = 0 ; i < n ; i++){
+      // reset the faces
+      faces[i].culled = false;
+    }
+    // cull them
+    backfaceCulling(cameraPosition);
+  }
 
   render();
 } 
