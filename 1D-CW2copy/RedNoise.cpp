@@ -1085,14 +1085,14 @@ void renderImage(ImageFile imageFile){
 void raytracer(){
   textures(); 
   // for each pixel 
+  #pragma omp parallel for
   for (int i = 0 ; i < WIDTH ; i++){ 
+    #pragma omp simd
     for (int j = 0 ; j < HEIGHT ; j++){
       // create a ray 
       vec3 rayDirection = createRay(i,j);
-
       // shoot the ray and check for intersections 
       Colour colour = shootRay(cameraPosition, rayDirection, 0, 1); // depth starts at 0, IOR is 1 as travelling in air
-
       // colour the pixel accordingly 
       SetBufferColour(i, j, getColour(colour)); 
     } 
@@ -1250,6 +1250,7 @@ RayTriangleIntersection closestIntersection(vector<vec4> solutions, vec3 rayPoin
         vec3 n2 = triangle.normals[2]; 
         vec3 normal = n0 + (u * (n1 - n0)) + (v * (n2 - n0)); 
         closest.intersectionPoint = intersection; 
+        closest.intersectUV = vec2(u, v);
         closest.distanceFromCamera = distance; 
         closest.intersectedTriangle = triangle; 
         closest.normal = normal; 
@@ -1309,10 +1310,12 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
     print = false; 
     return colour; 
   } 
- 
-  // if our face is made of glass
   else if (triangle.texture == "glass"){
     colour = glass(rayDirection, closest, depth);
+    return colour;
+  }
+  else if (triangle.texture == "texture") {
+    colour = Colour(255, 255, 255);
     return colour;
   }
 
@@ -1321,7 +1324,7 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
     float diffuseIntensity = intensityDropOff(point) * angleOfIncidence(closest); 
     Kd = Kd * diffuseIntensity; 
     // specular light 
-    vec3 normal = closest.normal; // this is the interpolated noral for Phong shading (it is previously calculated and stored in the RayTriangleIntersection object) 
+    vec3 normal = closest.normal; // this is the interpolated normal for Phong shading (it is previously calculated and stored in the RayTriangleIntersection object) 
     float specularIntensity = calculateSpecularLight(point, rayDirection, normal); 
     Ks = Ks * specularIntensity; 
     colour =  getFinalColour(colour, Ka, Kd, Ks);
