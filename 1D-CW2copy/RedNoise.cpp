@@ -99,6 +99,7 @@ float fresnel(vec3 incident, vec3 normal, float ior);
 void backfaceCulling(vec3 cameraPosition);
 void backfaceCulling2 (vec3 rayDirection);
 vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces);
+void spin();
  
  
  
@@ -223,6 +224,7 @@ uint8_t getBlueValueFromColor(uint32_t c) {
  
 // this function renders the scene, depending on what the value of STATE is (so whether we use wireframe, rasterize or raytrace) 
 void render(){
+  /*
   cout << "\nright: ";
   printVec3(cameraRight);
   cout << "up: ";
@@ -230,6 +232,7 @@ void render(){
   cout << "forward: ";
   printVec3(cameraForward);
   cout << endl;
+  */
 
   clear();
 
@@ -289,7 +292,7 @@ void handleEvent(SDL_Event event) {
     else if(event.key.keysym.sym == SDLK_w)     updateView(TILT_DOWN); 
     else if(event.key.keysym.sym == SDLK_z)     updateView(TILT_UP); 
     else if(event.key.keysym.sym == SDLK_y)     test2(); 
-    else if(event.key.keysym.sym == SDLK_c)     clear(); 
+    else if(event.key.keysym.sym == SDLK_c)     spin(); 
 
     // pressing 1 changes to wireframe mode 
     else if(event.key.keysym.sym == SDLK_1){ 
@@ -829,14 +832,20 @@ void rasterize(){
         vec3 vertex = triangle.vertices[j]; 
         
         // change from world coordinates to camera
-
+        
+        /*
         vec3 col1 (cameraRight[0], cameraUp[0], cameraForward[0]);
         vec3 col2 (cameraRight[1], cameraUp[1], cameraForward[1]);
         vec3 col3 (cameraRight[2], cameraUp[2], cameraForward[2]);
         mat3 rotationMatrix (col1, col2, col3);
+        */
+        
+        vertex = vertex - cameraPosition;
+        
+        mat3 rotationMatrix (cameraRight, cameraUp, cameraForward);
+        rotationMatrix = glm::inverse(rotationMatrix);
 
         vec3 vertexCSpace = rotationMatrix * vertex;
-        vertexCSpace = vertexCSpace - cameraPosition;
         vertexCSpace[2] = -vertexCSpace[2];
 
         
@@ -883,11 +892,22 @@ void initializeDepthMap(){
  
 void updateView (MOVEMENT movement) {
 
-  float alpha, beta, gamma;
   vec3 col1, col2, col3;
 
   bool move = false;
   bool rotate = false;
+
+  float theta = 0.5;
+
+  /*
+  switch (currentRender) {
+    case RASTERIZE:
+      theta = -theta;
+      cout << theta << "\n";
+      break;
+  }
+  cout << theta << "\n";
+  */
 
   switch (movement) {
     /* Camera Position = Camera Position + Unit Vector */
@@ -908,51 +928,45 @@ void updateView (MOVEMENT movement) {
       move = true;
       break;
     /* Camera Orientation = Camera Orientation * rotation */
-    case ROLL_LEFT:
-      alpha = 0.5; 
-      col1 = vec3 (cos(alpha), sin(alpha), 0); 
-      col2 = vec3 (-sin(alpha), cos(alpha), 0); 
+    case ROLL_LEFT: 
+      col1 = vec3 (cos(theta), sin(theta), 0); 
+      col2 = vec3 (-sin(theta), cos(theta), 0); 
       col3 = vec3 (0, 0, 1);
       rotate = true;
       //cameraOrientation *= mat3(col1, col2, col3); 
       break;
     case ROLL_RIGHT:
-      alpha = -0.5; 
-      col1 = vec3 (cos(alpha), sin(alpha), 0); 
-      col2 = vec3 (-sin(alpha), cos(alpha), 0); 
+      col1 = vec3 (cos(-theta), sin(-theta), 0); 
+      col2 = vec3 (-sin(-theta), cos(-theta), 0); 
       col3 = vec3 (0, 0, 1);
       rotate = true;
       //cameraOrientation *= mat3(col1, col2, col3); 
       break;
     case PAN_LEFT:
-      beta = -0.5; 
-      col1 = vec3 (cos(beta), 0, -sin(beta)); 
+      col1 = vec3 (cos(-theta), 0, -sin(-theta)); 
       col2 = vec3 (0, 1, 0); 
-      col3 = vec3 (sin(beta), 0, cos(beta));
+      col3 = vec3 (sin(-theta), 0, cos(-theta));
       rotate = true;
       //cameraOrientation *= mat3(col1, col2, col3); 
       break;
     case PAN_RIGHT:
-      beta = 0.5; 
-      col1 = vec3 (cos(beta), 0, -sin(beta)); 
+      col1 = vec3 (cos(theta), 0, -sin(theta)); 
       col2 = vec3 (0, 1, 0); 
-      col3 = vec3 (sin(beta), 0, cos(beta));
+      col3 = vec3 (sin(theta), 0, cos(theta));
       rotate = true;
       //cameraOrientation *= mat3(col1, col2, col3); 
       break;      
     case TILT_UP:
-      gamma = -0.5; 
       col1 = vec3 (1, 0, 0); 
-      col2 = vec3 (0, cos(gamma), sin(gamma)); 
-      col3 = vec3 (0, -sin(gamma), cos(gamma));
+      col2 = vec3 (0, cos(-theta), sin(-theta)); 
+      col3 = vec3 (0, -sin(-theta), cos(-theta));
       rotate = true;
       //cameraOrientation *= mat3(col1, col2, col3); 
       break;
     case TILT_DOWN:
-      gamma = 0.5; 
       col1 = vec3 (1, 0, 0); 
-      col2 = vec3 (0, cos(gamma), sin(gamma)); 
-      col3 = vec3 (0, -sin(gamma), cos(gamma));
+      col2 = vec3 (0, cos(theta), sin(theta)); 
+      col3 = vec3 (0, -sin(theta), cos(theta));
       rotate = true;
       //cameraOrientation *= mat3(col1, col2, col3); 
       break;
@@ -1916,3 +1930,26 @@ vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces){
   return boxFaces;
 }
 
+////////////////////////////////
+// ANIMATION CODE
+////////////////////////////////
+
+
+void spin(){
+  vec3 point = findCentreOfScene();
+  float distance = distanceVec3(point, cameraPosition);
+  // we spin round by starting at the centre point looking at the camera, then spin around a set amount and work out the new camera position
+  vec3 pointToCamera = cameraPosition - point;
+  pointToCamera = normalize(pointToCamera);
+  // rotate the vector by 45 degrees
+  float theta = 3.14159 / 4;
+  vec3 col1 = vec3 (cos(theta), 0, -sin(theta)); 
+  vec3 col2 = vec3 (0, 1, 0); 
+  vec3 col3 = vec3 (sin(theta), 0, cos(theta));
+  mat3 rotationMatrix (col1, col2, col3);
+  vec3 vec = rotationMatrix * pointToCamera;
+  vec = normalize(vec);
+  cameraPosition = point + (distance * vec);
+  lookAt(point);
+  render();
+}
