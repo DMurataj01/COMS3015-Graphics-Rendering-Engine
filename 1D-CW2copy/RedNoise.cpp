@@ -207,6 +207,16 @@ uint8_t getBlueValueFromColor(uint32_t c) {
  
 // this function renders the scene, depending on what the value of STATE is (so whether we use wireframe, rasterize or raytrace) 
 void render(){
+  cout << "\nright: ";
+  printVec3(cameraRight);
+  cout << "up: ";
+  printVec3(cameraUp);
+  cout << "forward: ";
+  printVec3(cameraForward);
+  cout << endl;
+
+  clear();
+
   switch (currentRender) {
     case RAYTRACE:
       raytracer();
@@ -797,13 +807,7 @@ vector<ModelTriangle> readOBJ(float scalingFactor){
  
  
  
-void rasterize(){ 
-  cout << "\n Forward: "; 
-  printVec3(cameraForward); 
-  cout << "\n Up: "; 
-  printVec3(cameraUp); 
-  cout << "\n Right: "; 
-  printVec3(cameraRight); 
+void rasterize(){  
   // for each face 
   for (int i = 0 ; i < faces.size() ; i++){ 
     ModelTriangle triangle = faces[i]; 
@@ -814,24 +818,35 @@ void rasterize(){
     for (int j = 0 ; j < 3 ; j++){ 
       vec3 vertex = triangle.vertices[j]; 
        
-      // change from world coordinates to camera 
-      vec3 vertexCSpace = cameraPosition - (cameraOrientation * vertex); // CSpace means camera space 
+      // change from world coordinates to camera
+
+      vec3 col1 (cameraRight[0], cameraUp[0], cameraForward[0]);
+      vec3 col2 (cameraRight[1], cameraUp[1], cameraForward[1]);
+      vec3 col3 (cameraRight[2], cameraUp[2], cameraForward[2]);
+      mat3 rotationMatrix (col1, col2, col3);
+
+      vec3 vertexCSpace = rotationMatrix * vertex;
+      vertexCSpace = vertexCSpace - cameraPosition;
+      vertexCSpace[2] = -vertexCSpace[2];
+
        
       // save the depth of this point for later 
       float depth = vertexCSpace[2]; 
  
       // calculating the projection onto the 2D image plane by using interpolation and the z depth 
       // only worth doing if the vertex is in front of camera 
-      if (depth > 0){ 
+      if ((depth < 0) || (depth > 0)){ 
         float proportion = focalLength / depth; 
         vec3 vertexProjected = vertexCSpace * proportion; // the coordinates of the 3D point (in camera space) projected onto the image plane 
-        float x = -vertexProjected[0]; 
-        float y = vertexProjected[1]; 
- 
-        float xNormalised = (x / imageWidth) + 0.5; 
-        float yNormalised = (y / imageHeight) + 0.5; 
-        float xPixel = xNormalised * WIDTH; 
-        float yPixel = yNormalised * HEIGHT; 
+        //float x = vertexProjected[0]; 
+        //float y = vertexProjected[1]; 
+
+        // converting to get the pixel numbers
+        // finding position of top left corner of image plane in camera space
+        vec3 topLeft = vec3 (-imageWidth/2, imageHeight/2, focalLength);//(focalLength * cameraForward) + ((imageHeight/2) * cameraUp) - ((imageWidth/2) * cameraRight);
+        vec3 topLeftToPoint = vertexProjected - topLeft;
+        float xPixel = (topLeftToPoint[0] / imageWidth) * WIDTH;
+        float yPixel = (-topLeftToPoint[1] / imageHeight) * HEIGHT;
  
         /* 
         // if the pixel goes off screen 
@@ -872,8 +887,6 @@ void initializeDepthMap(){
  
  
 void updateView (MOVEMENT movement) {
-  
-  clear();
 
   float alpha, beta, gamma;
   vec3 col1, col2, col3;
@@ -976,26 +989,44 @@ void updateView (MOVEMENT movement) {
  
  
  
-void lookAt(vec3 point){ 
-  initializeDepthMap(); 
-  window.clearPixels(); 
+void lookAt(vec3 point){
+  cout << "\n\nBEFORE:\n";
+  cout << "Forward: "; 
+  printVec3(cameraForward); 
+  cout << "Up: "; 
+  printVec3(cameraUp); 
+  cout << "Right: ";
+  printVec3(cameraRight); 
  
-  vec3 direction = point - cameraPosition; 
+  vec3 direction = cameraPosition - point;
+  direction = normalize(direction);
   cameraForward = direction; 
   vec3 randomVector (0,1,0); 
   cameraRight = glm::cross(randomVector, cameraForward); 
   cameraUp = glm::cross(cameraForward, cameraRight); 
-   
-  cameraForward = -normalize(cameraForward); 
-  cameraRight = -normalize(cameraRight); 
+  
+  cout << "Forward: "; 
+  printVec3(cameraForward); 
+  cout << "Up: "; 
+  printVec3(cameraUp); 
+  cout << "Right: "; 
+  printVec3(cameraRight);
+
+  cameraForward = normalize(cameraForward); 
+  cameraRight = normalize(cameraRight); 
   cameraUp = normalize(cameraUp); 
  
-  cout << "1: " << glm::dot(cameraForward,cameraUp)<< "\n"; 
-  cout << "2: " << glm::dot(cameraForward, cameraRight)<<"\n"; 
+  cout << "\nAFTER\n";
+  cout << "Forward: "; 
+  printVec3(cameraForward); 
+  cout << "Up: "; 
+  printVec3(cameraUp); 
+  cout << "Right: "; 
+  printVec3(cameraRight);
    
   cameraOrientation = mat3 (cameraRight, cameraUp, cameraForward); 
  
-  rasterize(); 
+  render(); 
 } 
  
 // this function averages all the vertices in the scene to find the centre of the scene 
@@ -1020,6 +1051,7 @@ void printVec3(vec3 name){
  
 void test2(){ 
   vec3 centre = findCentreOfScene(); 
+  cout << "centre: ";
   printVec3(centre); 
   lookAt(centre); 
 } 
@@ -1056,7 +1088,7 @@ void raytracer(){
   for (int i = 0 ; i < WIDTH ; i++){ 
     for (int j = 0 ; j < HEIGHT ; j++){
       // create a ray 
-      vec3 rayDirection = cameraOrientation * createRay(i,j);
+      vec3 rayDirection = createRay(i,j);
 
       // shoot the ray and check for intersections 
       Colour colour = shootRay(cameraPosition, rayDirection, 0, 1); // depth starts at 0, IOR is 1 as travelling in air
@@ -1087,7 +1119,7 @@ Colour solveLight(RayTriangleIntersection closest, vec3 rayDirection, float Ka, 
  
  
  
-// given the pixel coordinates, this function calculates the direction fot he ray (in vector format) 
+// given the pixel coordinates, this function calculates the direction of the ray (in vector format) 
 vec3 createRay(int i, int j){
   vec2 pixel (i,j); 
   pixel = pixel + vec2(0.5,0.5); 
