@@ -1088,8 +1088,6 @@ void raytracer(){
     for (int j = 0 ; j < HEIGHT ; j++){
       // create a ray 
       vec3 rayDirection = createRay(i,j);
-      // cull the faces
-      backfaceCulling2(rayDirection);
       // shoot the ray and check for intersections 
       Colour colour = shootRay(cameraPosition, rayDirection, 0, 1); // depth starts at 0, IOR is 1 as travelling in air
       // colour the pixel accordingly 
@@ -1275,6 +1273,9 @@ RayTriangleIntersection closestIntersection(vector<vec4> solutions, vec3 rayPoin
 // depth coutns how many recursions we have done (this happens when there are reflections) - it starts at 0 when rays are shot from camera
 // currentIOR stores the index of refraction of the current medium we are in (air is 1 - glass is 1.5)
 Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){ 
+  // cull the faces
+  backfaceCulling2(rayDirection);
+
   // stop recursing if our reflections get too much
   if (depth == 7){ 
     return Colour(255,255,255); 
