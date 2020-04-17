@@ -14,6 +14,7 @@
 #include <sstream> 
 #include <RayTriangleIntersection.h> 
 #include <Object.h>
+
  
 using namespace std; 
 using namespace glm; 
@@ -106,7 +107,8 @@ void translateVertices(int objectIndex, vec3 direction, float distance);
 void jump(int objectIndex, float height);
 void squash(int objectIndex, float squashFactor);
 void pixarJump(int objectIndex, float height);
- 
+vec3 findObjectCentre(Object object);
+void rotateObject(int objectIndex, float theta, vec3 point);
  
  
  
@@ -298,7 +300,8 @@ void render(){
   //return col; 
 
 } 
- 
+
+
 void handleEvent(SDL_Event event) { 
   if(event.type == SDL_KEYDOWN) { 
     if(event.key.keysym.sym == SDLK_LEFT)       updateView(LEFT);  
@@ -310,7 +313,7 @@ void handleEvent(SDL_Event event) {
     else if(event.key.keysym.sym == SDLK_w)     updateView(TILT_DOWN); 
     else if(event.key.keysym.sym == SDLK_z)     updateView(TILT_UP); 
     else if(event.key.keysym.sym == SDLK_y)     test2(); 
-    else if(event.key.keysym.sym == SDLK_c)     jump(1, 1);//clear();
+    else if(event.key.keysym.sym == SDLK_c)     pixarJump(1, 1.5);//clear();
     else if(event.key.keysym.sym == SDLK_p)     playOrPause();
 
     // pressing 1 changes to wireframe mode 
@@ -2031,7 +2034,6 @@ void jump(int objectIndex, float height){
 
 
 void squash(int objectIndex, float squashFactor){
-  cout << "factor: " << squashFactor << endl;
   // find the bottom of the object
   // also find the centre of the underside
   // (when we squash an object it squashes downwards)
@@ -2079,8 +2081,51 @@ void squash(int objectIndex, float squashFactor){
 // before the jump we want a squash and also after it lands
 // we want a stretch as it jumps in the air
 void pixarJump(int objectIndex, float height){
+  // save the object before the transformations so we can go back to it
+  Object objectCopy = objects[objectIndex];
+
+  // before the jump, squash the object down
+  // use a quadratic step in the squash factor so it squashes quickly at first and then slows down as it gets to the maximum squash
+  // it should also go back to normal after it has been squashed (it should speed up as it is preparing to jump)
+  // if we use a quadratic function to get the squash factors then we should get the desired acceleration
+  float maxSquashFactor = 0.5;
+  // how many steps do we want (how quickly should it squash)
+  int steps = 10;
+  vector<float> squashSteps;
+  for (float t = 0 ; t < steps ; t++){
+    // use y = -at^2 + bt + c
+    // at t = 0, we want squashFactor = 0 and at t = steps we want squashFactor = 0
+    // half way through (so t = steps/2) we want squashFactor = maxSquashFactor
+    // we also want it to peak at t = steps/2, so we need to look at derivative
+    // dy/dt = -2ax + b
+    // we want dy/dt = 0 at time = steps/2
+    // 0 = -(a*steps) + b
+    // b = a*steps
+    // the first equation (t = 0, y = 0) gives c = 0
+    // so we now have:
+    //   y = -a(t^2) + (steps*a)t;
+    // we also want (t = steps/2, y = maxSquashFactor)
+    //   maxSquashFactor = -(steps^2)(a/4) + (2*steps^2)(a/2)
+    //   maxSquashFactor = steps^2 * (a/4);
+    // can now get a and b
+    float a = (4 * maxSquashFactor) / (steps * steps);
+    float b = a * steps;
+    float squashFactor = -(a*t*t) + (b*t);
+    squashSteps.push_back(squashFactor);
+  }
+
+  //vector<float> squashSteps {0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4};
+  for (int i = 0 ; i < squashSteps.size() ; i++){
+    squash(objectIndex, squashSteps[i]);
+    render();
+    window.renderFrame();
+    // put the object back to it's original
+    objects[objectIndex] = objectCopy;
+  }
+
+  // these are equations to work out the height of the object at each time frame
   // if we just define the height of the bounce, then we can calculate what the initial velocity must be and also how long it will take
-  float a = -9.81; // acceleration
+  float a = -50; // real life acceleratoin is a = -9.81, but this looked too slow in the render
 
   // equations: 
   // v = u + at where u is initial velocity
@@ -2095,54 +2140,102 @@ void pixarJump(int objectIndex, float height){
   float timeStep = 0.02; // this will depend on how many frames we produce per second (normally about 24)
 
 
-  // before the jump, squash the object down
-  // use a quadratic step in the squash factor so it squashes quickly at first and then slows down as it gets to the maximum squash
-  float maxSquashFactor = 0.5;
-  // how many steps do we want (how quickly should it squash)
-  int steps = 50;
-  vector<float> squashSteps;
-  for (float t = 1 ; t <= steps ; t++){
-    // use y = -at^2 + bt + c
-    // at time = 0, we want squashFactor = 0 and at time = steps we want squashFactor = maxSquashFactor
-    // we also want it to peak at time = steps, so we need to look at derivative
-    // dy/dt = -2ax + b
-    // we want dy/dt = 0 at time = steps
-    // 0 = -(2a*steps) + b
-    // b = 2*a*steps
-    // the first equation (t = 0, y = 0) gives c = 0
-    // so we now have:
-    //   y = -a(t^2) + (2*steps*a)t;
-    // we also want (t = steps, y = maxSquashFactor)
-    //   maxSquashFactor = -(steps^2)a + (2*steps^2)a
-    //   maxSquashFactor = steps^2 * a
-    // can now get a and b
-    float a = maxSquashFactor / (steps * steps);
-    float b = 2 * a * steps;
-    float squashFactor = -(a*t*t) + (b*t);
-    cout << "t: " << t << endl;
-    cout << "a: " << (-t*t);
-    cout << ",   b: " << (b*t) << endl;
-    cout << squashFactor << endl;
-    squashSteps.push_back(squashFactor);
+
+  // for the jump we want the object to go from normal to stretch then down to normal again (squashFactor = 0)
+  // we can stretch by using negative values in the squash function
+  // quadratic motion again (quadratic speed with the stretching)
+  // we will first get all the squash factors for each step
+  // we start with a squashFactor of 0 and end with it too
+  // again we will use a quadratic (not negative and the squash factor will decrease and then increase again)
+  // y = at^2 + bt + c
+  // at t = 0 we want y = 0, so we know c = 0
+  // dy/dt = 2at + b
+  // we want the squash factor to be at the lowest when the object is at the peak of its jump (so half way through)
+  // t = totalTime / 2, dy/dt = 0
+  // 0 = totalTime*a + b
+  // b = -totalTime*a
+  // So we have:
+  // y = a(t^2) - (totalTime*a)t
+  // when t = totalTime/2, we want to have y = -maxSquashFactor (this is our stretch)
+  // -maxSquashFactor = (totalTime^2)(a/4) - (totalTime^2)(a/2)
+  // maxSquashFactor = (totalTime^2)(a/4);
+  // can now work out a and b
+  float aQuad = (maxSquashFactor * 4) / (totalTime * totalTime);
+  float bQuad = -totalTime * aQuad;
+
+  // we can also make the object rotate as it jumps
+  float fullTurn = 3.1415926;
+  // number of steps
+  float numberOfSteps = int(totalTime / timeStep);
+  float stepAngle = fullTurn / numberOfSteps;
+  
+  // for each time frame, calculate the height of the object
+  for (int i = 0 ; i < numberOfSteps ; i++){
+    float t = i*timeStep;
+    // using the 2nd equations of motion (displacement one written above)
+    float displacement = (u*t) + (0.5 * a * t * t);
+    // translate
+    translateVertices(objectIndex, vec3 (0,1,0), displacement);
+    // squash
+    float squashFactor = (aQuad*t*t) + (bQuad*t);
+    squash(objectIndex, squashFactor);
+    // rotate
+    vec3 centre = findObjectCentre(objects[objectIndex]);
+    rotateObject(objectIndex, stepAngle*i, centre);
+    // render
+    render();
+    window.renderFrame();
+    // translate the vertices back to original and undo the squash
+    objects[objectIndex] = objectCopy;
   }
 
-  //vector<float> squashSteps {0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4};
-  for (int i = 0 ; i < squashSteps.size() ; i++){
+  // after the jump we want the object to go from normal to squashed to normal again
+  // can do the same as we did before the jump
+  for (int i = steps-1 ; i >= 0 ; i--){
     squash(objectIndex, squashSteps[i]);
     render();
     window.renderFrame();
-    squash(objectIndex, -squashSteps[i]/2);
+    // put the object back to it's original
+    objects[objectIndex] = objectCopy;
   }
-  
-  // for each time frame, calculate the height of the object
-  for (float t = 0 ; t < totalTime ; t += timeStep){
-    // using the 2nd equations of motion (displacement one written above)
-    float displacement = (u*t) + (0.5 * a * t * t);
-    translateVertices(objectIndex, vec3 (0,1,0), displacement);
-    render();
-    window.renderFrame();
-    // translate the vertices back to original
-    translateVertices(objectIndex, vec3 (0,-1,0), displacement);
+}
+
+
+vec3 findObjectCentre(Object object){
+  vec3 averagedVertex (0,0,0);
+  int n = object.faces.size();
+  // for each face
+  for (int i = 0 ; i < n ; i++){
+    // for each vertex
+    for (int j = 0 ; j < 3 ; j++){
+      vec3 vertex = object.faces[i].vertices[j];
+      averagedVertex = averagedVertex + vertex;
+    }
   }
-  
+  averagedVertex = averagedVertex / float(n*3);
+  return averagedVertex;
+}
+
+
+// this function rotates an object in the secen by the specified angle
+// it can rotate around a certain point (this is normally set at the objects centre)
+void rotateObject(int objectIndex, float theta, vec3 point) {
+  // create the rotation matrix
+  vec3 col1 = vec3 (cos(theta), 0, -sin(theta)); 
+  vec3 col2 = vec3 (0, 1, 0); 
+  vec3 col3 = vec3 (sin(theta), 0, cos(theta));
+  mat3 rotationMatrix (col1, col2, col3);
+
+  Object object = objects[objectIndex];
+  // for each face
+  for (int i = 0 ; i < object.faces.size() ; i++){
+    // for each vertex
+    for (int j = 0 ; j < 3 ; j++){
+      vec3 vertex = object.faces[i].vertices[j];
+      vec3 centreToVertex = vertex - point;
+      // rotate this by the angle
+      vec3 newVertex = point + rotationMatrix * centreToVertex;
+      objects[objectIndex].faces[i].vertices[j] = newVertex;
+    }
+  }
 }
