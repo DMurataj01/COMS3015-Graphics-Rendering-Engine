@@ -106,7 +106,9 @@ void spinAround(float angle, int stepNumber, bool clockwise, int zoom);
 void translateVertices(int objectIndex, vec3 direction, float distance);
 void jump(int objectIndex, float height);
 void squash(int objectIndex, float squashFactor);
-void pixarJump(int objectIndex, float height);
+void pixarJump(int objectIndex, float height, bool rotate, float maxSquashFactor);
+void jumpSquash(int objectIndex, float maxSquashFactor);
+void bounce(int objectIndex, float height, int numberOfBounces);
 vec3 findObjectCentre(Object object);
 void rotateObject(int objectIndex, float theta, vec3 point);
  
@@ -313,7 +315,7 @@ void handleEvent(SDL_Event event) {
     else if(event.key.keysym.sym == SDLK_w)     updateView(TILT_DOWN); 
     else if(event.key.keysym.sym == SDLK_z)     updateView(TILT_UP); 
     else if(event.key.keysym.sym == SDLK_y)     test2(); 
-    else if(event.key.keysym.sym == SDLK_c)     pixarJump(1, 1.5);//clear();
+    else if(event.key.keysym.sym == SDLK_c)     bounce(1, 1.5, 5);//clear();
     else if(event.key.keysym.sym == SDLK_p)     playOrPause();
 
     // pressing 1 changes to wireframe mode 
@@ -2080,48 +2082,11 @@ void squash(int objectIndex, float squashFactor){
 // same function as the jump except we include a squash and stretch transformation with the vertices
 // before the jump we want a squash and also after it lands
 // we want a stretch as it jumps in the air
-void pixarJump(int objectIndex, float height){
-  // save the object before the transformations so we can go back to it
+void pixarJump(int objectIndex, float height, bool rotate, float maxSquashFactor){
+  // save the object so we can go back to it
   Object objectCopy = objects[objectIndex];
 
-  // before the jump, squash the object down
-  // use a quadratic step in the squash factor so it squashes quickly at first and then slows down as it gets to the maximum squash
-  // it should also go back to normal after it has been squashed (it should speed up as it is preparing to jump)
-  // if we use a quadratic function to get the squash factors then we should get the desired acceleration
-  float maxSquashFactor = 0.5;
-  // how many steps do we want (how quickly should it squash)
-  int steps = 10;
-  vector<float> squashSteps;
-  for (float t = 0 ; t < steps ; t++){
-    // use y = -at^2 + bt + c
-    // at t = 0, we want squashFactor = 0 and at t = steps we want squashFactor = 0
-    // half way through (so t = steps/2) we want squashFactor = maxSquashFactor
-    // we also want it to peak at t = steps/2, so we need to look at derivative
-    // dy/dt = -2ax + b
-    // we want dy/dt = 0 at time = steps/2
-    // 0 = -(a*steps) + b
-    // b = a*steps
-    // the first equation (t = 0, y = 0) gives c = 0
-    // so we now have:
-    //   y = -a(t^2) + (steps*a)t;
-    // we also want (t = steps/2, y = maxSquashFactor)
-    //   maxSquashFactor = -(steps^2)(a/4) + (2*steps^2)(a/2)
-    //   maxSquashFactor = steps^2 * (a/4);
-    // can now get a and b
-    float a = (4 * maxSquashFactor) / (steps * steps);
-    float b = a * steps;
-    float squashFactor = -(a*t*t) + (b*t);
-    squashSteps.push_back(squashFactor);
-  }
-
-  //vector<float> squashSteps {0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4};
-  for (int i = 0 ; i < squashSteps.size() ; i++){
-    squash(objectIndex, squashSteps[i]);
-    render();
-    window.renderFrame();
-    // put the object back to it's original
-    objects[objectIndex] = objectCopy;
-  }
+  //jumpSquash(objectIndex);
 
   // these are equations to work out the height of the object at each time frame
   // if we just define the height of the bounce, then we can calculate what the initial velocity must be and also how long it will take
@@ -2165,6 +2130,7 @@ void pixarJump(int objectIndex, float height){
 
   // we can also make the object rotate as it jumps
   float fullTurn = 3.1415926;
+  
   // number of steps
   float numberOfSteps = int(totalTime / timeStep);
   float stepAngle = fullTurn / numberOfSteps;
@@ -2180,8 +2146,10 @@ void pixarJump(int objectIndex, float height){
     float squashFactor = (aQuad*t*t) + (bQuad*t);
     squash(objectIndex, squashFactor);
     // rotate
-    vec3 centre = findObjectCentre(objects[objectIndex]);
-    rotateObject(objectIndex, stepAngle*i, centre);
+    if (rotate) {
+      vec3 centre = findObjectCentre(objects[objectIndex]);
+      rotateObject(objectIndex, stepAngle*i, centre);
+    }
     // render
     render();
     window.renderFrame();
@@ -2191,12 +2159,83 @@ void pixarJump(int objectIndex, float height){
 
   // after the jump we want the object to go from normal to squashed to normal again
   // can do the same as we did before the jump
-  for (int i = steps-1 ; i >= 0 ; i--){
+  jumpSquash(objectIndex, maxSquashFactor);
+}
+
+
+void jumpSquash(int objectIndex, float maxSquashFactor){
+  // save the object before the transformations so we can go back to it
+  Object objectCopy = objects[objectIndex];
+
+  // before the jump, squash the object down
+  // use a quadratic step in the squash factor so it squashes quickly at first and then slows down as it gets to the maximum squash
+  // it should also go back to normal after it has been squashed (it should speed up as it is preparing to jump)
+  // if we use a quadratic function to get the squash factors then we should get the desired acceleration
+
+  // how many steps do we want (how quickly should it squash)
+  int steps = 10;
+  vector<float> squashSteps;
+  for (float t = 0 ; t < steps ; t++){
+    // use y = -at^2 + bt + c
+    // at t = 0, we want squashFactor = 0 and at t = steps we want squashFactor = 0
+    // half way through (so t = steps/2) we want squashFactor = maxSquashFactor
+    // we also want it to peak at t = steps/2, so we need to look at derivative
+    // dy/dt = -2ax + b
+    // we want dy/dt = 0 at time = steps/2
+    // 0 = -(a*steps) + b
+    // b = a*steps
+    // the first equation (t = 0, y = 0) gives c = 0
+    // so we now have:
+    //   y = -a(t^2) + (steps*a)t;
+    // we also want (t = steps/2, y = maxSquashFactor)
+    //   maxSquashFactor = -(steps^2)(a/4) + (2*steps^2)(a/2)
+    //   maxSquashFactor = steps^2 * (a/4);
+    // can now get a and b
+    float a = (4 * maxSquashFactor) / (steps * steps);
+    float b = a * steps;
+    float squashFactor = -(a*t*t) + (b*t);
+    squashSteps.push_back(squashFactor);
+  }
+
+  //vector<float> squashSteps {0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4};
+  for (int i = 0 ; i < squashSteps.size() ; i++){
     squash(objectIndex, squashSteps[i]);
     render();
     window.renderFrame();
     // put the object back to it's original
     objects[objectIndex] = objectCopy;
+  }
+}
+
+
+void bounce(int objectIndex, float height, int numberOfBounces){
+  // use a quadratic to get the heights of the bounces
+  // y = an^2 + bn + c
+  // n is the bounce number
+  // at n = 0, y = height so therefore c = height
+  // we want the minima to be on the last bounce
+  // dy/dn = 2an + b
+  // dy/dn = 0 when n = numberOfBounces
+  // 0 = (2*numberOfBounces)a + b
+  // b = -(2*numberOfBounces)a
+  // so therefore:
+  // y = an^2 + (-2*numberOfBounces*a)n + height
+  // at n = numberOfBounces, y = 0
+  // 0 = (numberOfBounces^2)a + (-2*numberOfBounces^2)a + height;
+  // 0 = -(numberOfBounces^2)a + height;
+  // we can now get a and b
+
+  float a = height / (numberOfBounces * numberOfBounces);
+  float b = -(2 * numberOfBounces * a);
+  float c = height;
+
+  // squash before the jump
+  jumpSquash(objectIndex, 0.5);
+  // for each bounce, jump but decrease the height
+  for (int n = 0 ; n < numberOfBounces ; n++){
+    float bounceHeight = (a*n*n) + (b*n) + c;
+    float squashFactor = 0.5 * (bounceHeight / height);
+    pixarJump(objectIndex, bounceHeight, false, squashFactor);
   }
 }
 
