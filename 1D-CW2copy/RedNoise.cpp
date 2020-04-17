@@ -81,9 +81,9 @@ void test2();
 void raytracer(); 
 Colour solveLight(RayTriangleIntersection closest, vec3 rayDirection, float Ka, float Kd, float Ks); 
 vec3 createRay(int i, int j); 
-vector<vec4> checkForIntersections(vec3 point, vec3 rayDirection);
+vector<vector<vec4>> checkForIntersections(vec3 point, vec3 rayDirection);
 vector<vec4> faceIntersections(vector<ModelTriangle> inputFaces, vec3 point, vec3 rayDirection);
-RayTriangleIntersection closestIntersection(vector<vec4> solutions, vec3 rayPoint); 
+RayTriangleIntersection closestIntersection(vector<vector<vec4>> solutions, vec3 rayPoint); 
 Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR); 
 Colour getFinalColour(Colour colour, float Ka, float Kd, float Ks); 
 float intensityDropOff(vec3 point); 
@@ -391,6 +391,15 @@ vector<Object> createObjects(vector<ModelTriangle> inputFaces){
   vector<Object> outputVec;
   outputVec.push_back(object1);
   outputVec.push_back(object2);
+
+
+  // for each object, sort out the face indices
+  for (int i = 0 ; i < outputVec.size() ; i++){
+    Object object = outputVec[i];
+    for (int j = 0 ; j < object.faces.size() ; j++){
+      outputVec[i].faces[j].faceIndex = j;
+    }
+  }
 
   return outputVec;
 }
@@ -1160,10 +1169,12 @@ vec3 createRay(int i, int j){
 // this function takes the ray and checks with all the faces to see which ones it intersects 
 // it outputs a vector of vectors - a (t,u,v) vector for each face 
 // if t>0, then that means that for that particular face the ray intersects it with u and v being local coordinates for the triangle 
-vector<vec4> checkForIntersections(vec3 point, vec3 rayDirection){ 
+vector<vector<vec4>> checkForIntersections(vec3 point, vec3 rayDirection){ 
   // this is the output vector, for every possible face it stores a possibleSolution 
   // the 4th value in this evctor is the index of the face if there is an intersection
-  vector<vec4> solutions;
+  // there is an element in solutions ofr every object
+  // each element in solutions is a vector of possible solutions for all the faces in that object
+  vector<vector<vec4>> solutions;
 
   // for each object, does it have a bounding box?
   // if so, does the ray intersect it?
@@ -1171,6 +1182,7 @@ vector<vec4> checkForIntersections(vec3 point, vec3 rayDirection){
   int n = objects.size();
   for (int i = 0 ; i < n ; i++){
     vector<vec4> objectSolutions; // to store the solutions if any for this object
+    objectSolutions.push_back(vec4 (-1,0,0,-1));
     Object object = objects[i];
     if (object.hasBoundingBox){
       vector<vec4> boxSolutions = faceIntersections(object.boxFaces, point, rayDirection);
@@ -1188,11 +1200,7 @@ vector<vec4> checkForIntersections(vec3 point, vec3 rayDirection){
     else {
       objectSolutions = faceIntersections(object.faces, point, rayDirection);
     }
-    // for all the object solutions (if there is any, put each solution into the main solutions)
-    int len = objectSolutions.size();
-    for (int j = 0 ; j < len ; j++){
-      solutions.push_back(objectSolutions[j]);
-    }
+    solutions.push_back(objectSolutions);
   }
   return solutions;
 } 
@@ -1231,15 +1239,17 @@ vector<vec4> faceIntersections(vector<ModelTriangle> inputFaces, vec3 point, vec
  
  
 // this function gives back the index of the closest face for a particular ray 
-RayTriangleIntersection closestIntersection(vector<vec4> solutions, vec3 rayPoint) { 
+RayTriangleIntersection closestIntersection(vector<vector<vec4>> objectSolutions, vec3 rayPoint) { 
   RayTriangleIntersection closest; // this is where we store the closest triangle of intersection, the point it intersects and the distance 
   closest.distanceFromCamera = -1; // initialize this so we can tell when there are no intersections 
   float closestT = numeric_limits<float>::infinity(); 
   int closestIndex = -1; 
   // for each possible solution / for each face 
-  int n = solutions.size(); 
-  for (int o=0; o<objects.size(); o++) {
-    for (int i = 0 ; i < n ; i++){ 
+  int n = objectSolutions.size(); 
+  // for each object
+  for (int o=0; o<n; o++) {
+    vector<vec4> solutions = objectSolutions[o];
+    for (int i = 0 ; i < objects[o].faces.size() ; i++){ 
       
       vec4 possibleSolution = solutions[i]; 
       float t = possibleSolution[0]; 
@@ -1307,7 +1317,7 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
   } 
 
   // does this ray intersect any of the faces?
-  vector<vec4> solutions = checkForIntersections(rayPoint, rayDirection); 
+  vector<vector<vec4>> solutions = checkForIntersections(rayPoint, rayDirection); 
   // find the closest intersection
   RayTriangleIntersection closest = closestIntersection(solutions, rayPoint); 
   Colour colour = closest.intersectedTriangle.colour; 
@@ -1816,9 +1826,11 @@ void backfaceCulling(vec3 cameraPosition){
     }
   }
   Object object = objects[0];
+  /*
   for (int i = 0 ; i < object.faces.size() ; i++){
     cout << object.faces[i].culled << "   ";
   }
+  */
 }
 
 
