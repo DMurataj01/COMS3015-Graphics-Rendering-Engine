@@ -10,4 +10,8 @@ class Object
     {
       hasBoundingBox = false;
     }
+    Object(std::vector<ModelTriangle> inputFaces){
+      faces = inputFaces;
+      hasBoundingBox = false;
+    }
 };

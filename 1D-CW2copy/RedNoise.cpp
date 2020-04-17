@@ -102,6 +102,10 @@ void backfaceCulling2 (vec3 rayDirection);
 vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces);
 void spin(vec3 point, float angle, float distance);
 void spinAround(float angle, int stepNumber, bool clockwise, int zoom);
+void translateVertices(int objectIndex, vec3 direction, float distance);
+void jump(int objectIndex, float height);
+void squash(int objectIndex, float squashFactor);
+void pixarJump(int objectIndex, float height);
  
  
  
@@ -172,14 +176,12 @@ int main(int argc, char* argv[]) {
     faces[i].texture = "glass";
   }
   
-  // 5) Split the faces into objects
-  objects = createObjects(faces);
   
-  // 6) Run set-up funtions for lighting and culling
-  objects[0].faces = averageVertexNormals(objects[0].faces);
-  //for (int o=0; o<objects.size(); o++) {
-  //  averageVertexNormals(objects[o].faces);
-  //}
+  // 5) Run set-up funtions for lighting and culling
+  faces = averageVertexNormals(faces);
+
+  // 6) Split the faces into objects
+  objects = createObjects(faces);
 
   //backfaceCulling(cameraPosition);
   for (int i = 0 ; i < objects[0].faces.size() ; i++){
@@ -308,7 +310,7 @@ void handleEvent(SDL_Event event) {
     else if(event.key.keysym.sym == SDLK_w)     updateView(TILT_DOWN); 
     else if(event.key.keysym.sym == SDLK_z)     updateView(TILT_UP); 
     else if(event.key.keysym.sym == SDLK_y)     test2(); 
-    else if(event.key.keysym.sym == SDLK_c)     clear();
+    else if(event.key.keysym.sym == SDLK_c)     jump(1, 1);//clear();
     else if(event.key.keysym.sym == SDLK_p)     playOrPause();
 
     // pressing 1 changes to wireframe mode 
@@ -358,15 +360,33 @@ void setDepthPixelColour(int x, int y, double z, uint32_t clr) {
 // use this function to split the faces into separate objects (an 'Object' object has been created)
 // if you want, you can store a bounding box with the object too
 vector<Object> createObjects(vector<ModelTriangle> inputFaces){
-  vector<Object> outputVec;
-  
-  Object object;
-  object.faces = inputFaces;
+  // how many objects do you want?
+  vector<ModelTriangle> objectFaces1;
+  vector<ModelTriangle> objectFaces2;
 
-  //object.hasBoundingBox = true;
-  //object.boxFaces = boundingBox(object1.faces);
+
+  // for each face, split it up into objects
+  for (int i = 0 ; i < inputFaces.size() ; i++){
+    ModelTriangle face = inputFaces[i];
+
+    // red box
+    if ((i > 11) && (i < 22)){
+      objectFaces2.push_back(inputFaces[i]);
+    }
+    // the rest of the faces
+    else {
+      objectFaces1.push_back(inputFaces[i]);
+    }
+  }
+
+  // create the objects
+  Object object1 (objectFaces1);
+  Object object2 (objectFaces2);
   
-  outputVec.push_back(object);
+  vector<Object> outputVec;
+  outputVec.push_back(object1);
+  outputVec.push_back(object2);
+
   return outputVec;
 }
  
@@ -904,7 +924,7 @@ void updateView (MOVEMENT movement) {
   bool move = false;
   bool rotate = false;
 
-  float theta = 0.5;
+  float theta = -0.5;
 
   /*
   switch (currentRender) {
@@ -1963,4 +1983,166 @@ void spinAround(float angle, int stepNumber, bool clockwise, int zoom){
       float distance = startDistance + (i * distanceStep);
       spin(point, angleStep, distance);
   }
+}
+
+
+void translateVertices(int objectIndex, vec3 direction, float distance){
+  direction = normalize(direction);
+  // for each face
+  for (int i = 0 ; i < objects[objectIndex].faces.size() ; i++){
+    // for each vertex
+    for (int j = 0 ; j < 3 ; j++){
+      vec3 vertex = objects[objectIndex].faces[i].vertices[j];
+      objects[objectIndex].faces[i].vertices[j] = vertex + (distance * direction);
+    }
+  }
+}
+
+
+// use equations of motion to animate a jump
+void jump(int objectIndex, float height){
+  // if we just define the height of the bounce, then we can calculate what the initial velocity must be and also how long it will take
+  float a = -9.81; // acceleration
+
+  // equations: 
+  // v = u + at where u is initial velocity
+  // maxHeight = u^2 / (-2a)
+  // displacement = ut + (1/2)at^2
+  // timeAtTopOfJump = u / -a;
+  
+  // initial velocity (m/s) using equations of motion
+  float u = sqrt(height * (2*-a));
+  // calculating how long the jump will take
+  float totalTime = (u / -a) * 2;
+  float timeStep = 0.02; // this will depend on how many frames we produce per second (normally about 24)
+
+  // for each time frame, calculate the height of the object
+  for (float t = 0 ; t < totalTime ; t += timeStep){
+    // using the 2nd equations of motion (displacement one written above)
+    float displacement = (u*t) + (0.5 * a * t * t);
+    translateVertices(objectIndex, vec3 (0,1,0), displacement);
+    render();
+    window.renderFrame();
+    // translate the vertices back to original
+    translateVertices(objectIndex, vec3 (0,-1,0), displacement);
+  }
+}
+
+
+
+void squash(int objectIndex, float squashFactor){
+  cout << "factor: " << squashFactor << endl;
+  // find the bottom of the object
+  // also find the centre of the underside
+  // (when we squash an object it squashes downwards)
+  Object object = objects[objectIndex];
+  float lowestPoint = numeric_limits<float>::infinity();
+  vec3 averagedVertices (0,0,0);
+
+  // for each face
+  for (int i = 0 ; i < object.faces.size() ; i++){
+    ModelTriangle face = object.faces[i];
+    // for each vertex
+    for (int j = 0 ; j < 3 ; j++){
+      vec3 vertex = face.vertices[j];
+      averagedVertices = averagedVertices + vertex;
+      if (vertex[1] < lowestPoint){
+        lowestPoint = vertex[1];
+      }
+    }
+  }
+  averagedVertices = averagedVertices / float(object.faces.size() * 3);
+
+  // we squash the object around the following point (the centre but on the under side of the object)
+  vec3 squashCentre = averagedVertices;
+  squashCentre[1] = lowestPoint;
+
+  // for a squash we want to make the object flatter but also wider
+  // make the y coordinates closer to the centre but the x and z coordinates further away from the centre
+  // for each face
+  for (int i = 0 ; i < object.faces.size() ; i++){
+    // for each vertex
+    for (int j = 0 ; j < 3 ; j++){
+      vec3 vertex = objects[objectIndex].faces[i].vertices[j];
+      vec3 direction = vertex - squashCentre;
+      //direction = normalize(direction);
+      // increase the y and z, but decrease the x
+      vec3 newPoint = vertex + (squashFactor * direction);
+      newPoint[1] = vertex[1] - (squashFactor * direction[1]);
+      objects[objectIndex].faces[i].vertices[j] = newPoint;
+    }
+  }
+}
+
+
+// same function as the jump except we include a squash and stretch transformation with the vertices
+// before the jump we want a squash and also after it lands
+// we want a stretch as it jumps in the air
+void pixarJump(int objectIndex, float height){
+  // if we just define the height of the bounce, then we can calculate what the initial velocity must be and also how long it will take
+  float a = -9.81; // acceleration
+
+  // equations: 
+  // v = u + at where u is initial velocity
+  // maxHeight = u^2 / (-2a)
+  // displacement = ut + (1/2)at^2
+  // timeAtTopOfJump = u / -a;
+  
+  // initial velocity (m/s) using equations of motion
+  float u = sqrt(height * (2*-a));
+  // calculating how long the jump will take
+  float totalTime = (u / -a) * 2;
+  float timeStep = 0.02; // this will depend on how many frames we produce per second (normally about 24)
+
+
+  // before the jump, squash the object down
+  // use a quadratic step in the squash factor so it squashes quickly at first and then slows down as it gets to the maximum squash
+  float maxSquashFactor = 0.5;
+  // how many steps do we want (how quickly should it squash)
+  int steps = 50;
+  vector<float> squashSteps;
+  for (float t = 1 ; t <= steps ; t++){
+    // use y = -at^2 + bt + c
+    // at time = 0, we want squashFactor = 0 and at time = steps we want squashFactor = maxSquashFactor
+    // we also want it to peak at time = steps, so we need to look at derivative
+    // dy/dt = -2ax + b
+    // we want dy/dt = 0 at time = steps
+    // 0 = -(2a*steps) + b
+    // b = 2*a*steps
+    // the first equation (t = 0, y = 0) gives c = 0
+    // so we now have:
+    //   y = -a(t^2) + (2*steps*a)t;
+    // we also want (t = steps, y = maxSquashFactor)
+    //   maxSquashFactor = -(steps^2)a + (2*steps^2)a
+    //   maxSquashFactor = steps^2 * a
+    // can now get a and b
+    float a = maxSquashFactor / (steps * steps);
+    float b = 2 * a * steps;
+    float squashFactor = -(a*t*t) + (b*t);
+    cout << "t: " << t << endl;
+    cout << "a: " << (-t*t);
+    cout << ",   b: " << (b*t) << endl;
+    cout << squashFactor << endl;
+    squashSteps.push_back(squashFactor);
+  }
+
+  //vector<float> squashSteps {0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4};
+  for (int i = 0 ; i < squashSteps.size() ; i++){
+    squash(objectIndex, squashSteps[i]);
+    render();
+    window.renderFrame();
+    squash(objectIndex, -squashSteps[i]/2);
+  }
+  
+  // for each time frame, calculate the height of the object
+  for (float t = 0 ; t < totalTime ; t += timeStep){
+    // using the 2nd equations of motion (displacement one written above)
+    float displacement = (u*t) + (0.5 * a * t * t);
+    translateVertices(objectIndex, vec3 (0,1,0), displacement);
+    render();
+    window.renderFrame();
+    // translate the vertices back to original
+    translateVertices(objectIndex, vec3 (0,-1,0), displacement);
+  }
+  
 }
