@@ -18,7 +18,7 @@
 using namespace std; 
 using namespace glm; 
  
-#define W 600//2400//640 
+#define W 800//2400//640 
 #define H 600//2400//480 
 
 const int ssScale = 1;
@@ -33,7 +33,7 @@ enum MOVEMENT {UP, DOWN, LEFT, RIGHT, ROLL_LEFT, ROLL_RIGHT, PAN_LEFT, PAN_RIGHT
 
 enum RENDERTYPE{RAYTRACE, RASTERIZE, WIREFRAME};
 
-RENDERTYPE currentRender = RAYTRACE; //Default to Raytrace.
+RENDERTYPE currentRender = RASTERIZE;//RAYTRACE; //Default to Raytrace.
 
 // press '1' for wireframe 
 // press '2' for rasterized 
@@ -48,8 +48,9 @@ struct ImageFile {
 }; 
  
  
-void update(); 
-void handleEvent(SDL_Event event); 
+void update();
+void handleEvent(SDL_Event event);
+void playOrPause();
 void render(); 
 void clear(); 
 vector<vec3> interpolate(vec3 from, vec3 to, float numberOfValues); 
@@ -99,7 +100,8 @@ float fresnel(vec3 incident, vec3 normal, float ior);
 void backfaceCulling(vec3 cameraPosition);
 void backfaceCulling2 (vec3 rayDirection);
 vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces);
-void spin();
+void spin(vec3 point, float angle, float distance);
+void spinAround(float angle, int stepNumber, bool clockwise, int zoom);
  
  
  
@@ -120,6 +122,7 @@ vector<Object> objects;
   
 
 bool print = false; 
+bool animate = false;
  
  
 // initial camera parameters 
@@ -131,13 +134,14 @@ mat3 cameraOrientation (cameraRight, cameraUp, cameraForward); // this creates a
 //float focalLength = WIDTH / 2; 
 float focalLength = 1; 
 float imageWidth = 2; // WIDTH 
-float imageHeight = 2; // HEIGHT 
- 
- 
+float imageHeight = imageWidth * (HEIGHT / float(WIDTH)); // HEIGHT 
+
+
+
 // light parameters 
 vec3 lightPosition (-0.234011, 5, -3); // this is roughly the centre of the white light box 
 float lightIntensity = 100; 
- 
+
 int main(int argc, char* argv[]) { 
   // 1) Create New Display.
   window = DrawingWindow(W, H, false); 
@@ -180,19 +184,19 @@ int main(int argc, char* argv[]) {
   //backfaceCulling(cameraPosition);
   for (int i = 0 ; i < objects[0].faces.size() ; i++){
     ModelTriangle face = objects[0].faces[i];
-    vec3 normal = getNormalOfTriangle(face);
-    cout << face.colour;
-    cout << "normal: ";
-    printVec3(normal);
   }
+
   // 7) Render the image
   render();
-  SDL_Event event; 
+  SDL_Event event;
   while(true) 
   { 
     // We MUST poll for events - otherwise the window will freeze ! 
-    if(window.pollForInputEvents(&event)) handleEvent(event); 
-    update(); 
+    if(window.pollForInputEvents(&event)) handleEvent(event);
+      if (animate){
+        update();
+        animate = false;
+    }
  
     // Need to render the frame at the end, or nothing actually gets shown on the screen ! 
     window.renderFrame(); 
@@ -201,9 +205,21 @@ int main(int argc, char* argv[]) {
  
  
  
-void update() { 
-  // Function for performing animation (shifting artifacts or moving the camera) 
+void update() {
+  // Function for performing animation (shifting artifacts or moving the camera)
+  spinAround(3.14159, 100, true, -1);
+  spinAround(3.14159, 100, true, 1);
 } 
+
+// this function starts and stops the animation in the window (press p)
+void playOrPause(){
+  if (animate){
+    animate = false;
+  }
+  if (not(animate)){
+    animate = true;
+  }
+}
 
 void SetBufferColour(int x, int y, uint32_t col) {
   const int i = x + (y*WIDTH);
@@ -292,7 +308,8 @@ void handleEvent(SDL_Event event) {
     else if(event.key.keysym.sym == SDLK_w)     updateView(TILT_DOWN); 
     else if(event.key.keysym.sym == SDLK_z)     updateView(TILT_UP); 
     else if(event.key.keysym.sym == SDLK_y)     test2(); 
-    else if(event.key.keysym.sym == SDLK_c)     spin(); 
+    else if(event.key.keysym.sym == SDLK_c)     clear();
+    else if(event.key.keysym.sym == SDLK_p)     playOrPause();
 
     // pressing 1 changes to wireframe mode 
     else if(event.key.keysym.sym == SDLK_1){ 
@@ -832,19 +849,9 @@ void rasterize(){
         vec3 vertex = triangle.vertices[j]; 
         
         // change from world coordinates to camera
-        
-        /*
-        vec3 col1 (cameraRight[0], cameraUp[0], cameraForward[0]);
-        vec3 col2 (cameraRight[1], cameraUp[1], cameraForward[1]);
-        vec3 col3 (cameraRight[2], cameraUp[2], cameraForward[2]);
-        mat3 rotationMatrix (col1, col2, col3);
-        */
-        
         vertex = vertex - cameraPosition;
-        
         mat3 rotationMatrix (cameraRight, cameraUp, cameraForward);
         rotationMatrix = glm::inverse(rotationMatrix);
-
         vec3 vertexCSpace = rotationMatrix * vertex;
         vertexCSpace[2] = -vertexCSpace[2];
 
@@ -999,13 +1006,6 @@ void updateView (MOVEMENT movement) {
  
  
 void lookAt(vec3 point){
-  cout << "\n\nBEFORE:\n";
-  cout << "Forward: "; 
-  printVec3(cameraForward); 
-  cout << "Up: "; 
-  printVec3(cameraUp); 
-  cout << "Right: ";
-  printVec3(cameraRight); 
  
   vec3 direction = cameraPosition - point;
   direction = normalize(direction);
@@ -1014,24 +1014,10 @@ void lookAt(vec3 point){
   cameraRight = glm::cross(randomVector, cameraForward); 
   cameraUp = glm::cross(cameraForward, cameraRight); 
   
-  cout << "Forward: "; 
-  printVec3(cameraForward); 
-  cout << "Up: "; 
-  printVec3(cameraUp); 
-  cout << "Right: "; 
-  printVec3(cameraRight);
 
   cameraForward = normalize(cameraForward); 
   cameraRight = normalize(cameraRight); 
   cameraUp = normalize(cameraUp); 
- 
-  cout << "\nAFTER\n";
-  cout << "Forward: "; 
-  printVec3(cameraForward); 
-  cout << "Up: "; 
-  printVec3(cameraUp); 
-  cout << "Right: "; 
-  printVec3(cameraRight);
    
   cameraOrientation = mat3 (cameraRight, cameraUp, cameraForward); 
  
@@ -1935,14 +1921,11 @@ vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces){
 ////////////////////////////////
 
 
-void spin(){
-  vec3 point = findCentreOfScene();
-  float distance = distanceVec3(point, cameraPosition);
+void spin(vec3 point, float theta, float distance){
   // we spin round by starting at the centre point looking at the camera, then spin around a set amount and work out the new camera position
   vec3 pointToCamera = cameraPosition - point;
   pointToCamera = normalize(pointToCamera);
-  // rotate the vector by 45 degrees
-  float theta = 3.14159 / 4;
+  // rotate the vector by the angle
   vec3 col1 = vec3 (cos(theta), 0, -sin(theta)); 
   vec3 col2 = vec3 (0, 1, 0); 
   vec3 col3 = vec3 (sin(theta), 0, cos(theta));
@@ -1952,4 +1935,32 @@ void spin(){
   cameraPosition = point + (distance * vec);
   lookAt(point);
   render();
+  window.renderFrame();
+}
+
+void spinAround(float angle, int stepNumber, bool clockwise, int zoom){
+  cout << "call ";
+  vec3 point = findCentreOfScene();
+  float startDistance = distanceVec3(point, cameraPosition);
+  float endDistance;
+  if (zoom == 1){
+    endDistance = startDistance / 1.5;
+  }
+  else if (zoom == -1){
+    endDistance = startDistance * 1.5;
+  }
+  else {
+    endDistance = startDistance;
+  }
+  float distanceStep = (endDistance - startDistance) / stepNumber;
+  float angleStep = angle / stepNumber;
+  if (clockwise){
+    angleStep = -angleStep;
+  }
+
+  // for each step we move the camera the right amount
+  for (int i = 0 ; i < stepNumber ; i++){
+      float distance = startDistance + (i * distanceStep);
+      spin(point, angleStep, distance);
+  }
 }
