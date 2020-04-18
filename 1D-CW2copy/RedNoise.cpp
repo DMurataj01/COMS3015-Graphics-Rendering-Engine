@@ -28,10 +28,10 @@ enum RENDERTYPE {WIREFRAME, RASTERIZE, RAYTRACE};
 RENDERTYPE currentRender = RASTERIZE; //Set default RenderType here. 
 std::string defaultPPMFileName = "snapshot.ppm";
 
-#define W 500 //Set desired screen width here. 
-#define H 500 //Set desired screen height here.
+#define W 800 //Set desired screen width here. 
+#define H 800 //Set desired screen height here.
 
-const int AA = 4; //Set Anti-Aliasing Multiplier here, applied to both x and y so expect ~AA^2 time [eg. 800x800x1 5.43s, 800x800x4 88.7s ~16.4x]
+const int AA = 1; //Set Anti-Aliasing Multiplier here, applied to both x and y so expect ~AA^2 time [eg. 800x800x1 5.43s, 800x800x4 88.7s ~16.4x]
 
 bool displayRenderTime = false;
 

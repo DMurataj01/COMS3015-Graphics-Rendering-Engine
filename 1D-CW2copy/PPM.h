@@ -97,7 +97,7 @@ Colour getPixelColour(ImageFile *imageFile, int x, int y) {
     return imageFile->vecPixelList.at(index);      // vector::at throws an out-of-range
   }
   catch (const std::out_of_range& oor) {
-    std::cerr << "Texture File Out Of Range error: [ " << x << ", "<< y << "]\n";
+    //std::cerr << "Texture File Out Of Range error: [ " << x << ", "<< y << "]\n";
     return Colour(255,255, 255);
   }
 }
