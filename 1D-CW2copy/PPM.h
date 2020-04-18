@@ -93,12 +93,12 @@ ImageFile importPPM(std::string fileName) {
 Colour getPixelColour(ImageFile *imageFile, int x, int y) {
   int index = (imageFile->width * y) + x;
 
-  if ((index >= 0) && (index < imageFile->vecPixelList.size())){
-    return imageFile->vecPixelList.at(index);
-  } else {
-    cout << "Index out of range from imageFile. [" << x << ", " << y << "]\n";
-    Colour clr (0, 0, 0);
-    return clr;
+  try {
+    return imageFile->vecPixelList.at(index);      // vector::at throws an out-of-range
+  }
+  catch (const std::out_of_range& oor) {
+    std::cerr << "Texture File Out Of Range error: [ " << x << ", "<< y << "]\n";
+    return Colour(255,255, 255);
   }
 }
 

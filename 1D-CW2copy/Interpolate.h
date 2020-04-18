@@ -54,6 +54,7 @@ std::vector<glm::vec3> interpolate(glm::vec3 from, glm::vec3 to, float numberOfV
   return vectorOut; 
 } 
 
+
 std::vector<TexturePoint> interpolate(TexturePoint from, TexturePoint to, float numberOfValues) {
   std::vector<TexturePoint> vectorOut;
 
@@ -74,21 +75,18 @@ std::vector<TexturePoint> interpolate(TexturePoint from, TexturePoint to, float 
 
 std::vector<CanvasPoint> interpolateWithDepth(CanvasPoint from, CanvasPoint to, float numberOfValues) {
   std::vector<CanvasPoint> vecInterpVectors;
+  vecInterpVectors.push_back(from);
+  glm::vec2 castedFrom (from.x, from.y);
+  glm::vec2 castedTo = glm::vec2(to.x, to.y);
+  glm::vec2 stepValue = (castedTo - castedFrom) / (numberOfValues-1); //numberOfValues - 1 as the first number is already counted
+  glm::vec2 previous = castedFrom;
 
-  //Add the first number in.
-  //vecInterpVectors.push_back(from);
-  glm::vec3 castedFrom = glm::vec3(from.x, from.y, from.depth);
-  glm::vec3 castedTo = glm::vec3(to.x, to.y, to.depth);
-  glm::vec3 stepValue = (castedTo - castedFrom) / (numberOfValues); //numberOfValues - 1 as the first number is already counted
-  glm::vec3 previous = castedFrom;
-
-  for (int i = 0; i <= numberOfValues; i++) {
-    float proportion = (i) / (numberOfValues);
-    
-    float inverseDepth = ((1 - proportion) * (1 / from.depth)) + (proportion * (1 / to.depth));
-    float depthPoint1 = 1 / inverseDepth;
-    glm::vec3 input = previous + stepValue;
-    vecInterpVectors.push_back(CanvasPoint(input.x, input.y, depthPoint1));
+  for (int i = 1; i <= numberOfValues; i++) {
+    float proportion = i / numberOfValues;
+    double inverseDepth = ((1 - proportion) * (1 / from.depth)) + (proportion * (1 / to.depth));
+    float depthPoint = 1 / inverseDepth;
+    glm::vec2 input = previous + stepValue;
+    vecInterpVectors.push_back(CanvasPoint(input.x, input.y, depthPoint));
     previous = input;
   }
   return vecInterpVectors;
@@ -115,6 +113,5 @@ CanvasPoint getFurthestPoint(std::vector<CanvasPoint> pointList) {
   }
   return pointList[0];
 }
-
 
 #endif

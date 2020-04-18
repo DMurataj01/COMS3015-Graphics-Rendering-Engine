@@ -25,20 +25,20 @@ enum RENDERTYPE {WIREFRAME, RASTERIZE, RAYTRACE};
 /* Things You Can Change Are Here */
 //––---------------------------------//
 
-RENDERTYPE currentRender = RAYTRACE; //Set default RenderType here. 
+RENDERTYPE currentRender = RASTERIZE; //Set default RenderType here. 
 std::string defaultPPMFileName = "snapshot.ppm";
 
 #define W 800 //Set desired screen width here. 
 #define H 800 //Set desired screen height here.
 
-const int AA = 1; //Set Anti-Aliasing Multiplier here, applied to both x and y so expect ~AA^2 time [eg. 800x800x1 5.43s, 800x800x4 88.7s ~16.4x]
+const int AA = 2; //Set Anti-Aliasing Multiplier here, applied to both x and y so expect ~AA^2 time [eg. 800x800x1 5.43s, 800x800x4 88.7s ~16.4x]
 
 bool displayRenderTime = false;
 
 //Scene we want to render.
 string objFileName = "cornell-box.obj"; 
 string mtlFileName = "cornell-box.mtl"; 
-string txtFileName = "texture.ppm";
+string texFileName = "texture.ppm";
 
 
 //––---------------------------------//
@@ -145,6 +145,9 @@ int main(int argc, char* argv[]) {
   // 2) Read In OBJ.
   vector<ModelTriangle> faces = readOBJ(objFileName, mtlFileName, 1);
 
+  // 3) Read In Texture.
+  textureFile = importPPM(texFileName);
+
   // 4) Create textures
 
   // || Mirrored floor ||
@@ -167,9 +170,10 @@ int main(int argc, char* argv[]) {
   // 6) Split the faces into objects
   objects = createObjects(faces);
 
-  for (int i = 0 ; i < objects[0].faces.size() ; i++){
-    ModelTriangle face = objects[0].faces[i];
-  }
+  objects[0].faces[10].texture = "texture";
+  objects[0].faces[10].vertices_textures[0] = vec2(0.4, 0.2);
+  objects[0].faces[10].vertices_textures[1] = vec2(0.2, 0.4);
+  objects[0].faces[10].vertices_textures[2] = vec2(0.6, 0.4);
   
   render();
 
@@ -191,7 +195,7 @@ int main(int argc, char* argv[]) {
  
 void update() {
   // Function for performing animation (shifting artifacts or moving the camera)
-  const float pi = 4*atan(1);
+  const float pi = 4 * atan(1);
   spinAround(pi, 100, true, -1);
   spinAround(pi, 100, true, 1);
 } 
@@ -287,7 +291,7 @@ void handleEvent(SDL_Event event) {
     else if(event.key.keysym.sym == SDLK_s)     updateView(PAN_LEFT);
     else if(event.key.keysym.sym == SDLK_w)     updateView(TILT_DOWN); 
     else if(event.key.keysym.sym == SDLK_z)     updateView(TILT_UP); 
-    else if(event.key.keysym.sym == SDLK_c)     bounce(1, 1.5, 5);//clear();
+    else if(event.key.keysym.sym == SDLK_c)     bounce(1, 1.5, 5);
     else if(event.key.keysym.sym == SDLK_p)     playOrPause();
 
     // pressing 1 changes to wireframe mode 
@@ -520,7 +524,7 @@ void renderImageFile(ImageFile imageFile){
   } 
 } 
  
- //////////////////////////////////////////////////////// 
+//////////////////////////////////////////////////////// 
 // RASTERIZING CODE 
 //////////////////////////////////////////////////////// 
 // draws a 2D line from start to end (colour is in (r,g,b) format with 255 as max) 
@@ -692,12 +696,13 @@ void drawFilledTriangle(CanvasTriangle triangle){
 
     if (noOfRowValues == 0) {
       //Singular point.
+      cout << "Line 669\n";
     } else {
       //Interpolated texture values to go in this row.
-      vector<TexturePoint> interpTexLine = interpolate(t_interpLeft[i], t_interpRight[i], noOfRowValues+1);
+      vector<TexturePoint> interpTexLine = interpolate(t_interpLeft[i], t_interpRight[i], noOfRowValues);
       
       //** Fill in each point along this row.
-      for (int j = 0; j<=noOfRowValues; j++) {
+      for (int j = 0; j<noOfRowValues; j++) {
         // interpolate to find the current depth of the line
         float proportion = i / (noOfRowValues);
         float inverseDepth = ((1 - proportion) * (1 / interpLeft[i].depth)) + (proportion * (1 / interpRight[i].depth)); // got this equation from notes
@@ -739,15 +744,16 @@ void textureFlatTopTriangle(ImageFile *imageFile, CanvasTriangle triangle, Canva
   for (int i=0; i< noOfRows; i++) {
     //number of values to fill in this row.
     int noOfRowValues = interpRight[i].x - interpLeft[i].x;
-    if (noOfRowValues == 1) {
+    if (noOfRowValues == 0) {
       //Singular point.
+      cout << "Line 749\n";
     } 
     else {
       //Interpolated texture values to go in this row.
-      vector<TexturePoint> interpTexLine = interpolate(t_interpLeft[i], t_interpRight[i], noOfRowValues+1);
+      vector<TexturePoint> interpTexLine = interpolate(t_interpLeft[i], t_interpRight[i], noOfRowValues);
 
-      for (int j = 0; j<=noOfRowValues; j++) {      
-        float proportion = i / (noOfRowValues-1);
+      for (int j = 0; j<noOfRowValues; j++) {      
+        float proportion = i / (noOfRowValues);
         float inverseDepthPoint1 = ((1 - proportion) * (1 / interpLeft[i].depth)) + (proportion * (1 / interpRight[i].depth));
         float depth = 1 / inverseDepthPoint1;
 
@@ -797,14 +803,18 @@ void drawTexturedTriangle(ImageFile *imageFile, CanvasTriangle triangle) {
   //Length of line from topPoint to lowestPoint.
   const float bigHypo = sqrtf( ((bigDX * bigDX) + (bigDY * bigDY)) );
 
-  if (bigHypo == 0) return;
+  if (bigHypo == 0) {
+    cout << "bigHypo = 0\n";
+    return;
+  }
+
   //Length of line from topPoint to cutterPoint.
   const float smallHypo = sqrtf(( pow(cutterPoint.x - topPoint.x, 2) + pow(cutterPoint.y - topPoint.y, 2) ));
   
   //Calculate proportion [ how far down the line cutterPoint is ]
   const float p = smallHypo/bigHypo;
 
-  cout << "\np: " << p << "\n";
+  //cout << "\np: " << p << "\n";
 
   //Get texture cut point using proportion & SOHCAHTOA.
 
@@ -817,8 +827,8 @@ void drawTexturedTriangle(ImageFile *imageFile, CanvasTriangle triangle) {
   //Get length of line from topPoint texture to cutterPoint texture.
   const float t_smallHypo = p * t_bigHypo;
 
-  const float t_smallDX = abs( t_smallHypo * (t_bigDX / t_bigHypo) ); //t_smallHypo * sin alpha (of bigger)
-  const float t_smallDY = abs( t_smallHypo * (t_bigDY / t_bigHypo) ); //t_smallHypo * cos alpha
+  const float t_smallDX = abs( t_smallHypo * (t_bigDX / t_bigHypo) ); //t_smallHypo * sin alpha (of bigger triangle)
+  const float t_smallDY = abs( t_smallHypo * (t_bigDY / t_bigHypo) ); //t_smallHypo * cos alpha (of bigger triangle)
 
   float cutTextureX = (topPoint.texturePoint.x <= lowestPoint.texturePoint.x) ? (topPoint.texturePoint.x + t_smallDX) : (topPoint.texturePoint.x - t_smallDX);
   float cutTextureY = (topPoint.texturePoint.y <= lowestPoint.texturePoint.y) ? (topPoint.texturePoint.y + t_smallDY) : (topPoint.texturePoint.y - t_smallDY);
@@ -859,20 +869,19 @@ void rasterize(){
     for (int i = 0 ; i < objects[o].faces.size() ; i++){ 
       ModelTriangle triangle = objects[o].faces[i]; 
       CanvasTriangle canvasTriangle; 
-      canvasTriangle.colour = triangle.colour; 
-      
+      canvasTriangle.colour = triangle.colour;
+      canvasTriangle.textured = (triangle.texture == "texture");
+
       // for each vertex 
       for (int j = 0 ; j < 3 ; j++){ 
         vec3 vertex = triangle.vertices[j]; 
         
         // change from world coordinates to camera
         vertex = vertex - cameraPosition;
-        mat3 rotationMatrix (cameraRight, cameraUp, cameraForward);
-        rotationMatrix = glm::inverse(rotationMatrix);
+        mat3 rotationMatrix = glm::inverse(mat3(cameraRight, cameraUp, cameraForward));
         vec3 vertexCSpace = rotationMatrix * vertex;
         vertexCSpace[2] = -vertexCSpace[2];
 
-        
         // save the depth of this point for later 
         float depth = vertexCSpace[2]; 
   
@@ -881,8 +890,6 @@ void rasterize(){
         if ((depth < 0) || (depth > 0)){ 
           float proportion = focalLength / depth; 
           vec3 vertexProjected = vertexCSpace * proportion; // the coordinates of the 3D point (in camera space) projected onto the image plane 
-          //float x = vertexProjected[0]; 
-          //float y = vertexProjected[1]; 
 
           // converting to get the pixel numbers
           // finding position of top left corner of image plane in camera space
@@ -893,19 +900,22 @@ void rasterize(){
     
           // store the pixel values as a Canvas Point and save it for this triangle 
           canvasTriangle.vertices[j] = CanvasPoint(xPixel, yPixel, depth); // we save the depth of the 2D point too 
-  
+
+          //if the triangle is textured, get the texture uv's and multiply them by the texture WIDTH, HEIGHT to get texture X,Y.
+          if (canvasTriangle.textured) canvasTriangle.vertices[j].texturePoint = TexturePoint(triangle.vertices_textures[j].x * textureFile.width, triangle.vertices_textures[j].y * textureFile.height);
         } 
       } 
 
+
       if (currentRender == WIREFRAME) drawStrokedTriangle(canvasTriangle); 
-      else drawFilledTriangle(canvasTriangle); 
-      
+      else {
+        if (canvasTriangle.textured) drawTexturedTriangle(&textureFile, canvasTriangle);
+        else drawFilledTriangle(canvasTriangle); 
+      }
     } 
   }
 }  
  
-
-
 
 //////////////////////////////////////////////////////// 
 // RAYTRACING CODE 

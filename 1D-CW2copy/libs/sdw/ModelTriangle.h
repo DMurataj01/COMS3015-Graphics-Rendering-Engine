@@ -6,6 +6,7 @@ class ModelTriangle
 {
   public:
     glm::vec3 vertices[3];
+    glm::vec2 vertices_textures[3];
     Colour colour;
     glm::vec3 normals[3]; // these correspond to the averaged normals of the vertices
     std::string texture;
