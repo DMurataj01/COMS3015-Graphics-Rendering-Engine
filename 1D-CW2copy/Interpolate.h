@@ -73,25 +73,6 @@ std::vector<TexturePoint> interpolate(TexturePoint from, TexturePoint to, float 
   return vectorOut;
 }
 
-std::vector<CanvasPoint> interpolateWithDepth(CanvasPoint from, CanvasPoint to, float numberOfValues) {
-  std::vector<CanvasPoint> vecInterpVectors;
-  vecInterpVectors.push_back(from);
-  glm::vec2 castedFrom (from.x, from.y);
-  glm::vec2 castedTo = glm::vec2(to.x, to.y);
-  glm::vec2 stepValue = (castedTo - castedFrom) / (numberOfValues-1); //numberOfValues - 1 as the first number is already counted
-  glm::vec2 previous = castedFrom;
-
-  for (int i = 1; i <= numberOfValues; i++) {
-    float proportion = i / numberOfValues;
-    double inverseDepth = ((1 - proportion) * (1 / from.depth)) + (proportion * (1 / to.depth));
-    float depthPoint = 1 / inverseDepth;
-    glm::vec2 input = previous + stepValue;
-    vecInterpVectors.push_back(CanvasPoint(input.x, input.y, depthPoint));
-    previous = input;
-  }
-  return vecInterpVectors;
-}
-
 CanvasPoint getClosestPoint(std::vector<CanvasPoint> pointList) {
   double minDepth = std::numeric_limits<float>::infinity();
   for (int i=0; i<pointList.size(); i++){

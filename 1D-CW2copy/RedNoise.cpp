@@ -28,10 +28,10 @@ enum RENDERTYPE {WIREFRAME, RASTERIZE, RAYTRACE};
 RENDERTYPE currentRender = RASTERIZE; //Set default RenderType here. 
 std::string defaultPPMFileName = "snapshot.ppm";
 
-#define W 800 //Set desired screen width here. 
-#define H 800 //Set desired screen height here.
+#define W 500 //Set desired screen width here. 
+#define H 500 //Set desired screen height here.
 
-const int AA = 2; //Set Anti-Aliasing Multiplier here, applied to both x and y so expect ~AA^2 time [eg. 800x800x1 5.43s, 800x800x4 88.7s ~16.4x]
+const int AA = 4; //Set Anti-Aliasing Multiplier here, applied to both x and y so expect ~AA^2 time [eg. 800x800x1 5.43s, 800x800x4 88.7s ~16.4x]
 
 bool displayRenderTime = false;
 
@@ -543,7 +543,7 @@ void drawLine(CanvasPoint start, CanvasPoint end, Colour colour) {
     const float stepSizeY = diffY / numberOfSteps; 
  
     // for each pixel across 
-    for (int i = 0 ; i <= numberOfSteps ; i++){        
+    for (int i = 0; i <= numberOfSteps; i++){        
       int x = round(start.x + (i * stepSizeX)); 
       int y = round(start.y + (i * stepSizeY)); 
 
@@ -552,6 +552,32 @@ void drawLine(CanvasPoint start, CanvasPoint end, Colour colour) {
       const float inverseDepth = ((1 - proportion) * (1 / start.depth)) + (proportion * (1 / end.depth)); // got this equation from notes 
       const float depth = 1 / inverseDepth; 
       setDepthPixelColour(x, y, depth, col);
+    } 
+  } 
+} 
+
+void drawLine(CanvasPoint start, CanvasPoint end, vector<TexturePoint> texturePoints) { 
+  const float diffX = end.x - start.x; 
+  const float diffY = end.y - start.y; 
+  const float numberOfSteps = glm::max(abs(diffX),abs(diffY)); 
+ 
+  // if we are starting and ending on the same pixel 
+  if (numberOfSteps == 0) setDepthPixelColour(start.x, start.y, glm::min(start.depth, end.depth), getPixelColour(&textureFile, texturePoints.at(0).x, texturePoints.at(0).y).toUINT32_t()); 
+  else { 
+    const float stepSizeX = diffX / numberOfSteps; 
+    const float stepSizeY = diffY / numberOfSteps; 
+ 
+    // for each pixel across 
+    for (int i = 0; i <= numberOfSteps ; i++){        
+      int x = round(start.x + (i * stepSizeX)); 
+      int y = round(start.y + (i * stepSizeY)); 
+
+      // interpolate to find the current depth of the line 
+      const float proportion = i / numberOfSteps; 
+      const float inverseDepth = ((1 - proportion) * (1 / start.depth)) + (proportion * (1 / end.depth)); // got this equation from notes 
+      const float depth = 1 / inverseDepth; 
+      //cout << "Requesting [x,y, i]" << i << "\n";
+      setDepthPixelColour(x, y, depth, getPixelColour(&textureFile, texturePoints.at(i).x, texturePoints.at(i).y).toUINT32_t());
     } 
   } 
 } 
@@ -645,7 +671,7 @@ void drawFilledTriangle(CanvasTriangle triangle){
   float steps2 = minPoint.y - middlePoint.y; // how many rows 
   if (steps2 == 0) drawLine(minPoint, middlePoint, triangle.colour); 
   else { 
-    for (int i = steps2; i >= 0 ; i--){ 
+    for (int i = steps2; i >= 0; i--){ 
       // find the two points which intersect this row 
       float proportion = 1 - (i / steps2); // proportion going upwards from the min point to the middle 
       float maxXDiff1 = minPoint.x - middlePoint.x; 
@@ -674,106 +700,6 @@ void drawFilledTriangle(CanvasTriangle triangle){
   */ 
 }  
  
- void textureFlatBottomTriangle(ImageFile *imageFile, CanvasTriangle triangle, CanvasPoint closestPoint, CanvasPoint furthestPoint) {
-  CanvasPoint topPoint = triangle.vertices[0];
-  CanvasPoint leftPoint = triangle.vertices[1];
-  CanvasPoint rightPoint = triangle.vertices[2];
-
-  assert(leftPoint.y == rightPoint.y);
-  
-  int noOfRows = leftPoint.y - topPoint.y;
-
-  vector<CanvasPoint> interpLeft = interpolateWithDepth(topPoint, leftPoint, noOfRows);
-  vector<CanvasPoint> interpRight = interpolateWithDepth(topPoint, rightPoint, noOfRows);
-
-  vector<TexturePoint> t_interpLeft = interpolate(topPoint.texturePoint, leftPoint.texturePoint, noOfRows);
-  vector<TexturePoint> t_interpRight = interpolate(topPoint.texturePoint, rightPoint.texturePoint, noOfRows);
-
-  //** Do line by line interp.
-  for (int i=0; i< noOfRows; i++) {
-    //number of values to fill in this row.
-    int noOfRowValues = interpRight[i].x - interpLeft[i].x;
-
-    if (noOfRowValues == 0) {
-      //Singular point.
-      cout << "Line 669\n";
-    } else {
-      //Interpolated texture values to go in this row.
-      vector<TexturePoint> interpTexLine = interpolate(t_interpLeft[i], t_interpRight[i], noOfRowValues);
-      
-      //** Fill in each point along this row.
-      for (int j = 0; j<noOfRowValues; j++) {
-        // interpolate to find the current depth of the line
-        float proportion = i / (noOfRowValues);
-        float inverseDepth = ((1 - proportion) * (1 / interpLeft[i].depth)) + (proportion * (1 / interpRight[i].depth)); // got this equation from notes
-        float depth = 1 / inverseDepth;
-
-        int textureX = interpTexLine[j].x;
-        int textureY = interpTexLine[j].y;
-
-        //float persX = (((furthestPoint.texturePoint.x / furthestPoint.x) * (1 - textureX)) + ((closestPoint.texturePoint.x / closestPoint.x) * (textureX)));
-        //persX /= (((1/furthestPoint.depth) * (1 - textureX)) + ((1/closestPoint.depth) * (textureX)));
-
-        //float persY = (((furthestPoint.texturePoint.y / furthestPoint.y) * (1 - textureY)) + ((closestPoint.texturePoint.y / closestPoint.y) * (textureY)));
-        //persY /= (((1/furthestPoint.depth) * (1 - textureY)) + ((1/closestPoint.depth) * (textureY)));
-        float persX = textureX;
-        float persY = textureY;
-        // set depth pixel colour.
-        setDepthPixelColour(interpLeft[i].x + j, interpLeft[i].y, depth, getPixelColour(imageFile, int(persX), int(persY)).toUINT32_t());
-      }
-    }
-  }
-
-  return;
-}
-
-void textureFlatTopTriangle(ImageFile *imageFile, CanvasTriangle triangle, CanvasPoint closestPoint, CanvasPoint furthestPoint) {
-  CanvasPoint leftPoint = triangle.vertices[0];
-  CanvasPoint rightPoint = triangle.vertices[1];
-  CanvasPoint lowestPoint = triangle.vertices[2];
-  assert( leftPoint.y == rightPoint.y);
-  
-  int noOfRows = lowestPoint.y - leftPoint.y;
-
-  vector<CanvasPoint> interpLeft = interpolateWithDepth(leftPoint, lowestPoint, noOfRows);
-  vector<CanvasPoint> interpRight = interpolateWithDepth(rightPoint, lowestPoint, noOfRows);
-
-  vector<TexturePoint> t_interpLeft = interpolate(leftPoint.texturePoint, lowestPoint.texturePoint, noOfRows);
-  vector<TexturePoint> t_interpRight = interpolate(rightPoint.texturePoint, lowestPoint.texturePoint, noOfRows);
-
-  for (int i=0; i< noOfRows; i++) {
-    //number of values to fill in this row.
-    int noOfRowValues = interpRight[i].x - interpLeft[i].x;
-    if (noOfRowValues == 0) {
-      //Singular point.
-      cout << "Line 749\n";
-    } 
-    else {
-      //Interpolated texture values to go in this row.
-      vector<TexturePoint> interpTexLine = interpolate(t_interpLeft[i], t_interpRight[i], noOfRowValues);
-
-      for (int j = 0; j<noOfRowValues; j++) {      
-        float proportion = i / (noOfRowValues);
-        float inverseDepthPoint1 = ((1 - proportion) * (1 / interpLeft[i].depth)) + (proportion * (1 / interpRight[i].depth));
-        float depth = 1 / inverseDepthPoint1;
-
-        int textureX = interpTexLine[j].x;
-        int textureY = interpTexLine[j].y;
-
-        //float persX = (((furthestPoint.texturePoint.x / furthestPoint.x) * (1 - textureX)) + ((closestPoint.texturePoint.x / closestPoint.x) * (textureX)));
-        //persX /= (((1/furthestPoint.depth) * (1 - textureX)) + ((1/closestPoint.depth) * (textureX)));
-        //float persY = (((furthestPoint.texturePoint.y / furthestPoint.y) * (1 - textureY)) + ((closestPoint.texturePoint.y / closestPoint.y) * (textureY)));
-        //persY /= (((1/furthestPoint.depth) * (1 - textureY)) + ((1/closestPoint.depth) * (textureY)));
-        
-        float persX = textureX;
-        float persY = textureY;
-        setDepthPixelColour(interpLeft[i].x + j, interpLeft[i].y, depth, getPixelColour(imageFile, int(persX), int(persY)).toUINT32_t());
-      }
-    }
-  }
-  return;
-}
-
 void drawTexturedTriangle(ImageFile *imageFile, CanvasTriangle triangle) {
   // sort vertices.
   triangle = sortTriangleVertices(triangle);
@@ -848,19 +774,91 @@ void drawTexturedTriangle(ImageFile *imageFile, CanvasTriangle triangle) {
   pointList.push_back(leftPoint);
   pointList.push_back(lowestPoint);
 
-  CanvasPoint closestPoint = getClosestPoint(pointList);
-  CanvasPoint furthestPoint = getFurthestPoint(pointList);
+  //CanvasPoint closestPoint = getClosestPoint(pointList);
+  //CanvasPoint furthestPoint = getFurthestPoint(pointList);
 
   //cout << "closestPoint : ";  print(closestPoint);
   //cout << "furthestPoint: ";  print(furthestPoint);
 
   //** 4.1. Fill the Top Flat Bottom Triangle.
-  textureFlatBottomTriangle(imageFile, CanvasTriangle(topPoint, leftPoint, rightPoint), closestPoint, furthestPoint);
+  //textureFlatBottomTriangle(imageFile, CanvasTriangle(topPoint, leftPoint, rightPoint), closestPoint, furthestPoint);
+  
+
+  float steps = middlePoint.y - topPoint.y; // how many rows 
+  vector<TexturePoint> t_interpLeft = interpolate(topPoint.texturePoint, leftPoint.texturePoint, steps);
+  vector<TexturePoint> t_interpRight = interpolate(topPoint.texturePoint, rightPoint.texturePoint, steps);
+
+  // if the two vertices are on the same y line, then just draw a line between the two 
+  if (steps == 0) 
+    cout << "Line880\n"; //drawLine(middlePoint, topPoint, triangle.colour); 
+  else { 
+    for (int i = 0 ; i < steps ; i++){ 
+      // find the two points which intersect this row 
+      float proportion = i / steps; 
+      float maxXDiff1 = topPoint.x - middlePoint.x; 
+      float maxXDiff2 = topPoint.x - cutterPoint.x; 
+      float xStart = round(topPoint.x - (proportion * maxXDiff1)); 
+      float xEnd = round(topPoint.x - (proportion * maxXDiff2)); 
+       
+      // interpolating to find the right depth of both of the points 
+      // point1: 
+      float inverseDepthPoint1 = ((1 - proportion) * (1 / topPoint.depth)) + (proportion * (1 / middlePoint.depth)); 
+      float depthPoint1 = 1 / inverseDepthPoint1; 
+      // point2: 
+      float inverseDepthPoint2 = ((1 - proportion) * (1 / topPoint.depth)) + (proportion * (1 / cutterPoint.depth)); 
+      float depthPoint2 = 1 / inverseDepthPoint2; 
+      CanvasPoint start(xStart, topPoint.y + i, depthPoint1); 
+      CanvasPoint end(xEnd, topPoint.y + i, depthPoint2);
+      
+      int noOfSteps = glm::abs(end.x - start.x) + 1;
+      vector<TexturePoint> interpTexLine = interpolate(t_interpLeft[i], t_interpRight[i], noOfSteps);
+      drawLine(start, end, interpTexLine); 
+
+    } 
+  } 
+  
+  
+  
   //** 4.2. Fill the Bottom Flat Top Triangle.
-  textureFlatTopTriangle(imageFile, CanvasTriangle(leftPoint, rightPoint, lowestPoint), closestPoint, furthestPoint);
+  //textureFlatTopTriangle(imageFile, CanvasTriangle(leftPoint, rightPoint, lowestPoint), closestPoint, furthestPoint);
+
+
+  // the lower triangle 
+  // for each row, fill it in 
+  float steps2 = lowestPoint.y - leftPoint.y; // how many rows
+  t_interpLeft = interpolate(leftPoint.texturePoint, lowestPoint.texturePoint, steps2);
+  t_interpRight = interpolate(rightPoint.texturePoint, lowestPoint.texturePoint, steps2);
+  if (steps2 == 0) 
+    cout << "Line 942\n"; //drawLine(minPoint, middlePoint, triangle.colour); 
+  else { 
+    for (int i = steps2; i >= 0; i--){ 
+      // find the two points which intersect this row 
+      float proportion = 1 - (i / steps2); // proportion going upwards from the min point to the middle 
+      float maxXDiff1 = lowestPoint.x - middlePoint.x; 
+      float maxXDiff2 = lowestPoint.x - cutterPoint.x; 
+      float xStart = round(lowestPoint.x - (proportion * maxXDiff1)); 
+      float xEnd = round(lowestPoint.x - (proportion * maxXDiff2)); 
+       
+      // interpolating to find the right depth 
+      // point1: 
+      float inverseDepthPoint1 = ((1 - proportion) * (1 / lowestPoint.depth)) + (proportion * (1 / middlePoint.depth)); 
+      float depthPoint1 = 1 / inverseDepthPoint1; 
+      // point2: 
+      float inverseDepthPoint2 = ((1 - proportion) * (1 / lowestPoint.depth)) + (proportion * (1 / cutterPoint.depth)); 
+      float depthPoint2 = 1 / inverseDepthPoint2; 
+      CanvasPoint start(xStart, cutterPoint.y + i, depthPoint1); 
+      CanvasPoint end(xEnd, cutterPoint.y + i, depthPoint2); 
+      
+      int noOfSteps = glm::abs(end.x - start.x) + 1;
+      vector<TexturePoint> interpTexLine = interpolate(t_interpLeft[i], t_interpRight[i], noOfSteps);
+      drawLine(start, end, interpTexLine); 
+  
+      
+      
+    } 
+  } 
 
 }
-
 
 void rasterize(){  
   //for each object.
@@ -911,6 +909,7 @@ void rasterize(){
       else {
         if (canvasTriangle.textured) drawTexturedTriangle(&textureFile, canvasTriangle);
         else drawFilledTriangle(canvasTriangle); 
+        //drawFilledTriangle(canvasTriangle); 
       }
     } 
   }
