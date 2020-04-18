@@ -12,20 +12,43 @@ class Colour
     {
     }
 
-    Colour(int r, int g, int b)
-    {
+    Colour(int r, int g, int b) {
       name = "";
-      red = r;
-      green = g;
-      blue = b;
+      if (r>255) red = 255;
+      else red = r;
+      if (g>255) green = 255;
+      else green = g;
+      if (b>255) blue = 255;
+      else blue = b;
     }
 
     Colour(std::string n, int r, int g, int b)
     {
       name = n;
-      red = r;
-      green = g;
-      blue = b;
+      if (r>255) red = 255;
+      else red = r;
+      if (g>255) green = 255;
+      else green = g;
+      if (b>255) blue = 255;
+      else blue = b;
+    }
+
+    void SetRed(int r) {
+      if (r>255) red = 255;
+      else red = r;
+    }
+    void SetGreen(int g) {
+      if (g>255) green = 255;
+      else green = g;
+    }
+    void SetBlue(int b) {
+      if (b>255) blue = 255;
+      else blue = b;
+    }
+
+    uint32_t toUINT32_t() {
+      uint32_t col = (255<<24) + (red<<16) + (green<<8) + blue; 
+      return col; 
     }
     
 };

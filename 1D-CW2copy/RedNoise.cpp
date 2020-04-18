@@ -5,27 +5,33 @@
   #include <ModelTriangle.h>
 #endif
 
+// Call Headers [ Safe from double includes ]
+#include "OBJ.h"
+#include "PPM.h"
+
 #include <CanvasTriangle.h> 
 #include <DrawingWindow.h> 
 #include <Utils.h> 
 #include <glm/glm.hpp> 
-#include <fstream> 
-#include <vector> 
-#include <sstream> 
 #include <RayTriangleIntersection.h> 
 #include <Object.h>
 
+bool debug = false;
+void print(glm::vec3 vector) {
+  if (debug) std::cout << "[" << vector.x << ", " << vector.y << ", " << vector.z << " ]\n";
+}
  
+
 using namespace std; 
 using namespace glm; 
  
 #define W 800//2400//640 
-#define H 600//2400//480 
+#define H 800//2400//480 
 
-const int ssScale = 1;
+const int AA = 1;
 
-const int WIDTH = W * ssScale;
-const int HEIGHT = H * ssScale;
+const int WIDTH = W * AA;
+const int HEIGHT = H * AA;
 
 vector<uint32_t> pixelBuffer; 
 vector<float> depthMap;
@@ -39,14 +45,6 @@ RENDERTYPE currentRender = RASTERIZE;//RAYTRACE; //Default to Raytrace.
 // press '1' for wireframe 
 // press '2' for rasterized 
 // press '3' for raytraced  
-
- 
-/* STRUCTURE - ImageFile */ 
-struct ImageFile { 
-  vector<Colour> vecPixelList; 
-  int width; 
-  int height;   
-}; 
  
  
 void update();
@@ -55,20 +53,11 @@ void playOrPause();
 void render(); 
 void clear(); 
 vector<vec3> interpolate(vec3 from, vec3 to, float numberOfValues); 
-uint32_t getColour(Colour colour); 
-void printVec3(vec3 input); 
 void drawLine(CanvasPoint start, CanvasPoint end, Colour colour); 
 void drawStrokedTriangle(CanvasTriangle triangle); 
 void drawFilledTriangle(CanvasTriangle triangle); 
-void readPPM(); 
 vector<Object> createObjects(vector<ModelTriangle> inputFaces);
-vector<Colour> readOBJMTL(string filename); 
-string removeLeadingWhitespace(string s); 
-ImageFile readImage(string fileName); 
 vector<string> separateLine(string inputLine); 
-vec3 getVertex(string inputLine); 
-ModelTriangle getFace(string inputLine, vector<vec3> vertices, Colour colour, float scalingFactor); 
-vector<ModelTriangle> readOBJ(float scalingFactor); 
 void rasterize(); 
 void initializeDepthMap(); 
 void updateView (MOVEMENT movement);
@@ -77,7 +66,6 @@ ImageFile readImage(string fileName);
 void renderImage(ImageFile imageFile); 
 void lookAt(vec3 point); 
 vec3 findCentreOfScene(); 
-void test2(); 
 void raytracer(); 
 Colour solveLight(RayTriangleIntersection closest, vec3 rayDirection, float Ka, float Kd, float Ks); 
 vec3 createRay(int i, int j); 
@@ -90,7 +78,7 @@ float intensityDropOff(vec3 point);
 vec3 getNormalOfTriangle(ModelTriangle triangle); 
 float angleOfIncidence(RayTriangleIntersection intersection); 
 float distanceVec3(vec3 from, vec3 to); 
-bool checkForShadows(vec3 point); 
+bool InShadow(vec3 point); 
 float calculateSpecularLight(vec3 point, vec3 rayDirection, vec3 normal);
 float softShadows(RayTriangleIntersection intersection);
 vector<ModelTriangle> averageVertexNormals(vector<ModelTriangle> faces); 
@@ -98,8 +86,7 @@ Colour mirror(RayTriangleIntersection intersection, vec3 incident);
 Colour glass(vec3 rayDirection, RayTriangleIntersection closest, int depth);
 vec4 refract(vec3 I, vec3 N, float ior);
 float fresnel(vec3 incident, vec3 normal, float ior);
-void backfaceCulling(vec3 cameraPosition);
-void backfaceCulling2 (vec3 rayDirection);
+void backfaceCulling(vec3 rayDirection);
 vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces);
 void spin(vec3 point, float angle, float distance);
 void spinAround(float angle, int stepNumber, bool clockwise, int zoom);
@@ -114,22 +101,17 @@ void rotateObject(int objectIndex, float theta, vec3 point);
  
  
  
-DrawingWindow window;// = DrawingWindow(WIDTH, HEIGHT, false); 
+DrawingWindow window;
  
  
 // the files (scene) which we want to render 
 string objFileName = "cornell-box.obj"; 
 string mtlFileName = "cornell-box.mtl"; 
  
-
-
-
 // this stores the faces split up into separate objects
 vector<Object> objects;
  
   
-
-bool print = false; 
 bool animate = false;
  
  
@@ -139,30 +121,34 @@ vec3 cameraRight (1,0,0);
 vec3 cameraUp (0,1,0);//(0,-1,0); 
 vec3 cameraForward (0,0,1);//(0,0,-1); // this is actually backwards 
 mat3 cameraOrientation (cameraRight, cameraUp, cameraForward); // this creates a matrix with each entry as separate columns 
-//float focalLength = WIDTH / 2; 
+
 float focalLength = 1; 
 float imageWidth = 2; // WIDTH 
 float imageHeight = imageWidth * (HEIGHT / float(WIDTH)); // HEIGHT 
-
-
 
 // light parameters 
 vec3 lightPosition (-0.234011, 5, -3); // this is roughly the centre of the white light box 
 float lightIntensity = 100; 
 
-int main(int argc, char* argv[]) { 
-  // 1) Create New Display.
+void initialise() {
+  if (!(AA>=1)) exit(1);
+  //1) Create Drawing Window.
   window = DrawingWindow(W, H, false); 
   window.clearPixels();
-
-  // 2) Initialise Depth Map.
+  
+  //2) Initialise Depth Map.
   for (int i=0; i< WIDTH*HEIGHT; i++) {
-    pixelBuffer.push_back(0);
     depthMap.push_back(std::numeric_limits<float>::infinity());
+    if (AA > 1) pixelBuffer.push_back(0);
   }
+}
 
-  // 3) Read In OBJ.
-  vector<ModelTriangle> faces = readOBJ(1);
+int main(int argc, char* argv[]) { 
+  // 1) Initialise.
+  initialise();
+
+  // 2) Read In OBJ.
+  vector<ModelTriangle> faces = readOBJ(objFileName, mtlFileName, 1);
 
   // 4) Create textures
 
@@ -187,7 +173,6 @@ int main(int argc, char* argv[]) {
   // 6) Split the faces into objects
   objects = createObjects(faces);
 
-  //backfaceCulling(cameraPosition);
   for (int i = 0 ; i < objects[0].faces.size() ; i++){
     ModelTriangle face = objects[0].faces[i];
   }
@@ -195,8 +180,7 @@ int main(int argc, char* argv[]) {
   // 7) Render the image
   render();
   SDL_Event event;
-  while(true) 
-  { 
+  while(true) { 
     // We MUST poll for events - otherwise the window will freeze ! 
     if(window.pollForInputEvents(&event)) handleEvent(event);
       if (animate){
@@ -227,9 +211,16 @@ void playOrPause(){
   }
 }
 
+// OPTIMISED - this function sets the screen pixel buffer. (if AA multiplier == 1 -> buffer is ignored.)
 void SetBufferColour(int x, int y, uint32_t col) {
-  const int i = x + (y*WIDTH);
-  pixelBuffer[i] = col;
+  if (AA == 1) {
+    //No need to use buffer.
+    window.setPixelColour(x, y, col);
+  } else {
+    //Store to Buffer
+    const int i = x + (y*WIDTH);
+    pixelBuffer[i] = col;
+  }
 }
 
 
@@ -246,16 +237,6 @@ uint8_t getBlueValueFromColor(uint32_t c) {
  
 // this function renders the scene, depending on what the value of STATE is (so whether we use wireframe, rasterize or raytrace) 
 void render(){
-  /*
-  cout << "\nright: ";
-  printVec3(cameraRight);
-  cout << "up: ";
-  printVec3(cameraUp);
-  cout << "forward: ";
-  printVec3(cameraForward);
-  cout << endl;
-  */
-
   clear();
 
   switch (currentRender) {
@@ -270,36 +251,30 @@ void render(){
       break;
   }
 
-  /* pixelBuffer ---> Display */
-
-  for (int j=0; j<HEIGHT; j+=ssScale) {
-    for (int i=0; i<WIDTH; i+=ssScale) {
-      /* average [ i j ||  i+1 j ||  i j+1 || i+1 j+1 ] per channel. */
-      
-      //ssScale * ssScale Block.
-      int R=0; int G=0; int B=0;
-      for (int jj=0; jj<ssScale; jj++){
-        for (int ii=0; ii<ssScale; ii++){
-          int x = i + ii; 
-          int y = j + jj;
-          int index = x + (WIDTH*y);
-          R += getRedValueFromColor(pixelBuffer[index]);
-          G += getGreenValueFromColor(pixelBuffer[index]);
-          B += getBlueValueFromColor(pixelBuffer[index]);
-
-          //cout << "i j ii jj [RGB]: " << i << " " << j << " " << " " << ii << " " << jj << "[ " << R << "," << G << "," << B << "]\n";
+  /* pixelBuffer ---> Display, iif AAMultiplier is greater than 1.*/
+  if (AA > 1) {
+    for (int j=0; j<HEIGHT; j+=AA) {
+      for (int i=0; i<WIDTH; i+=AA) {
+        /* average [ i j ||  i+1 j ||  i j+1 || i+1 j+1 ] per channel. */
+        
+        //AA * AA Block.
+        int R=0, G=0, B=0;
+        for (int jj=0; jj<AA; jj++){
+          for (int ii=0; ii<AA; ii++){
+            int index = (i + ii) + (WIDTH*(j + jj)); //index = x + (WIDTH * y)
+            R += getRedValueFromColor(pixelBuffer[index]);
+            G += getGreenValueFromColor(pixelBuffer[index]);
+            B += getBlueValueFromColor(pixelBuffer[index]);
+          }
         }
+        R /= (AA*AA);
+        G /= (AA*AA);
+        B /= (AA*AA);
+        uint32_t colour = (255<<24) + (int(R)<<16) + (int(G)<<8) + int(B); 
+        window.setPixelColour(i/AA, j/AA, colour);
       }
-      R /= (ssScale*ssScale);
-      G /= (ssScale*ssScale);
-      B /= (ssScale*ssScale);
-      uint32_t colour = (255<<24) + (int(R)<<16) + (int(G)<<8) + int(B); 
-      window.setPixelColour(i/ssScale, j/ssScale, colour);
     }
   }
-
-  //uint32_t col = (255<<24) + (colour.red<<16) + (colour.green<<8) + colour.blue; 
-  //return col; 
 
 } 
 
@@ -314,7 +289,6 @@ void handleEvent(SDL_Event event) {
     else if(event.key.keysym.sym == SDLK_s)     updateView(PAN_LEFT);
     else if(event.key.keysym.sym == SDLK_w)     updateView(TILT_DOWN); 
     else if(event.key.keysym.sym == SDLK_z)     updateView(TILT_UP); 
-    else if(event.key.keysym.sym == SDLK_y)     test2(); 
     else if(event.key.keysym.sym == SDLK_c)     bounce(1, 1.5, 5);//clear();
     else if(event.key.keysym.sym == SDLK_p)     playOrPause();
 
@@ -340,10 +314,12 @@ void handleEvent(SDL_Event event) {
  
 void clear(){ 
   window.clearPixels(); 
-  for (int i = 0 ; i < (HEIGHT*WIDTH) ; i++){ 
-    pixelBuffer[i] = 0;
+  for (int i = 0; i < (HEIGHT*WIDTH); i++) 
     depthMap[i] = numeric_limits<float>::infinity(); 
-  } 
+  
+  if (AA > 1) 
+    for (int i = 0 ; i < (HEIGHT*WIDTH); i++) 
+      pixelBuffer[i] = 0;
 } 
  
 
@@ -423,16 +399,7 @@ vector<vec3> interpolate(vec3 from, vec3 to, float numberOfValues)
  
   return out; 
 } 
- 
- 
- 
-// given a colour in (R,G,B) format, puts it into binary form in a single string (ASCII) 
-uint32_t getColour(Colour colour){ 
-  uint32_t col = (255<<24) + (colour.red<<16) + (colour.green<<8) + colour.blue; 
-  return col; 
-} 
- 
- 
+  
 // draws a 2D line from start to end (colour is in (r,g,b) format with 255 as max) 
 void drawLine(CanvasPoint start, CanvasPoint end, Colour colour) { 
   float diffX = end.x - start.x; 
@@ -440,7 +407,7 @@ void drawLine(CanvasPoint start, CanvasPoint end, Colour colour) {
   float numberOfSteps = glm::max(abs(diffX),abs(diffY)); 
  
   // getting the colour in a single string 
-  uint32_t col = getColour(colour); 
+  uint32_t col = colour.toUINT32_t(); 
  
   // if we are starting and ending on the same pixel 
   if (numberOfSteps == 0){ 
@@ -452,26 +419,17 @@ void drawLine(CanvasPoint start, CanvasPoint end, Colour colour) {
     float stepSizeY = diffY / numberOfSteps; 
  
     // for each pixel across 
-    for (int i = 0 ; i <= numberOfSteps ; i++){ 
-       
+    for (int i = 0 ; i <= numberOfSteps ; i++){        
       int x = round(start.x + (i * stepSizeX)); 
       int y = round(start.y + (i * stepSizeY)); 
-      int index = (WIDTH*(y)) + x; // the index for the position of this pixel in the depth map 
-     
+
       // interpolate to find the current depth of the line 
       float proportion = i / numberOfSteps; 
       float inverseDepth = ((1 - proportion) * (1 / start.depth)) + (proportion * (1 / end.depth)); // got this equation from notes 
       float depth = 1 / inverseDepth; 
       //cout << "X: " << x << " Y: " << y << ".. index: " << index << "\n"; 
       // only set the pixel colour if it is the closest object to the camera 
-      if (x > 0 && y > 0 ) { 
-        if (x < WIDTH && y< HEIGHT) { 
-          if (depth < depthMap[index]){ 
-            SetBufferColour(x,y,col); 
-            depthMap[index] = depth; 
-          } 
-        } 
-      } 
+      setDepthPixelColour(x, y, depth, col);
     } 
   } 
 } 
@@ -600,274 +558,15 @@ void drawFilledTriangle(CanvasTriangle triangle){
   */ 
 }  
  
-void readPPM(){ 
-  // open the file, we then go through each line storing it in a string 
-  string line; 
-  ifstream myfile("texture.ppm"); 
-  if (myfile.is_open()) 
-  { 
-    // the first 4 lines contain information about the image 
-    for (int i = 0 ; i < 4 ; i++){ 
-      getline(myfile, line); 
-      cout << line << endl; 
+
  
-      // the 3rd line defines the width and height 
-      if (i == 2){ 
-        // find where the space splits the numbers between the height and width 
-        int n = line.length(); 
-        int index = line.find(' '); 
-        int width = stoi(line.substr(0,index)); // stoi turns a string containing a number into an int 
-        int height = stoi(line.substr(index+1,n)); // the numbers after the space are the height 
-        cout << width << height << "\n"; 
-      } 
  
-      // the 4th line contains the max value used for the rgb values 
-      if (i == 3){ 
-        int maxValue = stoi(line); 
-        cout << maxValue << "\n"; 
-      } 
-    } 
- 
-    // now get all the rest of the bytes 
-    char red, green, blue; 
-    for (int i = 0 ; i < 1000 ; i++){ 
-      red = myfile.get(); 
-      green = myfile.get(); 
-      blue = myfile.get(); 
-      uint32_t a = getColour(Colour (red,green,blue)); 
-      cout << a << "\n"; 
-    } 
- 
-    myfile.close(); 
-  } 
- 
-  else cout << "Unable to open file";  
-} 
+
  
  
  
-// this function reads in an OBJ material file and stores it in a vector of Colour objects, so an output may look like: 
-// [['Red','1','0','0'] , ['Green','0','1','0']] 
-vector<Colour> readOBJMTL(string filename){ 
-  // store the colours in a vector of Colours 
-  vector<Colour> colours; 
-  // open the file, we then go through each line storing it in a string 
-  string line; 
-  ifstream myfile(filename); 
+
    
-  if (myfile.is_open()){ 
-    while (getline(myfile,line)){ 
-      // if we have a new material, store it 
-      if (line.find("newmtl") == 0){ 
-        Colour colour; 
-        vector<string> lineVector = separateLine(line); 
-        colour.name = lineVector[1]; 
-        // get new line to store the values 
-        getline(myfile,line); 
-        vector<string> values = separateLine(line); 
-        colour.red = stof(values[1]) * 255; 
-        colour.green = stof(values[2]) * 255; 
-        colour.blue = stof(values[3]) * 255; 
-        colours.push_back(colour); 
-      } 
-    } 
-  } 
-  else cout << "Unable to open file"; 
- 
-  return colours; 
-} 
- 
- 
- 
-string removeLeadingWhitespace(string s){ 
-  s.erase(0, s.find_first_not_of(" ")); 
-  return s; 
-} 
- 
- 
-ImageFile readImage(string fileName) { 
- 
-  std::ifstream ifs; 
-  ifs.open ("texture.ppm", std::ifstream::in); 
- 
-  /* Parse Header */ 
- 
-  //Check if header is a P6 file. 
-  string headerInput = ""; 
-  getline(ifs, headerInput); 
- 
-  if (headerInput != "P6") { 
-    cout << "Error - Header file is invalid"; 
-    ifs.close(); 
-    throw 1; 
-  } 
- 
-  int width = -1; 
-  int height = -1; 
-  int maxvalue = -1; 
- 
-  /* Following Specification: http://netpbm.sourceforge.net/doc/ppm.html */  
-  // 1) Check if header is a P6 file. 
-  // 2) Ignore Comments. 
-  // 3) Parse Width + whitespace + Height. 
-  // 4) Parse Max value 
- 
-  while (true || !ifs.eof()) { 
-    string inputLine = ""; 
-    getline(ifs,inputLine); 
-    inputLine = removeLeadingWhitespace(inputLine); 
-    if (inputLine[0] == '#'){ 
-      //This is a comment line -> ignore them. 
-    } 
-    else { 
-      //Parse Width + Height. 
-      stringstream ss_wh(inputLine); 
-      ss_wh >> width >> height; 
-       
-      //Read new line -> Parse Max value: // 0<val<65536. 
-      getline(ifs,inputLine); 
-      inputLine = removeLeadingWhitespace(inputLine); 
-       
-      stringstream ss_ml(inputLine); 
-      ss_ml >> maxvalue; 
- 
-      cout << "\nHeader Parse --  Width: " << width << " -- Height: " << height << " -- Max Value: " << maxvalue << "\n"; 
-      break; 
-    } 
-  } 
-   
-  /* Body RGB Parse */ 
- 
-  vector<Colour> vecPixelList; //RGB storage. 
- 
-  while (ifs.peek()!= EOF) { 
-    vecPixelList.push_back(Colour ({ifs.get(), ifs.get(), ifs.get()})); //Create a Pixel element with three consecutive byte reads. 
-  } 
-  cout << "\nBody Parse -- Number of elements: " << vecPixelList.size() << "\n"; 
-  ifs.close(); 
-  ImageFile outputImageFile = ImageFile ({vecPixelList, width, height}); 
-  return outputImageFile; 
-} 
- 
- 
- 
-// given a line, say 'v 12 3 5', it retreives the values inbetween the spaces, outputting them as strings in a vector 
-vector<string> separateLine(string inputLine){ 
-  inputLine = inputLine + " "; // we add a space at the end to we know when to end; 
-  vector<string> output; 
-  int n = inputLine.length(); 
-  int spaceIndex = inputLine.find(' '); 
-  // if we have a space in the line still 
-  while ((spaceIndex > 0) && (spaceIndex <= n)){ 
-    string value = inputLine.substr(0, spaceIndex); 
-    output.push_back(value); 
-    inputLine = inputLine.substr(spaceIndex + 1, n); 
-    n = inputLine.length(); 
-    spaceIndex = inputLine.find(' '); 
-  } 
-  return output; 
-} 
- 
- 
- 
-// given a string in form 'v 12 5 4' it returns (12,5,4) 
-vec3 getVertex(string inputLine){ 
-  vector<string> points = separateLine(inputLine); 
-  vec3 output; 
-  output[0] = stof(points[1]); // it is points[1] as the first element is 'v' 
-  output[1] = stof(points[2]); 
-  output[2] = stof(points[3]); 
-  return output; 
-} 
- 
- 
- 
-// given a line in the form 'f 1/1 2/2 3/3' and also all vertices found so far  
-// it returns a ModelTriangle object, which contains the 3 vertices and the colour too 
-ModelTriangle getFace(string inputLine, vector<vec3> vertices, Colour colour, float scalingFactor){ 
-  // initialise the output 
-  ModelTriangle output; 
-  output.colour = colour; 
- 
-  vector<string> faces = separateLine(inputLine); // this turns 'f 1/1 2/2 3/3' into ['f','1/1','2/2','3/3'] 
-  for (int i = 1 ; i < 4 ; i++){ 
-    string element = faces[i]; // this will be '1/1' for example 
-    int slashIndex = element.find('/'); 
-    string number = element.substr(0, slashIndex); 
-    int index = stoi(number); 
-    vec3 vertex = vertices[index-1]; // -1 as the vertices are numbered from 1, but c++ indexes from 0 
-    vertex = vertex * scalingFactor; 
-    output.vertices[i-1] = vertex; // the -1 here comes from the face that we skip the 'f' in the vector and so i starts at 1 
-  } 
- 
-  return output; 
-} 
- 
- 
- 
-vector<ModelTriangle> readOBJ(float scalingFactor){ 
-  // get the colours 
-  vector<Colour> colours = readOBJMTL(mtlFileName); 
- 
-  // where we store all the vertices and faces 
-  vector<vec3> vertices; 
-  vector<ModelTriangle> faces; 
-   
-  // open the obj file and then go through each line storing it in a string 
-  string line; 
-  ifstream myfile(objFileName); 
- 
-  // if we cannot open the file, print an error 
-  if (myfile.is_open() == 0){ 
-    cout << "Unable to open file" << "\n"; 
-  } 
- 
-  // this is where we will save the correct colour for each face once found 
-  Colour colour (255,255,255); 
- 
-  int numberOfFaces = 0;
-  // while we have a new line, get it 
-  while (getline(myfile, line)){ 
-    // if the line starts with 'usemtl', then we retrieve the new colour and use this colour until we get a new one 
-    if (line.find("usemtl") == 0){ 
-      vector<string> colourVector = separateLine(line); 
-      string colourName = colourVector[1]; 
-       
-      // now go through each of the colours we have saved until we find it 
-      int n = colours.size(); 
-      for (int i = 0 ; i < n ; i++){ 
-        Colour col = colours[i]; 
-        if (colours[i].name == colourName){ 
-          colour = colours[i]; 
-          break; // can stop once we have found it 
-        } 
-      } 
-    } 
- 
-    // if we have a vertex, then put it in a vec3 and store it with all other vertices 
-    else if (line.find('v') == 0){ 
-      vec3 vertex = getVertex(line); 
-      vertex = vertex * scalingFactor; 
-      vertices.push_back(vertex); 
-    } 
- 
-    // if we have a face, then get the corresponding vertices and store it as a ModelTriangle object, then add it to the collection of faces 
-    else if (line.find('f') == 0){ 
-      ModelTriangle triangle = getFace(line, vertices, colour, scalingFactor);
-      triangle.faceIndex = numberOfFaces;
-      numberOfFaces = numberOfFaces + 1;
-      faces.push_back(triangle); 
-    } 
-  } 
-  //cout << "Printing the faces: \n"; 
-  //for (int i = 0 ; i < faces.size() ; i++){ 
-  //  cout << faces[i] << "\n"; 
-  //} 
-  return faces; 
-} 
- 
- 
- 
  
 void rasterize(){  
   //for each object.
@@ -1060,7 +759,6 @@ void lookAt(vec3 point){
  
 // this function averages all the vertices in the scene to find the centre of the scene 
 vec3 findCentreOfScene(){ 
-
   int n=0; //overall faces count.
 
   vec3 sum (0,0,0); 
@@ -1075,34 +773,17 @@ vec3 findCentreOfScene(){
     n += objects[o].faces.size(); 
   }
   
-  sum = sum / (float)(n*3); 
-  return sum; 
+  sum /= (float)(n*3); 
+  return (sum); 
 } 
   
-void printVec3(vec3 name){ 
-  cout << "[" << name[0] << ", " << name[1] << ", " << name[2] << "]\n"; 
-} 
  
-void test2(){ 
-  vec3 centre = findCentreOfScene(); 
-  cout << "centre: ";
-  printVec3(centre); 
-  lookAt(centre); 
-} 
- 
- 
-void renderImage(ImageFile imageFile){ 
- 
+void renderImage(ImageFile imageFile){  
   for (int i=0; i<imageFile.vecPixelList.size(); i++){ 
-    int red = imageFile.vecPixelList.at(i).red; 
-    int green = imageFile.vecPixelList.at(i).green; 
-    int blue = imageFile.vecPixelList.at(i).blue; 
-    uint32_t colour = (255<<24) + (red<<16) + (green<<8) + blue; 
     int row = int(i/imageFile.width); 
     int col = i - (row*imageFile.width); 
-    SetBufferColour(col, row, colour); 
+    SetBufferColour(col, row, imageFile.vecPixelList.at(i).toUINT32_t()); 
   } 
-  cout << "\nImage render complete.\n"; 
 } 
  
  
@@ -1125,27 +806,22 @@ void raytracer(){
       // shoot the ray and check for intersections 
       Colour colour = shootRay(cameraPosition, rayDirection, 0, 1); // depth starts at 0, IOR is 1 as travelling in air
       // colour the pixel accordingly 
-      SetBufferColour(i, j, getColour(colour)); 
+      SetBufferColour(i, j, colour.toUINT32_t()); 
     } 
   } 
 } 
  
  
  
-Colour solveLight(RayTriangleIntersection closest, vec3 rayDirection, float Ka, float Kd, float Ks){ 
-  Colour colour = closest.intersectedTriangle.colour; 
-  vec3 point = closest.intersectionPoint; 
-   
+Colour solveLight(RayTriangleIntersection closest, vec3 rayDirection, float Ka, float Kd, float Ks) { 
   // diffuse light 
-  float diffuseIntensity = intensityDropOff(point) * angleOfIncidence(closest); 
-  Kd = Kd * diffuseIntensity; 
+  Kd *= (intensityDropOff(closest.intersectionPoint) * angleOfIncidence(closest));
    
   // specular light 
   vec3 normal = closest.normal; // this is the interpolated noral for Phong shading (it is previously calculated and stored in the RayTriangleIntersection object) 
-  float specularIntensity = calculateSpecularLight(point, rayDirection, normal); 
-  Ks = Ks * specularIntensity; 
+  Ks *= calculateSpecularLight(closest.intersectionPoint, rayDirection, normal); 
  
-  return getFinalColour(colour, Ka, Kd, Ks); 
+  return getFinalColour(closest.intersectedTriangle.colour, Ka, Kd, Ks); 
 } 
  
  
@@ -1155,7 +831,7 @@ vec3 createRay(int i, int j){
   vec2 pixel (i,j); 
   pixel = pixel + vec2(0.5,0.5); 
   vec2 distanceFromCentre = pixel - vec2(WIDTH/2, HEIGHT/2); // distance from the pixel to the centre of the image plane in terms of number of pixels 
-  vec2 pixelSize = vec2 (imageWidth/WIDTH , imageHeight / HEIGHT); // the size of a pixel in world coordinates 
+  vec2 pixelSize = vec2 (imageWidth/WIDTH, imageHeight/HEIGHT); // the size of a pixel in world coordinates 
   float horizontalDistance = distanceFromCentre[0] * pixelSize[0]; 
   float verticalDistance = distanceFromCentre[1] * pixelSize[1]; 
   vec3 imagePlaneCentre = cameraPosition - (focalLength * cameraForward); // this is the 3D coordinate of the centre of the image plane 
@@ -1222,12 +898,8 @@ vector<vec4> faceIntersections(vector<ModelTriangle> inputFaces, vec3 point, vec
       vec3 SPVector = point - triangle.vertices[0]; 
       mat3 DEMatrix(-rayDirection, e0, e1); 
       vec3 possibleSolution = glm::inverse(DEMatrix) * SPVector;
-      vec4 possibleSolutionWithIndex;
-      possibleSolutionWithIndex[0] = possibleSolution[0];
-      possibleSolutionWithIndex[1] = possibleSolution[1];
-      possibleSolutionWithIndex[2] = possibleSolution[2];
-      possibleSolutionWithIndex[3] = triangle.faceIndex;
-      solutions.push_back(possibleSolutionWithIndex); 
+      //add possiblesolution to solution list.
+      solutions.push_back( vec4(possibleSolution[0], possibleSolution[1], possibleSolution[2], triangle.faceIndex) ); 
     }
     // if it has been culled then return a fake solution
     else {
@@ -1309,12 +981,10 @@ RayTriangleIntersection closestIntersection(vector<vector<vec4>> objectSolutions
 // currentIOR stores the index of refraction of the current medium we are in (air is 1 - glass is 1.5)
 Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){ 
   // cull the faces
-  backfaceCulling2(rayDirection);
+  backfaceCulling(rayDirection);
 
   // stop recursing if our reflections get too much
-  if (depth == 7){ 
-    return Colour(255,255,255); 
-  } 
+  if (depth == 7) return Colour(255,255,255);  
 
   // does this ray intersect any of the faces?
   vector<vector<vec4>> solutions = checkForIntersections(rayPoint, rayDirection); 
@@ -1324,27 +994,22 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
   vec3 point = closest.intersectionPoint; 
  
   // if this ray doesn't intersect anything, then we return the colour black 
-  if (closest.distanceFromCamera <= 0) { 
-    return Colour (0,0,0); 
-  } 
+  if (closest.distanceFromCamera <= 0) return Colour (0,0,0); 
+  
  
   // the ambient, diffuse and specular light constants 
-  float Ka = 0.2; 
-  float Kd = 0.4; 
-  float Ks = 0.4; 
+  float Ka = 0.2, Kd = 0.4, Ks = 0.4; 
  
   ModelTriangle triangle = closest.intersectedTriangle;
 
   // if this face is a mirror, create a reflected ray and shoot this ray (recurse this function) 
   if (triangle.texture == "mirror"){ 
-    print = true; 
     vec3 incident = rayDirection; 
     vec3 normal = getNormalOfTriangle(closest.intersectedTriangle); 
     vec3 reflection = incident - (2 * dot(incident, normal) * normal); 
     reflection = normalize(reflection); 
     point = point + ((float)0.00001 * normal); // avoid self-intersection 
     colour = shootRay(point, reflection, depth + 1, currentIOR); 
-    print = false; 
     return colour; 
   } 
   else if (triangle.texture == "glass"){
@@ -1359,18 +1024,18 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
   // else we use Phong shading to get the colour
   else {
     float diffuseIntensity = intensityDropOff(point) * angleOfIncidence(closest); 
-    Kd = Kd * diffuseIntensity; 
+    Kd *= diffuseIntensity; 
     // specular light 
     vec3 normal = closest.normal; // this is the interpolated normal for Phong shading (it is previously calculated and stored in the RayTriangleIntersection object) 
     float specularIntensity = calculateSpecularLight(point, rayDirection, normal); 
-    Ks = Ks * specularIntensity; 
-    colour =  getFinalColour(colour, Ka, Kd, Ks);
+    Ks *= specularIntensity; 
+    colour = getFinalColour(colour, Ka, Kd, Ks);
   }
  
   /*
   // CODE FOR HARD SHADOWS
   // are we in shadow? only colour the pixel if we are not 
-  bool inShadow = checkForShadows(closest.intersectionPoint); 
+  bool inShadow = InShadow(closest.intersectionPoint); 
   if (inShadow){ 
     Ka = Ka/2; 
     Kd = 0; 
@@ -1383,11 +1048,11 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
 
  
   // CODE FOR SOFT SHADOWS
-  bool inShadow = checkForShadows(closest.intersectionPoint);
-  if (inShadow){
+
+  if (InShadow(closest.intersectionPoint)){
     float shadowFraction = softShadows(closest);
     // mix shadow and normal colour
-    Ka = Ka/2; 
+    Ka /= 2; 
     Kd = 0; 
     Ks = 0; 
     Colour shadowColour = getFinalColour(colour, Ka, Kd, Ks);
@@ -1405,22 +1070,16 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
 Colour getFinalColour(Colour colour, float Ka, float Kd, float Ks){ 
   // this takes the ambient, diffuse and specular constants and gets the output colour 
   // note that we do not multiply the specular light by the colour (it is white hence the 255) 
-  colour.red = ((Ka + Kd) * colour.red) + (Ks * 255); 
-  colour.green = ((Ka + Kd) * colour.green) + (Ks * 255); 
-  colour.blue = ((Ka + Kd) * colour.blue) + (Ks * 255); 
- 
-  // clipping the colour for if it goes above 255 
-  colour.red = glm::min(colour.red, 255); 
-  colour.green = glm::min(colour.green, 255); 
-  colour.blue = glm::min(colour.blue, 255); 
- 
+  colour.SetRed(((Ka + Kd) * colour.red) + (Ks * 255));
+  colour.SetGreen(((Ka + Kd) * colour.green) + (Ks * 255)); 
+  colour.SetBlue(((Ka + Kd) * colour.blue) + (Ks * 255));
   return colour; 
 } 
  
  
 // given a point in the scene, this function calculates the intensity of the light 
 float intensityDropOff(vec3 point){ 
-  float distance = distanceVec3(point, lightPosition); 
+  const float distance = distanceVec3(point, lightPosition); 
   float intensity = lightIntensity / (2 * 3.1416 * distance * distance); 
   return intensity; 
 } 
@@ -1469,7 +1128,7 @@ float distanceVec3(vec3 from, vec3 to){
  
  
 // this returns a true or false depending on if we are in shadow or not 
-bool checkForShadows(vec3 point){ 
+bool InShadow(vec3 point){ 
   vec3 shadowRayDirection = lightPosition - point; 
   float distance = distanceVec3(lightPosition, point); 
   shadowRayDirection = normalize(shadowRayDirection); 
@@ -1570,8 +1229,8 @@ float softShadows(RayTriangleIntersection intersection){
   //vec3 down = -gradientConstant * normal;
   vec3 pointAbove = point + up;
   vec3 pointBelow = point;//point + down;
-  bool above = checkForShadows(pointAbove);
-  bool below = checkForShadows(pointBelow);
+  bool above = InShadow(pointAbove);
+  bool below = InShadow(pointBelow);
   float shadowFraction = 0;
   // we are in total light 
   if ((above == 0) && (below == 0)){
@@ -1586,7 +1245,7 @@ float softShadows(RayTriangleIntersection intersection){
     vec3 upVector = pointAbove - pointBelow;
     for (int i = 1 ; i <= numberOfSteps ; i++){
       vec3 point = pointBelow + ((i / (float)numberOfSteps) * upVector);
-      bool inShadow = checkForShadows(point);
+      bool inShadow = InShadow(point);
       // the first point will definitely be in shadow and as we move up we find how in shadow it should be
       if (not(inShadow)){
         shadowFraction = (i / (float)numberOfSteps);
@@ -1800,41 +1459,7 @@ float fresnel(vec3 incident, vec3 normal, float ior) {
 
 // we cull the faces in the scene that face away from the camera
 // we do this by taking vectors from the camera to the centre of each face and dotting it with the normal
-void backfaceCulling(vec3 cameraPosition){
-
-  // for each object
-  for (int o=0; o<objects.size(); o++) {
-    // for each face
-    for (int i = 0 ; i < objects[o].faces.size() ; i++){
-      ModelTriangle face = objects[o].faces[i];
-      // get the normal of the face
-      vec3 normal = getNormalOfTriangle(face);
-      // get the centre of the face by averaging the vertices
-      vec3 faceCentre = face.vertices[0] + face.vertices[1] + face.vertices[2];
-      faceCentre = faceCentre * float(1/3);
-      vec3 cameraToFace = faceCentre - cameraPosition;
-
-      // if the face faces away
-      cout << dot(cameraToFace, normal) << endl;
-      if (dot(cameraToFace, normal) > 0){
-        // do not cull the face if it is glass
-        if (face.texture != "glass") {
-          objects[o].faces[i].culled = true;
-        }
-      }
-      
-    }
-  }
-  Object object = objects[0];
-  /*
-  for (int i = 0 ; i < object.faces.size() ; i++){
-    cout << object.faces[i].culled << "   ";
-  }
-  */
-}
-
-
-void backfaceCulling2 (vec3 rayDirection){
+void backfaceCulling(vec3 rayDirection){
   // for each object
   for (int o = 0 ; o < objects.size() ; o++){
     // for each face
@@ -1863,8 +1488,8 @@ vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces){
   // set max to be (-inf, -inf, -inf)
   vec3 min (numeric_limits<float>::infinity(), numeric_limits<float>::infinity(), numeric_limits<float>::infinity());
   vec3 max = -min;
-  printVec3(min);
-  printVec3(max);
+  print(min);
+  print(max);
   int n = inputFaces.size();
   // for each face
   for (int i = 0 ; i < n ; i++){
@@ -1885,8 +1510,8 @@ vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces){
     }
   }
 
-  printVec3(min);
-  printVec3(max);
+  print(min);
+  print(max);
 
   // create the box object
   vector<ModelTriangle> boxFaces; // this is a cube so will have 12 faces
@@ -1946,7 +1571,7 @@ vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces){
     for (int j = 0 ; j < 3 ; j ++){
       int index = indices[j] - 1;
       triangle.vertices[j] = vertices[index];
-      printVec3(vertices[index]);
+      print(vertices[index]);
     }
     boxFaces.push_back(triangle);
   }
@@ -2067,7 +1692,7 @@ void squash(int objectIndex, float squashFactor){
       }
     }
   }
-  averagedVertices = averagedVertices / float(object.faces.size() * 3);
+  averagedVertices /= float(object.faces.size() * 3);
 
   // we squash the object around the following point (the centre but on the under side of the object)
   vec3 squashCentre = averagedVertices;
