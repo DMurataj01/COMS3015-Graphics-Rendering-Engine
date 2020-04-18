@@ -1,9 +1,5 @@
 // Note that in this code we use a left-handed coordinate system 
  
-#ifndef MODELTRIANGLE_H
-  #define MODELTRIANGLE_H
-  #include <ModelTriangle.h>
-#endif
 
 // Call Headers [ Safe from double includes ]
 #include "OBJ.h"
@@ -21,17 +17,26 @@ void print(glm::vec3 vector) {
   if (debug) std::cout << "[" << vector.x << ", " << vector.y << ", " << vector.z << " ]\n";
 }
  
-
 using namespace std; 
-using namespace glm; 
- 
-#define W 800//2400//640 
-#define H 800//2400//480 
+using namespace glm;
 
-const int AA = 1;
+/* Things You Can Change Are Here */
+ 
+#define W 800 //Set desired screen width here. 
+#define H 800 //Set desired screen height here.
+
+const int AA = 1; //Set Anti-Aliasing Multiplier here, applied to both x and y so expect ~AA^2 time [eg. 800x800x1 5.43s, 800x800x4 88.7s ~16.4x]
 
 const int WIDTH = W * AA;
 const int HEIGHT = H * AA;
+bool displayRenderTime = true;
+
+//Scene we want to render.
+string objFileName = "cornell-box.obj"; 
+string mtlFileName = "cornell-box.mtl"; 
+string txtFileName = "texture.ppm";
+
+
 
 vector<uint32_t> pixelBuffer; 
 vector<float> depthMap;
@@ -40,7 +45,7 @@ enum MOVEMENT {UP, DOWN, LEFT, RIGHT, ROLL_LEFT, ROLL_RIGHT, PAN_LEFT, PAN_RIGHT
 
 enum RENDERTYPE{RAYTRACE, RASTERIZE, WIREFRAME};
 
-RENDERTYPE currentRender = RASTERIZE;//RAYTRACE; //Default to Raytrace.
+RENDERTYPE currentRender = RAYTRACE;//RAYTRACE; //Default to Raytrace.
 
 // press '1' for wireframe 
 // press '2' for rasterized 
@@ -59,7 +64,6 @@ void drawFilledTriangle(CanvasTriangle triangle);
 vector<Object> createObjects(vector<ModelTriangle> inputFaces);
 vector<string> separateLine(string inputLine); 
 void rasterize(); 
-void initializeDepthMap(); 
 void updateView (MOVEMENT movement);
 /* FUNCTION Declarations */ 
 ImageFile readImage(string fileName); 
@@ -68,7 +72,7 @@ void lookAt(vec3 point);
 vec3 findCentreOfScene(); 
 void raytracer(); 
 Colour solveLight(RayTriangleIntersection closest, vec3 rayDirection, float Ka, float Kd, float Ks); 
-vec3 createRay(int i, int j); 
+vec3 createRay(const int i, const int j); 
 vector<vector<vec4>> checkForIntersections(vec3 point, vec3 rayDirection);
 vector<vec4> faceIntersections(vector<ModelTriangle> inputFaces, vec3 point, vec3 rayDirection);
 RayTriangleIntersection closestIntersection(vector<vector<vec4>> solutions, vec3 rayPoint); 
@@ -103,17 +107,12 @@ void rotateObject(int objectIndex, float theta, vec3 point);
  
 DrawingWindow window;
  
- 
-// the files (scene) which we want to render 
-string objFileName = "cornell-box.obj"; 
-string mtlFileName = "cornell-box.mtl"; 
- 
 // this stores the faces split up into separate objects
 vector<Object> objects;
  
-  
+ImageFile textureFile;
+
 bool animate = false;
- 
  
 // initial camera parameters 
 vec3 cameraPosition (0,2,3.5);//(0,-2,-3.5); 
@@ -155,8 +154,7 @@ int main(int argc, char* argv[]) {
   // || Mirrored floor ||
 
   //faces[6].texture = "mirror"; 
-  //faces[7].texture = "mirror";
-  
+  //faces[7].texture = "mirror";  
 
   for (int i=8; i<10; i++) {
     //faces[i].texture = "texture";
@@ -176,9 +174,9 @@ int main(int argc, char* argv[]) {
   for (int i = 0 ; i < objects[0].faces.size() ; i++){
     ModelTriangle face = objects[0].faces[i];
   }
-
-  // 7) Render the image
+  
   render();
+
   SDL_Event event;
   while(true) { 
     // We MUST poll for events - otherwise the window will freeze ! 
@@ -197,8 +195,9 @@ int main(int argc, char* argv[]) {
  
 void update() {
   // Function for performing animation (shifting artifacts or moving the camera)
-  spinAround(3.14159, 100, true, -1);
-  spinAround(3.14159, 100, true, 1);
+  const float pi = 4*atan(1);
+  spinAround(pi, 100, true, -1);
+  spinAround(pi, 100, true, 1);
 } 
 
 // this function starts and stops the animation in the window (press p)
@@ -223,7 +222,6 @@ void SetBufferColour(int x, int y, uint32_t col) {
   }
 }
 
-
 uint8_t getRedValueFromColor(uint32_t c) {
   return (c >> 16);
 }
@@ -234,10 +232,16 @@ uint8_t getBlueValueFromColor(uint32_t c) {
     return (c);
 }
 
- 
 // this function renders the scene, depending on what the value of STATE is (so whether we use wireframe, rasterize or raytrace) 
 void render(){
   clear();
+
+//Initialise Timer.
+  std::clock_t start;
+  double duration;
+  
+  //Start Timer.
+  start = std::clock();
 
   switch (currentRender) {
     case RAYTRACE:
@@ -276,6 +280,8 @@ void render(){
     }
   }
 
+  duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
+  if (displayRenderTime) cout << "Time Taken To Render: " << duration << "\n";
 } 
 
 
@@ -309,8 +315,6 @@ void handleEvent(SDL_Event event) {
     } 
   } 
 } 
- 
- 
  
 void clear(){ 
   window.clearPixels(); 
@@ -382,16 +386,14 @@ vector<Object> createObjects(vector<ModelTriangle> inputFaces){
  
  
 // given a start and an end value, step from the start to the end with the right number of steps 
-vector<vec3> interpolate(vec3 from, vec3 to, float numberOfValues) 
-{ 
+vector<vec3> interpolate(vec3 from, vec3 to, float numberOfValues) { 
   vector<vec3> out; //The output vector of numbers 
   out.push_back(from); //Add the first number in 
   vec3 stepValue = (to - from) / (numberOfValues - 1); //numberOfValues - 1 as the first number is already counted 
   vec3 previous = from; 
  
   //For each step 
-  for (int i = 1; i < numberOfValues ; i++) 
-  { 
+  for (int i = 1; i < numberOfValues ; i++) { 
     vec3 input = previous + stepValue; 
     out.push_back(input); 
     previous = input; 
@@ -558,16 +560,6 @@ void drawFilledTriangle(CanvasTriangle triangle){
   */ 
 }  
  
-
- 
- 
-
- 
- 
- 
-
-   
- 
 void rasterize(){  
   //for each object.
     for (int o = 0; o < objects.size(); o++){
@@ -618,36 +610,15 @@ void rasterize(){
       
     } 
   }
-} 
- 
- 
- 
-void initializeDepthMap(){ 
-  for (int i = 0 ; i < (HEIGHT*WIDTH) ; i++){ 
-    depthMap[i] = numeric_limits<float>::infinity(); 
-  } 
-} 
- 
- 
+}  
  
 void updateView (MOVEMENT movement) {
-
   vec3 col1, col2, col3;
 
   bool move = false;
   bool rotate = false;
 
   float theta = -0.5;
-
-  /*
-  switch (currentRender) {
-    case RASTERIZE:
-      theta = -theta;
-      cout << theta << "\n";
-      break;
-  }
-  cout << theta << "\n";
-  */
 
   switch (movement) {
     /* Camera Position = Camera Position + Unit Vector */
@@ -736,10 +707,7 @@ void updateView (MOVEMENT movement) {
   render();
 } 
  
- 
- 
 void lookAt(vec3 point){
- 
   vec3 direction = cameraPosition - point;
   direction = normalize(direction);
   cameraForward = direction; 
@@ -777,7 +745,6 @@ vec3 findCentreOfScene(){
   return (sum); 
 } 
   
- 
 void renderImage(ImageFile imageFile){  
   for (int i=0; i<imageFile.vecPixelList.size(); i++){ 
     int row = int(i/imageFile.width); 
@@ -787,10 +754,7 @@ void renderImage(ImageFile imageFile){
 } 
  
  
- 
- 
- 
- 
+
  
 //////////////////////////////////////////////////////// 
 // RAYTRACING CODE 
@@ -800,6 +764,7 @@ void renderImage(ImageFile imageFile){
 void raytracer(){
   // for each pixel 
   for (int i = 0 ; i < WIDTH ; i++){ 
+    //#pragma clang loop vectorize_width(8) interleave_count(8)
     for (int j = 0 ; j < HEIGHT ; j++){
       // create a ray 
       vec3 rayDirection = createRay(i,j);
@@ -816,29 +781,28 @@ void raytracer(){
 Colour solveLight(RayTriangleIntersection closest, vec3 rayDirection, float Ka, float Kd, float Ks) { 
   // diffuse light 
   Kd *= (intensityDropOff(closest.intersectionPoint) * angleOfIncidence(closest));
-   
   // specular light 
-  vec3 normal = closest.normal; // this is the interpolated noral for Phong shading (it is previously calculated and stored in the RayTriangleIntersection object) 
-  Ks *= calculateSpecularLight(closest.intersectionPoint, rayDirection, normal); 
- 
+  //closest.normal -  this is the interpolated noral for Phong shading (it is previously calculated and stored in the RayTriangleIntersection object) 
+  Ks *= calculateSpecularLight(closest.intersectionPoint, rayDirection, closest.normal); 
   return getFinalColour(closest.intersectedTriangle.colour, Ka, Kd, Ks); 
 } 
  
  
- 
+
+//OPTIMISED - Compute only once outside the loop. 
+//const vec2 pixelSize(imageWidth/WIDTH, imageHeight/HEIGHT)
+const float pixelSizeX = imageWidth/WIDTH;
+const float pixelSizeY = imageHeight/HEIGHT;
+
 // given the pixel coordinates, this function calculates the direction of the ray (in vector format) 
-vec3 createRay(int i, int j){
-  vec2 pixel (i,j); 
-  pixel = pixel + vec2(0.5,0.5); 
-  vec2 distanceFromCentre = pixel - vec2(WIDTH/2, HEIGHT/2); // distance from the pixel to the centre of the image plane in terms of number of pixels 
-  vec2 pixelSize = vec2 (imageWidth/WIDTH, imageHeight/HEIGHT); // the size of a pixel in world coordinates 
-  float horizontalDistance = distanceFromCentre[0] * pixelSize[0]; 
-  float verticalDistance = distanceFromCentre[1] * pixelSize[1]; 
-  vec3 imagePlaneCentre = cameraPosition - (focalLength * cameraForward); // this is the 3D coordinate of the centre of the image plane 
-  vec3 point = imagePlaneCentre + (horizontalDistance * cameraRight) + (verticalDistance * (-cameraUp)); 
-  vec3 direction = point - cameraPosition; 
-  direction = normalize(direction); 
-  return direction; 
+vec3 createRay(const int i, const int j) {
+  //vec2 pixel(float(i)+0.5,float(j)+0.5); //pixel = pixel + vec2(0.5,0.5); 
+  //vec2 distanceFromCentre = pixel - vec2(WIDTH/2, HEIGHT/2); // distance from the pixel to the centre of the image plane in terms of number of pixels 
+  const float horizontalDistance = pixelSizeX * (float(i) + 0.5 - (WIDTH/2)); //pixel[0] * distanceFromCentre[0]
+  const float verticalDistance = pixelSizeY * (float(j) + 0.5 - (HEIGHT/2));  //pixel[1] * distanceFromCentre[1]
+  const vec3 imagePlaneCentre = cameraPosition - (focalLength * cameraForward); // this is the 3D coordinate of the centre of the image plane 
+  const vec3 point = imagePlaneCentre + (horizontalDistance * cameraRight) + (verticalDistance * (-cameraUp)); 
+  return normalize(point - cameraPosition); //Return direction.
 } 
  
  
@@ -859,22 +823,21 @@ vector<vector<vec4>> checkForIntersections(vec3 point, vec3 rayDirection){
   for (int i = 0 ; i < n ; i++){
     vector<vec4> objectSolutions; // to store the solutions if any for this object
     objectSolutions.push_back(vec4 (-1,0,0,-1));
-    Object object = objects[i];
-    if (object.hasBoundingBox){
-      vector<vec4> boxSolutions = faceIntersections(object.boxFaces, point, rayDirection);
+    if (objects[i].hasBoundingBox){
+      vector<vec4> boxSolutions = faceIntersections(objects[i].boxFaces, point, rayDirection);
       // do we intersect the bounding box?
-      for (int j = 0 ; j < boxSolutions.size() ; j++){
+      for (int j = 0; j < boxSolutions.size(); j++){
         vec4 solution = boxSolutions[j];
         // if we have an intersection, then check for intersections with all the faces
         if (solution[0] > 0){
-          objectSolutions = faceIntersections(object.faces, point, rayDirection);
+          objectSolutions = faceIntersections(objects[i].faces, point, rayDirection);
           break;
         }
       }
     }
     // if this object doesn't have a bounding box, then just check each face as normal
     else {
-      objectSolutions = faceIntersections(object.faces, point, rayDirection);
+      objectSolutions = faceIntersections(objects[i].faces, point, rayDirection);
     }
     solutions.push_back(objectSolutions);
   }
@@ -967,10 +930,6 @@ RayTriangleIntersection closestIntersection(vector<vector<vec4>> objectSolutions
 } 
  
  
- 
- 
- 
- 
 //////////////////////////////////////////////////////// 
 // LIGHTING 
 //////////////////////////////////////////////////////// 
@@ -994,7 +953,7 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
   vec3 point = closest.intersectionPoint; 
  
   // if this ray doesn't intersect anything, then we return the colour black 
-  if (closest.distanceFromCamera <= 0) return Colour (0,0,0); 
+  if (closest.distanceFromCamera <= 0) return Colour(0,0,0); 
   
  
   // the ambient, diffuse and specular light constants 
@@ -1006,15 +965,12 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
   if (triangle.texture == "mirror"){ 
     vec3 incident = rayDirection; 
     vec3 normal = getNormalOfTriangle(closest.intersectedTriangle); 
-    vec3 reflection = incident - (2 * dot(incident, normal) * normal); 
-    reflection = normalize(reflection); 
-    point = point + ((float)0.00001 * normal); // avoid self-intersection 
-    colour = shootRay(point, reflection, depth + 1, currentIOR); 
-    return colour; 
+    vec3 reflection = normalize(incident - (2 * dot(incident, normal) * normal));
+    point += ((float)0.00001 * normal); // avoid self-intersection 
+    return shootRay(point, reflection, depth + 1, currentIOR); 
   } 
   else if (triangle.texture == "glass"){
-    colour = glass(rayDirection, closest, depth);
-    return colour;
+    return glass(rayDirection, closest, depth);
   }
   else if (triangle.texture == "texture") {
     colour = Colour(255, 255, 255);
@@ -1023,12 +979,10 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
 
   // else we use Phong shading to get the colour
   else {
-    float diffuseIntensity = intensityDropOff(point) * angleOfIncidence(closest); 
-    Kd *= diffuseIntensity; 
+    Kd *= (intensityDropOff(point) * angleOfIncidence(closest)); // multiply Kd by the diffuse intensity.
     // specular light 
-    vec3 normal = closest.normal; // this is the interpolated normal for Phong shading (it is previously calculated and stored in the RayTriangleIntersection object) 
-    float specularIntensity = calculateSpecularLight(point, rayDirection, normal); 
-    Ks *= specularIntensity; 
+    // closest.normal - this is the interpolated normal for Phong shading (it is previously calculated and stored in the RayTriangleIntersection object) 
+    Ks *= calculateSpecularLight(point, rayDirection, closest.normal); // multiply Ks by the specular intensity.
     colour = getFinalColour(colour, Ka, Kd, Ks);
   }
  
@@ -1048,20 +1002,15 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
 
  
   // CODE FOR SOFT SHADOWS
-
   if (InShadow(closest.intersectionPoint)){
-    float shadowFraction = softShadows(closest);
+    const float shadowFraction = softShadows(closest);
     // mix shadow and normal colour
-    Ka /= 2; 
-    Kd = 0; 
-    Ks = 0; 
-    Colour shadowColour = getFinalColour(colour, Ka, Kd, Ks);
+    Colour shadowColour = getFinalColour(colour, Ka/2, 0, 0); //getFinalColour(Colour, Ka, Kd, Ks)
 
-    Colour output;
-    output.red = (shadowFraction * shadowColour.red) + ((1 - shadowFraction) * colour.red);
-    output.green = (shadowFraction * shadowColour.green) + ((1 - shadowFraction) * colour.green);
-    output.blue = (shadowFraction * shadowColour.blue) + ((1 - shadowFraction) * colour.blue);
-    return output;
+    const int r = (shadowFraction * shadowColour.red) + ((1 - shadowFraction) * colour.red);
+    const int g = (shadowFraction * shadowColour.green) + ((1 - shadowFraction) * colour.green);
+    const int b = (shadowFraction * shadowColour.blue) + ((1 - shadowFraction) * colour.blue);
+    return Colour(r,g,b);
   }
   return colour;
 } 
@@ -1080,20 +1029,16 @@ Colour getFinalColour(Colour colour, float Ka, float Kd, float Ks){
 // given a point in the scene, this function calculates the intensity of the light 
 float intensityDropOff(vec3 point){ 
   const float distance = distanceVec3(point, lightPosition); 
-  float intensity = lightIntensity / (2 * 3.1416 * distance * distance); 
+  const float intensity = lightIntensity / (2 * 3.1416 * distance * distance); 
   return intensity; 
 } 
  
- 
+
 vec3 getNormalOfTriangle(ModelTriangle triangle){ 
-  vec3 v0 = triangle.vertices[0]; 
-  vec3 v1 = triangle.vertices[1]; 
-  vec3 v2 = triangle.vertices[2]; 
-  vec3 e0 = (v1 - v0); 
-  vec3 e1 = (v2 - v0); 
-  vec3 normal = glm::cross(e0, e1); 
-  normal = normalize(normal); 
-  return normal; 
+  const vec3 e0 = (triangle.vertices[1] - triangle.vertices[0]); //v1 - v0
+  const vec3 e1 = (triangle.vertices[2] - triangle.vertices[0]); //v2 - v1
+  // return the normal = glm::cross(e0, e1); 
+  return normalize(glm::cross(e0, e1)); 
 } 
  
  
@@ -1109,23 +1054,17 @@ float angleOfIncidence(RayTriangleIntersection intersection){
   // the dot product returns 1 if they are parallel 
   // 0 if perpendicular 
   // <0 if the normal faces the other way 
-  if (intensity < 0){ 
-    intensity = 0; 
-  } 
+  if (intensity < 0) return 0;
   return intensity; 
 } 
  
- 
- 
-float distanceVec3(vec3 from, vec3 to){ 
-  vec3 d = from - to; 
-  float a = d[0] * d[0]; 
-  float b = d[1] * d[1]; 
-  float c = d[2] * d[2]; 
-  return sqrt(a + b + c); 
+float distanceVec3(const vec3 from, const vec3 to){ 
+  const vec3 d = from - to; 
+  const float a = d[0] * d[0]; 
+  const float b = d[1] * d[1]; 
+  const float c = d[2] * d[2]; 
+  return sqrtf(a + b + c); 
 } 
- 
- 
  
 // this returns a true or false depending on if we are in shadow or not 
 bool InShadow(vec3 point){ 
@@ -1149,15 +1088,11 @@ bool InShadow(vec3 point){
         
       // if it is actually a solution 
       bool bool1 = (t > 0.0001); // this is not 0 to avoid self-intersection 
-      bool bool2 = (0 <= u) && (u <= 1); 
-      bool bool3 = (0 <= v) && (v <= 1); 
-      bool bool4 = (u + v) <= 1; 
-      bool bool5 = (t < distance); // an intersection beyond the light doesn't matter 
+      bool bool2 = (0 <= u) && (u <= 1) && (0 <= v) && (v <= 1) && ((u + v) <= 1); 
+      bool bool3 = (t < distance); // an intersection beyond the light doesn't matter 
       // if we have an intersection then we can stop checking the other faces 
       // it is 0.000001 to avoid self intersection 
-      if (bool1 && bool2 && bool3 && bool4 && bool5){ 
-        return true; 
-      } 
+      if (bool1 && bool2 && bool3) return true; 
     } 
   }
   return false; 
@@ -1170,15 +1105,12 @@ float calculateSpecularLight(vec3 point, vec3 rayDirection, vec3 normal){
   vec3 incident = normalize(lightDirection); 
   normal = normalize(normal); 
   // equation form online 
-  vec3 reflection = incident - (2 * dot(incident, normal) * normal); 
-  reflection = normalize(reflection); 
+  vec3 reflection = normalize(incident - (2 * dot(incident, normal) * normal)); 
   vec3 viewerDirection = -rayDirection; 
   float intensity = dot(viewerDirection, reflection); 
   // CAN CHANGE THE SPECULAR DROP OFF HERE 
   intensity = pow(intensity, 20); 
-  if (intensity < 0){ 
-    intensity = 0; 
-  } 
+  if (intensity < 0) return 0;
   return intensity; 
 } 
  
@@ -1221,7 +1153,6 @@ float softShadows(RayTriangleIntersection intersection){
   int numberOfSteps = 50; // how smooth it should be
   ///////////////////
 
-
   ModelTriangle triangle = intersection.intersectedTriangle;
   vec3 normal = getNormalOfTriangle(triangle);
   vec3 point = intersection.intersectionPoint;
@@ -1229,17 +1160,13 @@ float softShadows(RayTriangleIntersection intersection){
   //vec3 down = -gradientConstant * normal;
   vec3 pointAbove = point + up;
   vec3 pointBelow = point;//point + down;
-  bool above = InShadow(pointAbove);
-  bool below = InShadow(pointBelow);
-  float shadowFraction = 0;
+  const bool above = InShadow(pointAbove);
+  const bool below = InShadow(pointBelow);
+  //float shadowFraction = 0;
   // we are in total light 
-  if ((above == 0) && (below == 0)){
-    shadowFraction = 0;
-  } 
+  if ((above == 0) && (below == 0)) return 0; //shadowFraction = 0
   // we are in total shadow 
-  else if ((above == 1) && (below == 1)){
-    shadowFraction = 1;
-  } 
+  else if ((above == 1) && (below == 1)) return 1; //shadowFraction = 1
   // we are in-between, and need to calculate the gradient 
   else {
     vec3 upVector = pointAbove - pointBelow;
@@ -1247,13 +1174,10 @@ float softShadows(RayTriangleIntersection intersection){
       vec3 point = pointBelow + ((i / (float)numberOfSteps) * upVector);
       bool inShadow = InShadow(point);
       // the first point will definitely be in shadow and as we move up we find how in shadow it should be
-      if (not(inShadow)){
-        shadowFraction = (i / (float)numberOfSteps);
-        return shadowFraction;
-      }
+      if (!inShadow) return (i / (float)numberOfSteps); //shadowFraction = (i / (float)numberOfSteps)
     }
   }
-  return shadowFraction;
+  return 0; //return shadowFraction
 } 
  
  
@@ -1404,50 +1328,39 @@ vec4 refract(vec3 incident, vec3 normal, float ior) {
     ratio = 1 / ratio;
     normal = -normal;
   }
-  float cosTheta = abs(direction);
+  const float cosTheta = abs(direction);
 
   // check: do we have total internal reflection (this depends on the incident ray and the critical angle)
-  float k = 1 - ratio * ratio * (1 - cosTheta * cosTheta);
-  if (k < 0){
-    // total internal reflection
-    return vec4 (0,0,0,0);
-  }
-
-  vec3 refracted = ratio * incident + (ratio * cosTheta - sqrtf(k)) * normal;
-  refracted = normalize(refracted);
-  vec4 output;
-  output[0] = refracted[0];
-  output[1] = refracted[1];
-  output[2] = refracted[2];
-  output[3] = sign(direction);
-  return output;
+  const float k = 1 - ratio * ratio * (1 - cosTheta * cosTheta);
+  
+  if (k < 0) return vec4 (0,0,0,0); // total internal reflection
+  
+  const vec3 refracted = normalize(ratio * incident + (ratio * cosTheta - sqrtf(k)) * normal);
+  return vec4(refracted[0], refracted[1], refracted[2], sign(direction));
 }
 
 
 float fresnel(vec3 incident, vec3 normal, float ior) {
     float cosi = dot(incident, normal); 
     float etai = 1;
-    float etat = ior; 
-    if (cosi > 0){ 
-      std::swap(etai, etat); 
-    } 
+    float etat = ior;
+
+    if (cosi > 0) std::swap(etai, etat); 
+    
     // Compute sini using Snell's law
     float sint = etai / etat * sqrtf(std::max(0.f, 1 - cosi * cosi)); 
     // Total internal reflection
-    float kr;
-    if (sint >= 1) { 
-        kr = 1; 
-    } 
+    if (sint >= 1) return 1; //kr =1
     else { 
         float cost = sqrtf(std::max(0.f, 1 - sint * sint)); 
         cosi = fabsf(cosi); 
-        float Rs = ((etat * cosi) - (etai * cost)) / ((etat * cosi) + (etai * cost)); 
-        float Rp = ((etai * cosi) - (etat * cost)) / ((etai * cosi) + (etat * cost)); 
-        kr = (Rs * Rs + Rp * Rp) / 2; 
+        const float Rs = ((etat * cosi) - (etai * cost)) / ((etat * cosi) + (etai * cost)); 
+        const float Rp = ((etai * cosi) - (etat * cost)) / ((etai * cosi) + (etat * cost)); 
+        return (Rs * Rs + Rp * Rp)*0.5f; //kr = (Rs * Rs + Rp * Rp)/2 
     } 
     // As a consequence of the conservation of energy, transmittance is given by:
     // kt = 1 - kr;
-    return kr;
+    return 0; //return kR
 } 
 
 
@@ -1464,18 +1377,10 @@ void backfaceCulling(vec3 rayDirection){
   for (int o = 0 ; o < objects.size() ; o++){
     // for each face
     for (int i = 0 ; i < objects[o].faces.size() ; i++){
-      ModelTriangle face = objects[o].faces[i];
-      vec3 normal = getNormalOfTriangle(face);
-      // if the face faces the other way
-      if (dot(normal, rayDirection) > 0){
-        // don't cull if it is glass
-        if (objects[o].faces[i].texture != "glass"){
-          objects[o].faces[i].culled = true;
-        }
-      }
-      else {
-        objects[o].faces[i].culled = false;
-      }
+      //ModelTriangle face = objects[o].faces[i];
+      const vec3 normal = getNormalOfTriangle(objects[o].faces[i]);
+      //True if faces face the other way && !glass.
+      objects[o].faces[i].culled = ((dot(normal, rayDirection) > 0) && (objects[o].faces[i].texture != "glass"));
     }
   }
 }
@@ -1565,11 +1470,11 @@ vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces){
 
   // make the vertices into faces
   for (int i = 0 ; i < 12 ; i++){
-    vec3 indices = vertexIndices[i];
+    const vec3 indices = vertexIndices[i];
     ModelTriangle triangle;
     triangle.colour = Colour (255,255,255); // arbitrarily set colour to white (for testing)
     for (int j = 0 ; j < 3 ; j ++){
-      int index = indices[j] - 1;
+      const int index = indices[j] - 1;
       triangle.vertices[j] = vertices[index];
       print(vertices[index]);
     }
