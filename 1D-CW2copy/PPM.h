@@ -6,6 +6,10 @@
 #include <sstream> 
 #endif
 
+#ifndef DRAWINGWINDOW_H
+  #define DRAWINGWINDOW_H
+  #include <DrawingWindow.h>
+#endif
 
 /* STRUCTURE - ImageFile */
 struct ImageFile {
@@ -86,7 +90,22 @@ ImageFile importPPM(std::string fileName) {
   return outputImageFile;
 }
 
-bool exportPPMFile(std::string fileName, ImageFile imageFile) {
+ImageFile CreateImageFileFromWindow(DrawingWindow window, int width, int height) {
+  vector<Colour> vecPixelList;
+
+  for (int jj=0; jj<height; jj++) {
+    for (int ii=0; ii<width; ii++) {
+      uint32_t packedColour = window.getPixelColour(ii, jj);
+      Colour colour(packedColour);
+      vecPixelList.push_back(colour);
+    }
+  }
+
+  ImageFile imageFileOut = ImageFile({vecPixelList, width, height});
+  return imageFileOut;
+}
+
+bool exportToPPM(std::string fileName, ImageFile imageFile) {
     std::ofstream outfile (fileName,std::ofstream::binary);
     
     /* Following Specification: http://netpbm.sourceforge.net/doc/ppm.html */ 

@@ -6,7 +6,12 @@
 #include "PPM.h"
 
 #include <CanvasTriangle.h> 
-#include <DrawingWindow.h> 
+
+#ifndef DRAWINGWINDOW_H
+  #define DRAWINGWINDOW_H
+  #include <DrawingWindow.h>
+#endif
+
 #include <Utils.h> 
 #include <glm/glm.hpp> 
 #include <RayTriangleIntersection.h> 
@@ -72,7 +77,7 @@ void rasterize();
 void updateView (MOVEMENT movement);
 /* FUNCTION Declarations */ 
 ImageFile readImage(string fileName); 
-void renderImage(ImageFile imageFile); 
+void renderImageFile(ImageFile imageFile); 
 void lookAt(vec3 point); 
 vec3 findCentreOfScene(); 
 void raytracer(); 
@@ -159,9 +164,9 @@ int main(int argc, char* argv[]) {
   //faces[6].texture = "mirror"; 
   //faces[7].texture = "mirror";  
 
-  for (int i=8; i<10; i++) {
-    faces[i].texture = "texture";
-  }
+  //for (int i=8; i<10; i++) {
+  //  faces[i].texture = "texture";
+  //}
   // || Glass Red Box ||
   for (int i = 12 ; i < 22 ; i++){
     faces[i].texture = "glass";
@@ -312,6 +317,14 @@ void handleEvent(SDL_Event event) {
       currentRender = RAYTRACE;
       render(); 
     } 
+    else if(event.key.keysym.sym == SDLK_n) {
+      ImageFile displaySnapShot = CreateImageFileFromWindow(window, WIDTH, HEIGHT);
+      exportToPPM("snapshot.ppm", displaySnapShot); 
+    }
+    else if(event.key.keysym.sym == SDLK_m) {
+      ImageFile imageFile = importPPM("texture.ppm");
+      renderImageFile(imageFile);
+    }
   } 
 } 
  
@@ -528,7 +541,8 @@ vec3 findCentreOfScene(){
   return (sum); 
 } 
   
-void renderImage(ImageFile imageFile){  
+void renderImageFile(ImageFile imageFile){  
+  clear();
   for (int i=0; i<imageFile.vecPixelList.size(); i++){ 
     int row = int(i/imageFile.width); 
     int col = i - (row*imageFile.width); 
