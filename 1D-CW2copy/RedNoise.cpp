@@ -38,7 +38,7 @@ enum RENDERTYPE {WIREFRAME, RASTERIZE, RAYTRACE};
 //––---------------------------------//
 
 RENDERTYPE currentRender = RAYTRACE; //Set default RenderType here. 
-
+std::string defaultPPMFileName = "snapshot.ppm";
 
 #define W 800 //Set desired screen width here. 
 #define H 800 //Set desired screen height here.
@@ -51,6 +51,7 @@ bool displayRenderTime = false;
 string objFileName = "cornell-box.obj"; 
 string mtlFileName = "cornell-box.mtl"; 
 string txtFileName = "texture.ppm";
+
 
 //––---------------------------------//
 /* End Of Things You Can Change Here */
@@ -319,7 +320,7 @@ void handleEvent(SDL_Event event) {
     } 
     else if(event.key.keysym.sym == SDLK_n) {
       ImageFile displaySnapShot = CreateImageFileFromWindow(window, WIDTH, HEIGHT);
-      exportToPPM("snapshot.ppm", displaySnapShot); 
+      exportToPPM(defaultPPMFileName, displaySnapShot); 
     }
     else if(event.key.keysym.sym == SDLK_m) {
       ImageFile imageFile = importPPM("texture.ppm");
