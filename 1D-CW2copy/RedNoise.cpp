@@ -13,7 +13,6 @@
 #endif
 
 #include <Utils.h> 
-#include <glm/glm.hpp> 
 #include <RayTriangleIntersection.h> 
 #include <Object.h>
 
@@ -68,7 +67,6 @@ void handleEvent(SDL_Event event);
 void playOrPause();
 void render(); 
 void clear(); 
-vector<vec3> interpolate(vec3 from, vec3 to, float numberOfValues); 
 void drawLine(CanvasPoint start, CanvasPoint end, Colour colour); 
 void drawStrokedTriangle(CanvasTriangle triangle); 
 void drawFilledTriangle(CanvasTriangle triangle); 
@@ -290,6 +288,8 @@ void render(){
 } 
 
 
+
+
 void handleEvent(SDL_Event event) { 
   if(event.type == SDL_KEYDOWN) { 
     if(event.key.keysym.sym == SDLK_LEFT)       updateView(LEFT);  
@@ -390,25 +390,8 @@ vector<Object> createObjects(vector<ModelTriangle> inputFaces){
 
   return outputVec;
 }
- 
-// given a start and an end value, step from the start to the end with the right number of steps 
-vector<vec3> interpolate(vec3 from, vec3 to, float numberOfValues) { 
-  vector<vec3> out; //The output vector of numbers 
-  out.push_back(from); //Add the first number in 
-  vec3 stepValue = (to - from) / (numberOfValues - 1); //numberOfValues - 1 as the first number is already counted 
-  vec3 previous = from; 
- 
-  //For each step 
-  for (int i = 1; i < numberOfValues ; i++) { 
-    vec3 input = previous + stepValue; 
-    out.push_back(input); 
-    previous = input; 
-  } 
- 
-  return out; 
-} 
-  
- 
+   
+
 void updateView (MOVEMENT movement) {
   vec3 col1, col2, col3;
 
