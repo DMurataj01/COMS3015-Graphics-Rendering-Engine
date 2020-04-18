@@ -4,22 +4,11 @@
 // Call Headers [ Safe from double includes ]
 #include "OBJ.h"
 #include "PPM.h"
-
-#include <CanvasTriangle.h> 
-
-#ifndef DRAWINGWINDOW_H
-  #define DRAWINGWINDOW_H
-  #include <DrawingWindow.h>
-#endif
+#include "Interpolate.h"
 
 #include <Utils.h> 
 #include <RayTriangleIntersection.h> 
 #include <Object.h>
-
-bool debug = false;
-void print(glm::vec3 vector) {
-  if (debug) std::cout << "[" << vector.x << ", " << vector.y << ", " << vector.z << " ]\n";
-}
  
 using namespace std; 
 using namespace glm;
@@ -288,8 +277,6 @@ void render(){
 } 
 
 
-
-
 void handleEvent(SDL_Event event) { 
   if(event.type == SDL_KEYDOWN) { 
     if(event.key.keysym.sym == SDLK_LEFT)       updateView(LEFT);  
@@ -391,7 +378,6 @@ vector<Object> createObjects(vector<ModelTriangle> inputFaces){
   return outputVec;
 }
    
-
 void updateView (MOVEMENT movement) {
   vec3 col1, col2, col3;
 
@@ -538,6 +524,7 @@ void renderImageFile(ImageFile imageFile){
 // RASTERIZING CODE 
 //////////////////////////////////////////////////////// 
 // draws a 2D line from start to end (colour is in (r,g,b) format with 255 as max) 
+
 void drawLine(CanvasPoint start, CanvasPoint end, Colour colour) { 
   const float diffX = end.x - start.x; 
   const float diffY = end.y - start.y; 
@@ -683,6 +670,188 @@ void drawFilledTriangle(CanvasTriangle triangle){
   */ 
 }  
  
+ void textureFlatBottomTriangle(ImageFile *imageFile, CanvasTriangle triangle, CanvasPoint closestPoint, CanvasPoint furthestPoint) {
+  CanvasPoint topPoint = triangle.vertices[0];
+  CanvasPoint leftPoint = triangle.vertices[1];
+  CanvasPoint rightPoint = triangle.vertices[2];
+
+  assert(leftPoint.y == rightPoint.y);
+  
+  int noOfRows = leftPoint.y - topPoint.y;
+
+  vector<CanvasPoint> interpLeft = interpolateWithDepth(topPoint, leftPoint, noOfRows);
+  vector<CanvasPoint> interpRight = interpolateWithDepth(topPoint, rightPoint, noOfRows);
+
+  vector<TexturePoint> t_interpLeft = interpolate(topPoint.texturePoint, leftPoint.texturePoint, noOfRows);
+  vector<TexturePoint> t_interpRight = interpolate(topPoint.texturePoint, rightPoint.texturePoint, noOfRows);
+
+  //** Do line by line interp.
+  for (int i=0; i< noOfRows; i++) {
+    //number of values to fill in this row.
+    int noOfRowValues = interpRight[i].x - interpLeft[i].x;
+
+    if (noOfRowValues == 0) {
+      //Singular point.
+    } else {
+      //Interpolated texture values to go in this row.
+      vector<TexturePoint> interpTexLine = interpolate(t_interpLeft[i], t_interpRight[i], noOfRowValues+1);
+      
+      //** Fill in each point along this row.
+      for (int j = 0; j<=noOfRowValues; j++) {
+        // interpolate to find the current depth of the line
+        float proportion = i / (noOfRowValues);
+        float inverseDepth = ((1 - proportion) * (1 / interpLeft[i].depth)) + (proportion * (1 / interpRight[i].depth)); // got this equation from notes
+        float depth = 1 / inverseDepth;
+
+        int textureX = interpTexLine[j].x;
+        int textureY = interpTexLine[j].y;
+
+        //float persX = (((furthestPoint.texturePoint.x / furthestPoint.x) * (1 - textureX)) + ((closestPoint.texturePoint.x / closestPoint.x) * (textureX)));
+        //persX /= (((1/furthestPoint.depth) * (1 - textureX)) + ((1/closestPoint.depth) * (textureX)));
+
+        //float persY = (((furthestPoint.texturePoint.y / furthestPoint.y) * (1 - textureY)) + ((closestPoint.texturePoint.y / closestPoint.y) * (textureY)));
+        //persY /= (((1/furthestPoint.depth) * (1 - textureY)) + ((1/closestPoint.depth) * (textureY)));
+        float persX = textureX;
+        float persY = textureY;
+        // set depth pixel colour.
+        setDepthPixelColour(interpLeft[i].x + j, interpLeft[i].y, depth, getPixelColour(imageFile, int(persX), int(persY)).toUINT32_t());
+      }
+    }
+  }
+
+  return;
+}
+
+void textureFlatTopTriangle(ImageFile *imageFile, CanvasTriangle triangle, CanvasPoint closestPoint, CanvasPoint furthestPoint) {
+  CanvasPoint leftPoint = triangle.vertices[0];
+  CanvasPoint rightPoint = triangle.vertices[1];
+  CanvasPoint lowestPoint = triangle.vertices[2];
+  assert( leftPoint.y == rightPoint.y);
+  
+  int noOfRows = lowestPoint.y - leftPoint.y;
+
+  vector<CanvasPoint> interpLeft = interpolateWithDepth(leftPoint, lowestPoint, noOfRows);
+  vector<CanvasPoint> interpRight = interpolateWithDepth(rightPoint, lowestPoint, noOfRows);
+
+  vector<TexturePoint> t_interpLeft = interpolate(leftPoint.texturePoint, lowestPoint.texturePoint, noOfRows);
+  vector<TexturePoint> t_interpRight = interpolate(rightPoint.texturePoint, lowestPoint.texturePoint, noOfRows);
+
+  for (int i=0; i< noOfRows; i++) {
+    //number of values to fill in this row.
+    int noOfRowValues = interpRight[i].x - interpLeft[i].x;
+    if (noOfRowValues == 1) {
+      //Singular point.
+    } 
+    else {
+      //Interpolated texture values to go in this row.
+      vector<TexturePoint> interpTexLine = interpolate(t_interpLeft[i], t_interpRight[i], noOfRowValues+1);
+
+      for (int j = 0; j<=noOfRowValues; j++) {      
+        float proportion = i / (noOfRowValues-1);
+        float inverseDepthPoint1 = ((1 - proportion) * (1 / interpLeft[i].depth)) + (proportion * (1 / interpRight[i].depth));
+        float depth = 1 / inverseDepthPoint1;
+
+        int textureX = interpTexLine[j].x;
+        int textureY = interpTexLine[j].y;
+
+        //float persX = (((furthestPoint.texturePoint.x / furthestPoint.x) * (1 - textureX)) + ((closestPoint.texturePoint.x / closestPoint.x) * (textureX)));
+        //persX /= (((1/furthestPoint.depth) * (1 - textureX)) + ((1/closestPoint.depth) * (textureX)));
+        //float persY = (((furthestPoint.texturePoint.y / furthestPoint.y) * (1 - textureY)) + ((closestPoint.texturePoint.y / closestPoint.y) * (textureY)));
+        //persY /= (((1/furthestPoint.depth) * (1 - textureY)) + ((1/closestPoint.depth) * (textureY)));
+        
+        float persX = textureX;
+        float persY = textureY;
+        setDepthPixelColour(interpLeft[i].x + j, interpLeft[i].y, depth, getPixelColour(imageFile, int(persX), int(persY)).toUINT32_t());
+      }
+    }
+  }
+  return;
+}
+
+void drawTexturedTriangle(ImageFile *imageFile, CanvasTriangle triangle) {
+  // sort vertices.
+  triangle = sortTriangleVertices(triangle);
+
+  CanvasPoint topPoint = triangle.vertices[0];
+  CanvasPoint middlePoint = triangle.vertices[1];
+  CanvasPoint lowestPoint = triangle.vertices[2];
+  // the vertical distance between the highest point and the middle point
+  float yDistance = middlePoint.y - topPoint.y;
+  // interpolating to find the cutting point
+  float maxYDistance = lowestPoint.y - topPoint.y;
+  float maxXDistance = lowestPoint.x - topPoint.x;
+  float yProportion = yDistance / maxYDistance; // the proportion of how far along in the y the point should be
+  float xDistance = topPoint.x + (yProportion * maxXDistance);
+  
+  // interpolate to find the right depth too
+  // because of perspective projection we interpolate using 1/depth of everything
+  float inverseDepth = ((1 - yProportion) * (1 / topPoint.depth)) + (yProportion * (1 / lowestPoint.depth)); // equation from notes
+  float cutterDepth = (1 / inverseDepth);
+  CanvasPoint cutterPoint(xDistance, topPoint.y + yDistance, cutterDepth);
+
+  //Change in X from lowestPoint to TopPoint.
+  const float bigDX = lowestPoint.x - topPoint.x;
+  //Change in Y from lowestPoint to TopPoint.
+  const float bigDY = lowestPoint.y - topPoint.y;
+
+  //Length of line from topPoint to lowestPoint.
+  const float bigHypo = sqrtf( ((bigDX * bigDX) + (bigDY * bigDY)) );
+
+  if (bigHypo == 0) return;
+  //Length of line from topPoint to cutterPoint.
+  const float smallHypo = sqrtf(( pow(cutterPoint.x - topPoint.x, 2) + pow(cutterPoint.y - topPoint.y, 2) ));
+  
+  //Calculate proportion [ how far down the line cutterPoint is ]
+  const float p = smallHypo/bigHypo;
+
+  cout << "\np: " << p << "\n";
+
+  //Get texture cut point using proportion & SOHCAHTOA.
+
+  //Change in X from lowestPoint texture to TopPoint texture.
+  const float t_bigDX = lowestPoint.texturePoint.x - topPoint.texturePoint.x;
+  //Change in Y from lowestPoint texture to TopPoint texture.
+  const float t_bigDY = lowestPoint.texturePoint.y - topPoint.texturePoint.y;
+  //Length of line from topPoint texture to lowestPoint texture.
+  const float t_bigHypo = sqrtf( ((t_bigDX * t_bigDX) + (t_bigDY * t_bigDY)) );
+  //Get length of line from topPoint texture to cutterPoint texture.
+  const float t_smallHypo = p * t_bigHypo;
+
+  const float t_smallDX = abs( t_smallHypo * (t_bigDX / t_bigHypo) ); //t_smallHypo * sin alpha (of bigger)
+  const float t_smallDY = abs( t_smallHypo * (t_bigDY / t_bigHypo) ); //t_smallHypo * cos alpha
+
+  float cutTextureX = (topPoint.texturePoint.x <= lowestPoint.texturePoint.x) ? (topPoint.texturePoint.x + t_smallDX) : (topPoint.texturePoint.x - t_smallDX);
+  float cutTextureY = (topPoint.texturePoint.y <= lowestPoint.texturePoint.y) ? (topPoint.texturePoint.y + t_smallDY) : (topPoint.texturePoint.y - t_smallDY);
+
+  cutterPoint.texturePoint = TexturePoint(cutTextureX, cutTextureY);
+
+  CanvasPoint leftPoint = (middlePoint.x < cutterPoint.x) ? middlePoint : cutterPoint;
+  CanvasPoint rightPoint = (middlePoint.x < cutterPoint.x) ? cutterPoint : middlePoint;
+
+  //cout << "topPoint   : ";  print(topPoint);    print(topPoint.texturePoint);    cout << "\n";
+  //cout << "leftPoint  : ";  print(leftPoint);   print(leftPoint.texturePoint);   cout << "\n";
+  //cout << "rightPoint : ";  print(rightPoint);  print(rightPoint.texturePoint);  cout << "\n";
+  //cout << "lowestPoint: ";  print(lowestPoint); print(lowestPoint.texturePoint); cout << "\n";
+
+  vector<CanvasPoint> pointList;
+  pointList.push_back(topPoint);
+  pointList.push_back(leftPoint);
+  pointList.push_back(lowestPoint);
+
+  CanvasPoint closestPoint = getClosestPoint(pointList);
+  CanvasPoint furthestPoint = getFurthestPoint(pointList);
+
+  //cout << "closestPoint : ";  print(closestPoint);
+  //cout << "furthestPoint: ";  print(furthestPoint);
+
+  //** 4.1. Fill the Top Flat Bottom Triangle.
+  textureFlatBottomTriangle(imageFile, CanvasTriangle(topPoint, leftPoint, rightPoint), closestPoint, furthestPoint);
+  //** 4.2. Fill the Bottom Flat Top Triangle.
+  textureFlatTopTriangle(imageFile, CanvasTriangle(leftPoint, rightPoint, lowestPoint), closestPoint, furthestPoint);
+
+}
+
+
 void rasterize(){  
   //for each object.
     for (int o = 0; o < objects.size(); o++){

@@ -1,4 +1,3 @@
-#include "CanvasPoint.h"
 #include <iostream>
 
 class CanvasTriangle
