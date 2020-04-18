@@ -12,6 +12,16 @@ class Colour
     {
     }
 
+    Colour(uint32_t packedColour)
+    {
+      uint8_t r = packedColour >> 16;
+      uint8_t g = packedColour >> 8;
+      uint8_t b = packedColour;
+      red = r;
+      green = g;
+      blue = b;
+    }
+
     Colour(int r, int g, int b) {
       name = "";
       if (r>255) red = 255;
