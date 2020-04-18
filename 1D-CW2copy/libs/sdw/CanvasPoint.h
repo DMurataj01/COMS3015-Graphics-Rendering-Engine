@@ -1,8 +1,7 @@
 #include "TexturePoint.h"
 #include <iostream>
 
-class CanvasPoint
-{
+class CanvasPoint {
   public:
     float x;
     float y;

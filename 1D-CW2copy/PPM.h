@@ -90,6 +90,18 @@ ImageFile importPPM(std::string fileName) {
   return outputImageFile;
 }
 
+Colour getPixelColour(ImageFile *imageFile, int x, int y) {
+  int index = (imageFile->width * y) + x;
+
+  try {
+    return imageFile->vecPixelList.at(index);      // vector::at throws an out-of-range
+  }
+  catch (const std::out_of_range& oor) {
+    //std::cerr << "Texture File Out Of Range error: [ " << x << ", "<< y << "]\n";
+    return Colour(255,255, 255);
+  }
+}
+
 ImageFile CreateImageFileFromWindow(DrawingWindow window, int width, int height) {
   vector<Colour> vecPixelList;
 

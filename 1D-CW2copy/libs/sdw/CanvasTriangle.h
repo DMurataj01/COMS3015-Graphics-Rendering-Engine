@@ -1,4 +1,3 @@
-#include "CanvasPoint.h"
 #include <iostream>
 
 class CanvasTriangle
@@ -6,6 +5,7 @@ class CanvasTriangle
   public:
     CanvasPoint vertices[3];
     Colour colour;
+    bool textured = false;
 
     CanvasTriangle()
     {
@@ -17,6 +17,7 @@ class CanvasTriangle
       vertices[1] = v1;
       vertices[2] = v2;
       colour = Colour(255,255,255);
+      textured = false;
     }
 
     CanvasTriangle(CanvasPoint v0, CanvasPoint v1, CanvasPoint v2, Colour c)
@@ -25,6 +26,16 @@ class CanvasTriangle
       vertices[1] = v1;
       vertices[2] = v2;
       colour = c;
+      textured = false;
+    }
+
+    CanvasTriangle(bool textured, CanvasPoint v0, CanvasPoint v1, CanvasPoint v2, Colour c)
+    {
+      vertices[0] = v0;
+      vertices[1] = v1;
+      vertices[2] = v2;
+      colour = c;
+      textured = true;
     }
 
 };
