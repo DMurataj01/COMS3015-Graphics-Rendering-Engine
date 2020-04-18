@@ -784,7 +784,7 @@ void drawTexturedTriangle(ImageFile *imageFile, CanvasTriangle triangle) {
   //textureFlatBottomTriangle(imageFile, CanvasTriangle(topPoint, leftPoint, rightPoint), closestPoint, furthestPoint);
   
 
-  float steps = middlePoint.y - topPoint.y; // how many rows 
+  float steps = glm::abs(middlePoint.y - topPoint.y); // how many rows 
   vector<TexturePoint> t_interpLeft = interpolate(topPoint.texturePoint, leftPoint.texturePoint, steps);
   vector<TexturePoint> t_interpRight = interpolate(topPoint.texturePoint, rightPoint.texturePoint, steps);
 
@@ -811,7 +811,7 @@ void drawTexturedTriangle(ImageFile *imageFile, CanvasTriangle triangle) {
       CanvasPoint end(xEnd, topPoint.y + i, depthPoint2);
       
       int noOfSteps = glm::abs(end.x - start.x) + 1;
-      vector<TexturePoint> interpTexLine = interpolate(t_interpLeft[i], t_interpRight[i], noOfSteps);
+      vector<TexturePoint> interpTexLine = ((end.x - start.x) >= 0) ? interpolate(t_interpLeft[i], t_interpRight[i], noOfSteps) : interpolate(t_interpRight[i], t_interpLeft[i], noOfSteps); 
       drawLine(start, end, interpTexLine); 
 
     } 
@@ -825,9 +825,10 @@ void drawTexturedTriangle(ImageFile *imageFile, CanvasTriangle triangle) {
 
   // the lower triangle 
   // for each row, fill it in 
-  float steps2 = lowestPoint.y - leftPoint.y; // how many rows
+  float steps2 = glm::abs(lowestPoint.y - leftPoint.y);
   t_interpLeft = interpolate(leftPoint.texturePoint, lowestPoint.texturePoint, steps2);
   t_interpRight = interpolate(rightPoint.texturePoint, lowestPoint.texturePoint, steps2);
+
   if (steps2 == 0) 
     cout << "Line 942\n"; //drawLine(minPoint, middlePoint, triangle.colour); 
   else { 
@@ -850,11 +851,8 @@ void drawTexturedTriangle(ImageFile *imageFile, CanvasTriangle triangle) {
       CanvasPoint end(xEnd, cutterPoint.y + i, depthPoint2); 
       
       int noOfSteps = glm::abs(end.x - start.x) + 1;
-      vector<TexturePoint> interpTexLine = interpolate(t_interpLeft[i], t_interpRight[i], noOfSteps);
+      vector<TexturePoint> interpTexLine = ((end.x - start.x) >= 0) ? interpolate(t_interpLeft[i], t_interpRight[i], noOfSteps) : interpolate(t_interpRight[i], t_interpLeft[i], noOfSteps); 
       drawLine(start, end, interpTexLine); 
-  
-      
-      
     } 
   } 
 
