@@ -106,72 +106,56 @@ vector<Colour> readOBJMTL(string filename){
 
 
 vector<ModelTriangle> readOBJNormal(std::string objFileName, std::string mtlFileName, float scalingFactor){ 
+  
   vector<Colour> colours = readOBJMTL(mtlFileName); 
- 
-  // where we store all the vertices and faces 
   vector<vec3> vertices; 
+  vector<vec3> faceVertices; // stores the indices of which vertices make up each face
   vector<ModelTriangle> faces; 
-   
-  // open the obj file and then go through each line storing it in a string 
-  string line; 
+    
+
+  string line; //buffer to store each read line.
+
   ifstream myfile(objFileName); 
- 
-  // if we cannot open the file, print an error 
-  if (myfile.is_open() == 0){ 
-    cout << "Unable to open file" << "\n"; 
-  } 
- 
-  // this is where we will save the correct colour for each face once found 
-  Colour colour (255,255,255); 
- 
+  if (myfile.is_open() == 0) cout << "Unable to open file" << "\n"; 
+  
+  Colour colour (255,255,255); // buffer to store colour.
+
+  vector<vector<vec3>> vertexNormals;
+  vector<vec3> averagedNormals; // once all normals for each vertex have been found, this stores the average of them
+
+
   int numberOfFaces = 0;
+  int numberOfVertices = 0;
+
+
+  int current_i = 0; // triangles index.
   while (getline(myfile, line)){ 
 
     if (line.find("usemtl") == 0){ 
       vector<string> colourVector = separateLine(line); 
-      string colourName = colourVector[1]; 
-       
       // now go through each of the colours we have saved until we find it 
-      int n = colours.size(); 
-      for (int i = 0 ; i < n ; i++){ 
+      for (int i = 0; i < colours.size(); i++){ 
         Colour col = colours[i]; 
-        if (colours[i].name == colourName){ 
-          colour = colours[i]; 
-          break; // can stop once we have found it 
+        if (colours[i].name == colourVector[1]){ 
+          colour = colours[i]; break; // optimised - stop once found.
         } 
       } 
     } 
     // if we have a vertex, then put it in a vec3 and store it with all other vertices 
     else if (line.find('v') == 0){ 
+      numberOfVertices++;
+      averagedNormals.push_back(vec3());
+      vertexNormals.push_back(vector<vec3>());
       vertices.push_back(scalingFactor * getVertex(line)); 
     } 
     // if we have a face, then get the corresponding vertices and store it as a ModelTriangle object, then add it to the collection of faces 
     else if (line.find('f') == 0){ 
+      // Pushback face
       ModelTriangle triangle = getFace(line, vertices, colour, scalingFactor);
       triangle.faceIndex = numberOfFaces;
       numberOfFaces++;
       faces.push_back(triangle); 
-    } 
-  } 
 
-  int numberOfVertices = vertices.size();
-
-  // ** NOW COMPUTE NORMALS ** 
-
-
-  vector<vec3> faceVertices; // stores the indices of which vertices make up each face
-
-  ifstream myfile2(objFileName);
-
-  vector<vector<vec3>> vertexNormals(numberOfVertices);
-  vector<vec3> averagedNormals(numberOfVertices); // once all normals for each vertex have been found, this stores the average of them
-
-  // take the OBJ file again and go through each face, get the normal and then store that normal
-  // in the vector for all 3 vertices
-
-  int current_i = 0; // triangles index.
-  while (getline(myfile2, line)){
-    if (line.find('f') == 0){
       // if this line is a face, then get the normal of it (we have pre-stored the faces so can do this)
       vector<string> faceLine = separateLine(line); // this turns 'f 1/1 2/2 3/3' into ['f','1/1','2/2','3/3']
       vec3 verticesIndex (0,0,0);
@@ -187,10 +171,11 @@ vector<ModelTriangle> readOBJNormal(std::string objFileName, std::string mtlFile
       }
       faceVertices.push_back(verticesIndex);
       current_i++;
-    }
-  }
+      
+    } 
+  } 
 
-  myfile2.close();
+  // ** NOW COMPUTE NORMALS ** 
 
   // for each vertex, go through and average each of the normals
   for (int i = 0 ; i < numberOfVertices ; i++){
@@ -213,15 +198,6 @@ vector<ModelTriangle> readOBJNormal(std::string objFileName, std::string mtlFile
     }
   }
 
-
-
-
-
-
-  //cout << "Printing the faces: \n"; 
-  //for (int i = 0 ; i < faces.size() ; i++){ 
-  //  cout << faces[i] << "\n"; 
-  //} 
   return faces; 
 } 
 
