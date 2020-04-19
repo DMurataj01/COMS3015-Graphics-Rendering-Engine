@@ -22,6 +22,38 @@
 #include <glm/glm.hpp> 
 #endif
 
+
+float min(float a, float b, float c) {
+  float min0 = glm::min(a, b);
+  if (c < min0) return c;
+  return min0;
+}
+int min_index(float a, float b, float c) {
+  float min0 = glm::min(a, b);
+  int i_min0 = (a == min0) ? 0 : 1;
+  if (c < min0) return 2;
+  return i_min0;
+}
+float max(float a, float b, float c) {
+  float max0 = glm::max(a, b);
+  if (c > max0) return c;
+  return max0;
+}
+int max_index(float a, float b, float c) {
+  float max0 = glm::max(a, b);
+  int i_max0 = (a == max0) ? 0 : 1;
+  if (c > max0) return 2;
+  return i_max0;
+}
+
+float getValueBetweenNumbers(bool print, float a, float b, float percentage) {
+  if (print) {
+    std::cout << "In: " << a << "& " << b << ".. $" << percentage << "\n";
+    std::cout << "Out: " << (a + (percentage * (b-a))) << "\n";
+  }
+  return (a + (percentage * (b-a)));
+}
+
 void print(glm::vec3 name){
   std::cout << "Vec3: [" << name[0] << ", " << name[1] << ", " << name[2] << "]\n";
 }

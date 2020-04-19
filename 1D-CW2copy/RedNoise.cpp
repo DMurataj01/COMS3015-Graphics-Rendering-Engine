@@ -534,7 +534,7 @@ void drawLine(CanvasPoint start, CanvasPoint end, Colour colour) {
   const float diffY = end.y - start.y; 
   const float numberOfSteps = glm::max(abs(diffX),abs(diffY)); 
  
-  uint32_t col = colour.toUINT32_t(); 
+  const uint32_t col = colour.toUINT32_t(); 
  
   // if we are starting and ending on the same pixel 
   if (numberOfSteps == 0) setDepthPixelColour(start.x, start.y, glm::min(start.depth, end.depth), col); 
@@ -773,12 +773,6 @@ void drawTexturedTriangle(ImageFile *imageFile, CanvasTriangle triangle) {
   pointList.push_back(topPoint);
   pointList.push_back(leftPoint);
   pointList.push_back(lowestPoint);
-
-  //CanvasPoint closestPoint = getClosestPoint(pointList);
-  //CanvasPoint furthestPoint = getFurthestPoint(pointList);
-
-  //cout << "closestPoint : ";  print(closestPoint);
-  //cout << "furthestPoint: ";  print(furthestPoint);
 
   //** 4.1. Fill the Top Flat Bottom Triangle.
   //textureFlatBottomTriangle(imageFile, CanvasTriangle(topPoint, leftPoint, rightPoint), closestPoint, furthestPoint);
@@ -1050,10 +1044,9 @@ RayTriangleIntersection closestIntersection(vector<vector<vec4>> objectSolutions
       
       // if it is actually a solution 
       bool bool1 = (t > 0); 
-      bool bool2 = (0 <= u) && (u <= 1); 
-      bool bool3 = (0 <= v) && (v <= 1); 
-      bool bool4 = (u + v) <= 1; 
-      if (bool1 && bool2 && bool3 && bool4){ 
+      bool bool2 = (0 <= u) && (u <= 1) && (0 <= v) && (v <= 1) ; 
+      bool bool3 = (u + v) <= 1; 
+      if (bool1 && bool2 && bool3){ 
         ModelTriangle triangle = objects[o].faces[index]; 
         // is it closer than what we currently have? 
         if (t < closestT){ 
@@ -1129,8 +1122,55 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
     return glass(rayDirection, closest, depth);
   }
   else if (triangle.texture == "texture") {
-    colour = Colour(255, 255, 255);
+    bool mydebug = (closest.intersectUV[0] > 0.2 && closest.intersectUV[1] > 0.2);
+
+    if (mydebug) {
+      cout << "How Far Along X: " << closest.intersectUV[0] << "\n";
+      cout << "How Far Along Y: " << closest.intersectUV[1] << "\n";
+    
+
+    
+    cout << "Texture [0]: " << closest.intersectedTriangle.vertices_textures[0].x << ", " << closest.intersectedTriangle.vertices_textures[0].y << "\n";
+    cout << "Texture [1]: " << closest.intersectedTriangle.vertices_textures[1].x << ", " << closest.intersectedTriangle.vertices_textures[1].y << "\n";
+    cout << "Texture [2]: " << closest.intersectedTriangle.vertices_textures[2].x << ", " << closest.intersectedTriangle.vertices_textures[2].y << "\n";
+
+    cout << "V [0]: " << closest.intersectedTriangle.vertices[0].x << ", " << closest.intersectedTriangle.vertices[0].y << "\n";
+    cout << "V [1]: " << closest.intersectedTriangle.vertices[1].x << ", " << closest.intersectedTriangle.vertices[1].y << "\n";
+    cout << "V [2]: " << closest.intersectedTriangle.vertices[2].x << ", " << closest.intersectedTriangle.vertices[2].y << "\n";
+
+    }
+    int minIndexX = min_index(closest.intersectedTriangle.vertices[0].x, closest.intersectedTriangle.vertices[1].x, closest.intersectedTriangle.vertices[2].x);
+    int minIndexY = min_index(closest.intersectedTriangle.vertices[0].y, closest.intersectedTriangle.vertices[1].y, closest.intersectedTriangle.vertices[2].y);
+    int maxIndexX = max_index(closest.intersectedTriangle.vertices[0].x, closest.intersectedTriangle.vertices[1].x, closest.intersectedTriangle.vertices[2].x);
+    int maxIndexY = max_index(closest.intersectedTriangle.vertices[0].y, closest.intersectedTriangle.vertices[1].y, closest.intersectedTriangle.vertices[2].y);
+
+    if (mydebug) cout << "|MinX " << minIndexX << "|MaxX " << maxIndexX << "|MinY " << minIndexY << "|Max Y " << maxIndexY << "\n";
+
+    // texX : from minIndex closest.intersectedTriangle.vertices_textures[minIndex].x
+    // texX :   to maxIndex closest.intersectedTriangle.vertices_textures[maxIndex].x 
+    // texY : from minIndex closest.intersectedTriangle.vertices_textures[minIndex].y
+    // texY :   to maxIndex closest.intersectedTriangle.vertices_textures[maxIndex].y 
+    //cout << "Intersect UV: " << closest.intersectUV[0] << ", " << closest.intersectUV[1] << "\n";
+    int tX = textureFile.width;
+    int tY = textureFile.height;
+    
+    float texX;
+    float texY;
+    if (mydebug) {
+      texX = getValueBetweenNumbers(true, tX * closest.intersectedTriangle.vertices_textures[minIndexX].x, tX* closest.intersectedTriangle.vertices_textures[maxIndexX].x, closest.intersectUV[0]);
+      texY = getValueBetweenNumbers(true, tY * closest.intersectedTriangle.vertices_textures[minIndexY].y, tY*closest.intersectedTriangle.vertices_textures[maxIndexY].y, closest.intersectUV[1]);
+    } else {
+      texX = getValueBetweenNumbers(false, tX * closest.intersectedTriangle.vertices_textures[minIndexX].x, tX * closest.intersectedTriangle.vertices_textures[maxIndexX].x, closest.intersectUV[0]);
+      texY = getValueBetweenNumbers(false, tY * closest.intersectedTriangle.vertices_textures[minIndexY].y, tY *closest.intersectedTriangle.vertices_textures[maxIndexY].y, closest.intersectUV[1]);
+    }
+
+    //colour = getPixelColour(&textureFile, texX, texY);
+
+  colour = getPixelColour(&textureFile, closest.intersectUV[0] * textureFile.width, closest.intersectUV[1] * textureFile.height);
+    //cout << "Tex X, Tex Y: " << texX << ", " << texY << "\n";
+
     return colour;
+
   }
 
   // else we use Phong shading to get the colour
@@ -1542,17 +1582,6 @@ void backfaceCulling(vec3 rayDirection){
 }
 
 
-float min(float a, float b, float c) {
-  float min0 = glm::min(a, b);
-  if (c < min0) return c;
-  return min0;
-}
-float max(float a, float b, float c) {
-  float max0 = glm::max(a, b);
-  if (c > max0) return c;
-  return max0;
-}
-
 // for a set of vertices (an object maybe), create a bounding box
 vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces) {
   // we want to find the minimum and maximum values of x,y,z in all the vertices
@@ -1592,14 +1621,14 @@ vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces) {
   // create the box object
   vector<ModelTriangle> boxFaces; // this is a cube so will have 12 faces
   vector<vec3> vertices; // these must be in a particular order so the faces can be constructed facing the right way and also the right faces are constructed
-  vertices.push_back( vec3 (minBound[0], minBound[1], minBound[2]) ); // bottom-left-forward   v1
-  vertices.push_back( vec3 (maxBound[0], minBound[1], minBound[2]) ); // bottom-right-forward  v2 
-  vertices.push_back( vec3 (minBound[0], maxBound[1], minBound[2]) ); // top-left-forward      v3
-  vertices.push_back( vec3 (maxBound[0], maxBound[1], minBound[2]) ); // top-right-forward     v4
-  vertices.push_back( vec3 (minBound[0], minBound[1], maxBound[2]) ); // bottom-left-back      v5
-  vertices.push_back( vec3 (maxBound[0], minBound[1], maxBound[2]) ); // bottom-right-back     v6
-  vertices.push_back( vec3 (minBound[0], maxBound[1], maxBound[2]) ); // top-left-back         v7
-  vertices.push_back( vec3 (maxBound[0], maxBound[1], maxBound[2]) ); // top-right-back        v8
+  vertices.push_back( vec3(minBound[0], minBound[1], minBound[2]) ); // bottom-left-forward   v1
+  vertices.push_back( vec3(maxBound[0], minBound[1], minBound[2]) ); // bottom-right-forward  v2 
+  vertices.push_back( vec3(minBound[0], maxBound[1], minBound[2]) ); // top-left-forward      v3
+  vertices.push_back( vec3(maxBound[0], maxBound[1], minBound[2]) ); // top-right-forward     v4
+  vertices.push_back( vec3(minBound[0], minBound[1], maxBound[2]) ); // bottom-left-back      v5
+  vertices.push_back( vec3(maxBound[0], minBound[1], maxBound[2]) ); // bottom-right-back     v6
+  vertices.push_back( vec3(minBound[0], maxBound[1], maxBound[2]) ); // top-left-back         v7
+  vertices.push_back( vec3(maxBound[0], maxBound[1], maxBound[2]) ); // top-right-back        v8
 
   cout << "n: " << vertices.size() << endl;
 
