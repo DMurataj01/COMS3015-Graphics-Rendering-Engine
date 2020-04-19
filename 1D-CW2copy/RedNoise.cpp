@@ -8,7 +8,6 @@
 
 #include <Utils.h> 
 #include <RayTriangleIntersection.h> 
-#include <Object.h>
  
 using namespace std; 
 using namespace glm;
@@ -76,8 +75,7 @@ vector<vec4> faceIntersections(vector<ModelTriangle> inputFaces, vec3 point, vec
 RayTriangleIntersection closestIntersection(vector<vector<vec4>> solutions, vec3 rayPoint); 
 Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR); 
 Colour getFinalColour(Colour colour, float Ka, float Kd, float Ks); 
-float intensityDropOff(vec3 point); 
-vec3 getNormalOfTriangle(ModelTriangle triangle); 
+float intensityDropOff(const vec3 point); 
 float angleOfIncidence(RayTriangleIntersection intersection); 
 float distanceVec3(vec3 from, vec3 to); 
 bool InShadow(vec3 point); 
@@ -143,7 +141,8 @@ int main(int argc, char* argv[]) {
   initialise();
 
   // 2) Read In OBJ.
-  vector<ModelTriangle> faces = readOBJ(objFileName, mtlFileName, 1);
+  vector<ModelTriangle> faces = readOBJNormal(objFileName, mtlFileName, 1);
+  //vector<ModelTriangle> faces = readOBJ(objFileName, mtlFileName, 1);
 
   // 3) Read In Texture.
   textureFile = importPPM(texFileName);
@@ -151,31 +150,36 @@ int main(int argc, char* argv[]) {
   // 4) Create textures
 
   // || Mirrored floor ||
-
   //faces[6].texture = "mirror"; 
   //faces[7].texture = "mirror";  
 
   //for (int i=8; i<10; i++) {
   //  faces[i].texture = "texture";
   //}
+
   // || Glass Red Box ||
   for (int i = 12 ; i < 22 ; i++){
     faces[i].texture = "glass";
   }
   
-  
   // 5) Run set-up funtions for lighting and culling
-  faces = averageVertexNormals(faces);
+  //faces = averageVertexNormals(faces);
+  //faces = readOBJ(objFileName, mtlFileName, 1);
 
   // 6) Split the faces into objects
   objects = createObjects(faces);
 
-  objects[0].faces[10].texture = "texture";
-  objects[0].faces[10].vertices_textures[0] = vec2(0.4, 0.2);
-  objects[0].faces[10].vertices_textures[1] = vec2(0.2, 0.4);
-  objects[0].faces[10].vertices_textures[2] = vec2(0.6, 0.4);
   
-  render();
+  //objects = readGroupedOBJ(objFileName, mtlFileName, 1);
+
+  //vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces)
+
+  //objects[0].faces[10].texture = "texture";
+  //objects[0].faces[10].vertices_textures[0] = vec2(0.4, 0.2);
+  //objects[0].faces[10].vertices_textures[1] = vec2(0.2, 0.4);
+  //objects[0].faces[10].vertices_textures[2] = vec2(0.6, 0.4);
+  
+  //render();
 
   SDL_Event event;
   while(true) { 
@@ -342,7 +346,7 @@ void setDepthPixelColour(int x, int y, double z, uint32_t clr) {
 
 // use this function to split the faces into separate objects (an 'Object' object has been created)
 // if you want, you can store a bounding box with the object too
-vector<Object> createObjects(vector<ModelTriangle> inputFaces){
+vector<Object> createObjects(vector<ModelTriangle> inputFaces) {
   // how many objects do you want?
   vector<ModelTriangle> objectFaces1;
   vector<ModelTriangle> objectFaces2;
@@ -854,7 +858,7 @@ void drawTexturedTriangle(ImageFile *imageFile, CanvasTriangle triangle) {
 
 void rasterize(){  
   //for each object.
-    for (int o = 0; o < objects.size(); o++){
+  for (int o = 0; o < objects.size(); o++){
     // for each face 
     for (int i = 0 ; i < objects[o].faces.size() ; i++){ 
       ModelTriangle triangle = objects[o].faces[i]; 
@@ -906,7 +910,6 @@ void rasterize(){
     } 
   }
 }  
- 
 
 //////////////////////////////////////////////////////// 
 // RAYTRACING CODE 
@@ -927,8 +930,6 @@ void raytracer(){
     } 
   } 
 } 
- 
- 
  
 Colour solveLight(RayTriangleIntersection closest, vec3 rayDirection, float Ka, float Kd, float Ks) { 
   // diffuse light 
@@ -994,7 +995,6 @@ vector<vector<vec4>> checkForIntersections(vec3 point, vec3 rayDirection){
   return solutions;
 } 
 
-
 vector<vec4> faceIntersections(vector<ModelTriangle> inputFaces, vec3 point, vec3 rayDirection){
   // this is the output vector, for every possible face it stores a possibleSolution 
   vector<vec4> solutions;
@@ -1021,8 +1021,7 @@ vector<vec4> faceIntersections(vector<ModelTriangle> inputFaces, vec3 point, vec
   } 
   return solutions; 
 }
- 
- 
+
 // this function gives back the index of the closest face for a particular ray 
 RayTriangleIntersection closestIntersection(vector<vector<vec4>> objectSolutions, vec3 rayPoint) { 
   RayTriangleIntersection closest; // this is where we store the closest triangle of intersection, the point it intersects and the distance 
@@ -1078,7 +1077,6 @@ RayTriangleIntersection closestIntersection(vector<vector<vec4>> objectSolutions
   return closest; 
 } 
  
- 
 //////////////////////////////////////////////////////// 
 // LIGHTING 
 //////////////////////////////////////////////////////// 
@@ -1113,32 +1111,30 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
   // if this face is a mirror, create a reflected ray and shoot this ray (recurse this function) 
   if (triangle.texture == "mirror"){ 
     vec3 incident = rayDirection; 
-    vec3 normal = getNormalOfTriangle(closest.intersectedTriangle); 
+    vec3 normal = closest.intersectedTriangle.getNormal(); 
     vec3 reflection = normalize(incident - (2 * dot(incident, normal) * normal));
-    point += ((float)0.00001 * normal); // avoid self-intersection 
-    return shootRay(point, reflection, depth + 1, currentIOR); 
+    // avoid self-intersection 
+    return shootRay(point + ((float)0.00001 * normal), reflection, depth + 1, currentIOR);
   } 
   else if (triangle.texture == "glass"){
     return glass(rayDirection, closest, depth);
   }
   else if (triangle.texture == "texture") {
-    bool mydebug = (closest.intersectUV[0] > 0.2 && closest.intersectUV[1] > 0.2);
+    bool mydebug = false; //(closest.intersectUV[0] > 0.2 && closest.intersectUV[1] > 0.2);
 
     if (mydebug) {
       cout << "How Far Along X: " << closest.intersectUV[0] << "\n";
       cout << "How Far Along Y: " << closest.intersectUV[1] << "\n";
-    
+     
+      cout << "Texture [0]: " << closest.intersectedTriangle.vertices_textures[0].x << ", " << closest.intersectedTriangle.vertices_textures[0].y << "\n";
+      cout << "Texture [1]: " << closest.intersectedTriangle.vertices_textures[1].x << ", " << closest.intersectedTriangle.vertices_textures[1].y << "\n";
+      cout << "Texture [2]: " << closest.intersectedTriangle.vertices_textures[2].x << ", " << closest.intersectedTriangle.vertices_textures[2].y << "\n";
 
-    
-    cout << "Texture [0]: " << closest.intersectedTriangle.vertices_textures[0].x << ", " << closest.intersectedTriangle.vertices_textures[0].y << "\n";
-    cout << "Texture [1]: " << closest.intersectedTriangle.vertices_textures[1].x << ", " << closest.intersectedTriangle.vertices_textures[1].y << "\n";
-    cout << "Texture [2]: " << closest.intersectedTriangle.vertices_textures[2].x << ", " << closest.intersectedTriangle.vertices_textures[2].y << "\n";
-
-    cout << "V [0]: " << closest.intersectedTriangle.vertices[0].x << ", " << closest.intersectedTriangle.vertices[0].y << "\n";
-    cout << "V [1]: " << closest.intersectedTriangle.vertices[1].x << ", " << closest.intersectedTriangle.vertices[1].y << "\n";
-    cout << "V [2]: " << closest.intersectedTriangle.vertices[2].x << ", " << closest.intersectedTriangle.vertices[2].y << "\n";
-
+      cout << "V [0]: " << closest.intersectedTriangle.vertices[0].x << ", " << closest.intersectedTriangle.vertices[0].y << "\n";
+      cout << "V [1]: " << closest.intersectedTriangle.vertices[1].x << ", " << closest.intersectedTriangle.vertices[1].y << "\n";
+      cout << "V [2]: " << closest.intersectedTriangle.vertices[2].x << ", " << closest.intersectedTriangle.vertices[2].y << "\n";
     }
+
     int minIndexX = min_index(closest.intersectedTriangle.vertices[0].x, closest.intersectedTriangle.vertices[1].x, closest.intersectedTriangle.vertices[2].x);
     int minIndexY = min_index(closest.intersectedTriangle.vertices[0].y, closest.intersectedTriangle.vertices[1].y, closest.intersectedTriangle.vertices[2].y);
     int maxIndexX = max_index(closest.intersectedTriangle.vertices[0].x, closest.intersectedTriangle.vertices[1].x, closest.intersectedTriangle.vertices[2].x);
@@ -1211,7 +1207,6 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
   return colour;
 } 
  
- 
 Colour getFinalColour(Colour colour, float Ka, float Kd, float Ks){ 
   // this takes the ambient, diffuse and specular constants and gets the output colour 
   // note that we do not multiply the specular light by the colour (it is white hence the 255) 
@@ -1221,29 +1216,17 @@ Colour getFinalColour(Colour colour, float Ka, float Kd, float Ks){
   return colour; 
 } 
  
- 
 // given a point in the scene, this function calculates the intensity of the light 
-float intensityDropOff(vec3 point){ 
+float intensityDropOff(const vec3 point){ 
   const float distance = distanceVec3(point, lightPosition); 
-  const float intensity = lightIntensity / (2 * 3.1416 * distance * distance); 
-  return intensity; 
+  return lightIntensity / (2 * 3.1416 * distance * distance); //return intensity 
 } 
- 
 
-vec3 getNormalOfTriangle(ModelTriangle triangle){ 
-  const vec3 e0 = (triangle.vertices[1] - triangle.vertices[0]); //v1 - v0
-  const vec3 e1 = (triangle.vertices[2] - triangle.vertices[0]); //v2 - v1
-  // return the normal = glm::cross(e0, e1); 
-  return normalize(glm::cross(e0, e1)); 
-} 
- 
- 
- 
 // this function takes an intersection point and calculates the angle of incidence and 
 // outputs an intensity value between 0 and 1 
 float angleOfIncidence(RayTriangleIntersection intersection){ 
   ModelTriangle triangle = intersection.intersectedTriangle; 
-  vec3 normal = getNormalOfTriangle(triangle); 
+  vec3 normal = triangle.getNormal(); 
   vec3 vectorToLight = lightPosition - intersection.intersectionPoint; 
   vectorToLight = normalize(vectorToLight); 
   float intensity = dot(normal, vectorToLight); 
@@ -1293,8 +1276,7 @@ bool InShadow(vec3 point){
   }
   return false; 
 } 
- 
- 
+
 float calculateSpecularLight(vec3 point, vec3 rayDirection, vec3 normal){ 
   // got the method from the lecture slides 
   vec3 lightDirection = point - lightPosition; 
@@ -1338,8 +1320,6 @@ void phongBRDF(vec3 point, vec3 normal){
  
 } 
 */ 
- 
- 
 
 float softShadows(RayTriangleIntersection intersection){
   ///////////////////
@@ -1350,7 +1330,7 @@ float softShadows(RayTriangleIntersection intersection){
   ///////////////////
 
   ModelTriangle triangle = intersection.intersectedTriangle;
-  vec3 normal = getNormalOfTriangle(triangle);
+  vec3 normal = triangle.getNormal();
   vec3 point = intersection.intersectionPoint;
   vec3 up = gradientConstant * normal;
   //vec3 down = -gradientConstant * normal;
@@ -1375,12 +1355,10 @@ float softShadows(RayTriangleIntersection intersection){
   }
   return 0; //return shadowFraction
 } 
- 
- 
+
 void gouraudShading() { 
 } 
 
- 
 vector<ModelTriangle> averageVertexNormals(vector<ModelTriangle> faces){ 
   int currentFaceIndex = 0; // stores the number of how many faces we have gone through yet 
   vector<vec3> faceVertices; // stores the indices of which vertices make up each face 
@@ -1403,6 +1381,10 @@ vector<ModelTriangle> averageVertexNormals(vector<ModelTriangle> faces){
  
   // open and close the file again 
   myfile.close(); 
+
+
+
+
   ifstream myfile2(objFileName); 
  
   // make a vector to store the normals for each vertex (so each element in the vector will be another 
@@ -1418,8 +1400,8 @@ vector<ModelTriangle> averageVertexNormals(vector<ModelTriangle> faces){
     if (line.find('f') == 0){   
       // if this line is a face, then get the normal of it (we have pre-stored the faces so can do this) 
       ModelTriangle face = faces[currentFaceIndex]; 
-      vec3 normal = getNormalOfTriangle(face); 
-      currentFaceIndex = currentFaceIndex + 1; 
+      vec3 normal = face.getNormal(); 
+      currentFaceIndex++; 
  
       vector<string> faceLine = separateLine(line); // this turns 'f 1/1 2/2 3/3' into ['f','1/1','2/2','3/3'] 
  
@@ -1446,10 +1428,9 @@ vector<ModelTriangle> averageVertexNormals(vector<ModelTriangle> faces){
     int n = normals.size(); 
     vec3 sum (0,0,0); 
     for (int j = 0 ; j < n ; j++){ 
-      sum = sum + normals[j]; 
+      sum += normals[j]; 
     } 
-    sum = sum / (float)n; 
-    averagedNormals[i] = sum; 
+    averagedNormals[i] = sum / (float(n)); 
   } 
  
   // go through the faces again and store the average normal in the ModelTriangle object 
@@ -1464,12 +1445,11 @@ vector<ModelTriangle> averageVertexNormals(vector<ModelTriangle> faces){
   } 
   return faces;
 } 
- 
 
 Colour glass(vec3 rayDirection, RayTriangleIntersection closest, int depth){
   vec3 point = closest.intersectionPoint;
   ModelTriangle triangle = closest.intersectedTriangle;
-  vec3 normal = getNormalOfTriangle(triangle);
+  vec3 normal = triangle.getNormal();
 
   // send the reflection ray
   vec3 incident = rayDirection; 
@@ -1498,18 +1478,16 @@ Colour glass(vec3 rayDirection, RayTriangleIntersection closest, int depth){
   }
   Colour refractionColour = shootRay(newPoint, refracted, depth + 1, 1.5); // IOR is 1.5 as now we are travelling in glass
 
-
   // mix them together using Fresnel equation
   float reflectiveConstant = fresnel(rayDirection, normal, refractiveIndex);
   float refractiveConstant = 1 - reflectiveConstant;
 
   Colour output;
-  output.red = (reflectiveConstant * reflectionColour.red) + (refractiveConstant * refractionColour.red);
-  output.green = (reflectiveConstant * reflectionColour.green) + (refractiveConstant * refractionColour.green);
-  output.blue = (reflectiveConstant * reflectionColour.blue) + (refractiveConstant * refractionColour.blue);
+  output.SetRed ((reflectiveConstant * reflectionColour.red) + (refractiveConstant * refractionColour.red));
+  output.SetGreen ((reflectiveConstant * reflectionColour.green) + (refractiveConstant * refractionColour.green));
+  output.SetBlue ((reflectiveConstant * reflectionColour.blue) + (refractiveConstant * refractionColour.blue));
   return output;
 }
-
 
 // calculates the direction of the refraction
 // returns a vec4 (first 3 values are the direction - the last displays whether we are entering (-1) or leaving (1) the material)
@@ -1535,7 +1513,6 @@ vec4 refract(vec3 incident, vec3 normal, float ior) {
   return vec4(refracted[0], refracted[1], refracted[2], sign(direction));
 }
 
-
 float fresnel(vec3 incident, vec3 normal, float ior) {
     float cosi = dot(incident, normal); 
     float etai = 1;
@@ -1544,7 +1521,7 @@ float fresnel(vec3 incident, vec3 normal, float ior) {
     if (cosi > 0) std::swap(etai, etat); 
     
     // Compute sini using Snell's law
-    float sint = etai / etat * sqrtf(std::max(0.f, 1 - cosi * cosi)); 
+    const float sint = etai / etat * sqrtf(std::max(0.f, 1 - cosi * cosi)); 
     // Total internal reflection
     if (sint >= 1) return 1; //kr =1
     else { 
@@ -1574,7 +1551,7 @@ void backfaceCulling(vec3 rayDirection){
     // for each face
     for (int i = 0 ; i < objects[o].faces.size() ; i++){
       //ModelTriangle face = objects[o].faces[i];
-      const vec3 normal = getNormalOfTriangle(objects[o].faces[i]);
+      const vec3 normal = objects[o].faces[i].getNormal();
       //True if faces face the other way && !glass.
       objects[o].faces[i].culled = ((dot(normal, rayDirection) > 0) && (objects[o].faces[i].texture != "glass"));
     }
@@ -1666,7 +1643,6 @@ vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces) {
 // ANIMATION CODE
 ////////////////////////////////
 
-
 void spin(vec3 point, float theta, float distance){
   // we spin round by starting at the centre point looking at the camera, then spin around a set amount and work out the new camera position
   vec3 pointToCamera = cameraPosition - point;
@@ -1685,24 +1661,19 @@ void spin(vec3 point, float theta, float distance){
 }
 
 void spinAround(float angle, int stepNumber, bool clockwise, int zoom){
-  cout << "call ";
   vec3 point = findCentreOfScene();
   float startDistance = distanceVec3(point, cameraPosition);
   float endDistance;
-  if (zoom == 1){
-    endDistance = startDistance / 1.5;
-  }
-  else if (zoom == -1){
-    endDistance = startDistance * 1.5;
-  }
-  else {
-    endDistance = startDistance;
-  }
-  float distanceStep = (endDistance - startDistance) / stepNumber;
+  
+  if (zoom == 1) endDistance = startDistance / 1.5;
+  else if (zoom == -1) endDistance = startDistance * 1.5;
+  else  endDistance = startDistance;
+
+  const float distanceStep = (endDistance - startDistance) / stepNumber;
+  
   float angleStep = angle / stepNumber;
-  if (clockwise){
-    angleStep = -angleStep;
-  }
+  if (clockwise) angleStep = -angleStep;
+  
 
   // for each step we move the camera the right amount
   for (int i = 0 ; i < stepNumber ; i++){

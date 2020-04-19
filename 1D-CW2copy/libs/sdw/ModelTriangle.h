@@ -13,8 +13,7 @@ class ModelTriangle
     int faceIndex; // stores the number of which face it is out of all of them
     bool culled; // has this face been culled or not? do we need to check for intersections with it?
 
-    ModelTriangle()
-    {
+    ModelTriangle() {
       normals[0] = glm::vec3 (0,0,0);
       normals[1] = glm::vec3 (0,0,0);
       normals[2] = glm::vec3 (0,0,0);
@@ -23,8 +22,7 @@ class ModelTriangle
       faceIndex = -1;
     }
 
-    ModelTriangle(glm::vec3 v0, glm::vec3 v1, glm::vec3 v2, Colour trigColour)
-    {
+    ModelTriangle(glm::vec3 v0, glm::vec3 v1, glm::vec3 v2, Colour trigColour) {
       vertices[0] = v0;
       vertices[1] = v1;
       vertices[2] = v2;
@@ -35,6 +33,12 @@ class ModelTriangle
       texture = "none";
       culled = false;
       faceIndex = -1;
+    }
+    glm::vec3 getNormal() {
+      const glm::vec3 e0 = (vertices[1] - vertices[0]); //v1 - v0
+      const glm::vec3 e1 = (vertices[2] - vertices[0]); //v2 - v1
+      // return the normal = glm::cross(e0, e1); 
+      return glm::normalize(glm::cross(e0, e1)); 
     }
 };
 
