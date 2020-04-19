@@ -1442,10 +1442,10 @@ Colour glass(vec3 rayDirection, RayTriangleIntersection closest, int depth){
   float refractiveIndex = 1.3;
   vec4 refraction = refract(incident, normal, refractiveIndex);
   int direction = refraction[3];
+  
   vec3 refracted (refraction[0], refraction[1], refraction[2]);
-  if (refracted == vec3 (0,0,0)){
-    return reflectionColour;
-  }
+  if (refracted == vec3 (0,0,0)) return reflectionColour;
+  
 
   // we need to adjust the point to avoid self-intersection but this depends on if we are going through the face or reflecting from it
   if (direction == -1){
@@ -1542,86 +1542,80 @@ void backfaceCulling(vec3 rayDirection){
 }
 
 
+float min(float a, float b, float c) {
+  float min0 = glm::min(a, b);
+  if (c < min0) return c;
+  return min0;
+}
+float max(float a, float b, float c) {
+  float max0 = glm::max(a, b);
+  if (c > max0) return c;
+  return max0;
+}
+
 // for a set of vertices (an object maybe), create a bounding box
-vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces){
+vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces) {
   // we want to find the minimum and maximum values of x,y,z in all the vertices
   // first set the min to be (inf, inf, inf)
   // set max to be (-inf, -inf, -inf)
-  vec3 min (numeric_limits<float>::infinity(), numeric_limits<float>::infinity(), numeric_limits<float>::infinity());
-  vec3 max = -min;
-  print(min);
-  print(max);
+  vec3 minBound(numeric_limits<float>::infinity(), numeric_limits<float>::infinity(), numeric_limits<float>::infinity());
+  vec3 maxBound = -minBound;
+  print(minBound);
+  print(maxBound);
   int n = inputFaces.size();
   // for each face
   for (int i = 0 ; i < n ; i++){
     ModelTriangle triangle = inputFaces[i];
-    // for each vertex
-    for (int j = 0 ; j < 3 ; j++){
-      vec3 vertex = triangle.vertices[j];
-      // check for all the x,y,z values separately to see if it is a new min or maximum
-      for (int k = 0 ; k < 3 ; k++){
-        float value = vertex[k];
-        if (value < min[k]){
-          min[k] = value;
-        }
-        if (value > max[k]){
-          max[k] = value;
-        }
-      }
-    }
+    // get each component
+  
+    float tempMinX = min(triangle.vertices[0][0], triangle.vertices[1][0], triangle.vertices[1][0]);
+    float tempMinY = min(triangle.vertices[0][1], triangle.vertices[1][1], triangle.vertices[1][1]);
+    float tempMinZ = min(triangle.vertices[0][2], triangle.vertices[1][2], triangle.vertices[1][2]);
+
+    float tempMaxX = max(triangle.vertices[0][0], triangle.vertices[1][0], triangle.vertices[1][0]);
+    float tempMaxY = max(triangle.vertices[0][1], triangle.vertices[1][1], triangle.vertices[1][1]);
+    float tempMaxZ = max(triangle.vertices[0][2], triangle.vertices[1][2], triangle.vertices[1][2]);
+
+    // check for all the x,y,z values separately to see if it is a new min or maximum
+    if (tempMinX < minBound[0]) minBound[0] = tempMinX;
+    if (tempMinY < minBound[1]) minBound[1] = tempMinX;
+    if (tempMinZ < minBound[2]) minBound[2] = tempMinX;
+    
+    if (tempMaxX > maxBound[0]) maxBound[0] = tempMaxX;
+    if (tempMaxY > maxBound[1]) maxBound[1] = tempMaxX;
+    if (tempMaxZ > maxBound[2]) maxBound[2] = tempMaxX;      
   }
 
-  print(min);
-  print(max);
+  print(minBound);
+  print(maxBound);
 
   // create the box object
   vector<ModelTriangle> boxFaces; // this is a cube so will have 12 faces
   vector<vec3> vertices; // these must be in a particular order so the faces can be constructed facing the right way and also the right faces are constructed
-  vertices.push_back( vec3 (min[0], min[1], min[2]) ); // bottom-left-forward   v1
-  vertices.push_back( vec3 (max[0], min[1], min[2]) ); // bottom-right-forward  v2 
-  vertices.push_back( vec3 (min[0], max[1], min[2]) ); // top-left-forward      v3
-  vertices.push_back( vec3 (max[0], max[1], min[2]) ); // top-right-forward     v4
-  vertices.push_back( vec3 (min[0], min[1], max[2]) ); // bottom-left-back      v5
-  vertices.push_back( vec3 (max[0], min[1], max[2]) ); // bottom-right-back     v6
-  vertices.push_back( vec3 (min[0], max[1], max[2]) ); // top-left-back         v7
-  vertices.push_back( vec3 (max[0], max[1], max[2]) ); // top-right-back        v8
+  vertices.push_back( vec3 (minBound[0], minBound[1], minBound[2]) ); // bottom-left-forward   v1
+  vertices.push_back( vec3 (maxBound[0], minBound[1], minBound[2]) ); // bottom-right-forward  v2 
+  vertices.push_back( vec3 (minBound[0], maxBound[1], minBound[2]) ); // top-left-forward      v3
+  vertices.push_back( vec3 (maxBound[0], maxBound[1], minBound[2]) ); // top-right-forward     v4
+  vertices.push_back( vec3 (minBound[0], minBound[1], maxBound[2]) ); // bottom-left-back      v5
+  vertices.push_back( vec3 (maxBound[0], minBound[1], maxBound[2]) ); // bottom-right-back     v6
+  vertices.push_back( vec3 (minBound[0], maxBound[1], maxBound[2]) ); // top-left-back         v7
+  vertices.push_back( vec3 (maxBound[0], maxBound[1], maxBound[2]) ); // top-right-back        v8
 
   cout << "n: " << vertices.size() << endl;
 
-  /*
-  front face:
-  1 2 3
-  2 4 3
-  top face:
-  3 4 7
-  4 8 7
-  back face:
-  7 8 5
-  8 6 5
-  bottom face:
-  5 6 1
-  6 2 1
-  left face:
-  5 1 7
-  1 3 7
-  right face:
-  2 6 4
-  6 8 4
-  */
-
- vector<vec3> vertexIndices;
- vertexIndices.push_back(vec3 (1,2,3));
- vertexIndices.push_back(vec3 (2,4,3));
- vertexIndices.push_back(vec3 (3,4,7));
- vertexIndices.push_back(vec3 (4,8,7));
- vertexIndices.push_back(vec3 (7,8,5));
- vertexIndices.push_back(vec3 (8,6,5));
- vertexIndices.push_back(vec3 (5,6,1));
- vertexIndices.push_back(vec3 (6,2,1));
- vertexIndices.push_back(vec3 (5,1,7));
- vertexIndices.push_back(vec3 (1,3,7));
- vertexIndices.push_back(vec3 (2,6,4));
- vertexIndices.push_back(vec3 (6,8,4));
+  vector<vec3> vertexIndices;
+  vertexIndices.push_back(vec3 (1,2,3)); // front face
+  vertexIndices.push_back(vec3 (2,4,3)); // front face
+  vertexIndices.push_back(vec3 (3,4,7)); //   top face
+  vertexIndices.push_back(vec3 (4,8,7)); //   top face
+  vertexIndices.push_back(vec3 (7,8,5)); //  back face
+  vertexIndices.push_back(vec3 (8,6,5)); //  back face
+  vertexIndices.push_back(vec3 (5,6,1)); //bottom face
+  vertexIndices.push_back(vec3 (6,2,1)); //bottom face
+  vertexIndices.push_back(vec3 (5,1,7)); //  left face
+  vertexIndices.push_back(vec3 (1,3,7)); //  left face
+  vertexIndices.push_back(vec3 (2,6,4)); // right face
+  vertexIndices.push_back(vec3 (6,8,4)); // right face
 
 
   // make the vertices into faces
