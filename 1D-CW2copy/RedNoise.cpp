@@ -141,8 +141,7 @@ int main(int argc, char* argv[]) {
   initialise();
 
   // 2) Read In OBJ.
-  vector<ModelTriangle> faces = readOBJNormal(objFileName, mtlFileName, 1);
-  //vector<ModelTriangle> faces = readOBJ(objFileName, mtlFileName, 1);
+  vector<ModelTriangle> faces = readOBJ(objFileName, mtlFileName, 1);
 
   // 3) Read In Texture.
   textureFile = importPPM(texFileName);

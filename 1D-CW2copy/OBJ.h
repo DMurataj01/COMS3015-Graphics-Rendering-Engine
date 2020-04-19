@@ -105,7 +105,7 @@ vector<Colour> readOBJMTL(string filename){
 } 
 
 
-vector<ModelTriangle> readOBJNormal(std::string objFileName, std::string mtlFileName, float scalingFactor){ 
+vector<ModelTriangle> readOBJ(std::string objFileName, std::string mtlFileName, float scalingFactor){ 
   
   vector<Colour> colours = readOBJMTL(mtlFileName); 
   vector<vec3> vertices; 
@@ -150,7 +150,6 @@ vector<ModelTriangle> readOBJNormal(std::string objFileName, std::string mtlFile
     } 
     // if we have a face, then get the corresponding vertices and store it as a ModelTriangle object, then add it to the collection of faces 
     else if (line.find('f') == 0){ 
-      // Pushback face
       ModelTriangle triangle = getFace(line, vertices, colour, scalingFactor);
       triangle.faceIndex = numberOfFaces;
       numberOfFaces++;
@@ -158,7 +157,7 @@ vector<ModelTriangle> readOBJNormal(std::string objFileName, std::string mtlFile
 
       // if this line is a face, then get the normal of it (we have pre-stored the faces so can do this)
       vector<string> faceLine = separateLine(line); // this turns 'f 1/1 2/2 3/3' into ['f','1/1','2/2','3/3']
-      vec3 verticesIndex (0,0,0);
+      vec3 verticesIndex(0,0,0);
 
       // go through the face and for each vertex, store the normal in the corresponding space in the vector
       for (int i = 1 ; i < 4 ; i++){
@@ -194,68 +193,6 @@ vector<ModelTriangle> readOBJNormal(std::string objFileName, std::string mtlFile
     }
   }
 
-  return faces; 
-} 
-
-
-vector<ModelTriangle> readOBJ(std::string objFileName, std::string mtlFileName, float scalingFactor){ 
-  // get the colours 
-  vector<Colour> colours = readOBJMTL(mtlFileName); 
- 
-  // where we store all the vertices and faces 
-  vector<vec3> vertices; 
-  vector<ModelTriangle> faces; 
-   
-  // open the obj file and then go through each line storing it in a string 
-  string line; 
-  ifstream myfile(objFileName); 
- 
-  // if we cannot open the file, print an error 
-  if (myfile.is_open() == 0){ 
-    cout << "Unable to open file" << "\n"; 
-  } 
- 
-  // this is where we will save the correct colour for each face once found 
-  Colour colour (255,255,255); 
- 
-  int numberOfFaces = 0;
-  // while we have a new line, get it 
-  while (getline(myfile, line)){ 
-    // if the line starts with 'usemtl', then we retrieve the new colour and use this colour until we get a new one 
-    if (line.find("usemtl") == 0){ 
-      vector<string> colourVector = separateLine(line); 
-      string colourName = colourVector[1]; 
-       
-      // now go through each of the colours we have saved until we find it 
-      int n = colours.size(); 
-      for (int i = 0 ; i < n ; i++){ 
-        Colour col = colours[i]; 
-        if (colours[i].name == colourName){ 
-          colour = colours[i]; 
-          break; // can stop once we have found it 
-        } 
-      } 
-    } 
- 
-    // if we have a vertex, then put it in a vec3 and store it with all other vertices 
-    else if (line.find('v') == 0){ 
-      vec3 vertex = getVertex(line); 
-      vertex = vertex * scalingFactor; 
-      vertices.push_back(vertex); 
-    } 
- 
-    // if we have a face, then get the corresponding vertices and store it as a ModelTriangle object, then add it to the collection of faces 
-    else if (line.find('f') == 0){ 
-      ModelTriangle triangle = getFace(line, vertices, colour, scalingFactor);
-      triangle.faceIndex = numberOfFaces;
-      numberOfFaces = numberOfFaces + 1;
-      faces.push_back(triangle); 
-    } 
-  } 
-  //cout << "Printing the faces: \n"; 
-  //for (int i = 0 ; i < faces.size() ; i++){ 
-  //  cout << faces[i] << "\n"; 
-  //} 
   return faces; 
 } 
 
