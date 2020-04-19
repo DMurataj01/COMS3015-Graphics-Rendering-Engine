@@ -217,6 +217,7 @@ vector<Object> readGroupedOBJ(std::string objFileName, std::string mtlFileName, 
 
   int i_faces = 0;
   int i_group = 0; // 0 based index.
+  bool hasGroup = false;
   while (getline(myfile, line)){ 
     if (line.find("usemtl") == 0){ 
       vector<string> colourVector = separateLine(line); 
@@ -230,6 +231,7 @@ vector<Object> readGroupedOBJ(std::string objFileName, std::string mtlFileName, 
     } 
     else if (line.find('g') == 0) {
       i_group++;
+      hasGroup = true;
     }
     // if we have a vertex, then put it in a vec3 and store it with all other vertices 
     else if (line.find('v') == 0){ 
@@ -241,7 +243,7 @@ vector<Object> readGroupedOBJ(std::string objFileName, std::string mtlFileName, 
     // if we have a face, then get the corresponding vertices and store it as a ModelTriangle object, then add it to the collection of faces 
     else if (line.find('f') == 0){ 
       ModelTriangle triangle = getFace(line, vertices, colour, scalingFactor);
-      triangle.objectIndex = (i_group - 1);
+      triangle.objectIndex = (hasGroup) ? (i_group - 1) : 0; 
       triangle.faceIndex = i_faces;
       faces.push_back(triangle); 
 
@@ -274,8 +276,9 @@ vector<Object> readGroupedOBJ(std::string objFileName, std::string mtlFileName, 
     averagedNormals[i] = sum / (float(n));
   }
 
-  vector<Object> outputList(i_group);
-  vector<int> perObjectFaceIndex(i_group);
+  const int groupSize = (hasGroup) ? i_group : 1;
+  vector<Object> outputList(groupSize);
+  vector<int> perObjectFaceIndex(groupSize);
 
   for (int i=0; i< i_group; i++) perObjectFaceIndex.at(i) = 0;
   

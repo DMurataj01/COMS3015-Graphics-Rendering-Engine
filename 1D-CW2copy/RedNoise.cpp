@@ -27,8 +27,8 @@ enum RENDERTYPE {WIREFRAME, RASTERIZE, RAYTRACE};
 RENDERTYPE currentRender = RASTERIZE; //Set default RenderType here. 
 std::string defaultPPMFileName = "snapshot.ppm";
 
-#define W 800 //Set desired screen width here. 
-#define H 800 //Set desired screen height here.
+#define W 600 //Set desired screen width here. 
+#define H 600 //Set desired screen height here.
 
 const int AA = 1; //Set Anti-Aliasing Multiplier here, applied to both x and y so expect ~AA^2 time [eg. 800x800x1 5.43s, 800x800x4 88.7s ~16.4x]
 
@@ -81,7 +81,6 @@ float distanceVec3(vec3 from, vec3 to);
 bool InShadow(vec3 point); 
 float calculateSpecularLight(vec3 point, vec3 rayDirection, vec3 normal);
 float softShadows(RayTriangleIntersection intersection);
-vector<ModelTriangle> averageVertexNormals(vector<ModelTriangle> faces); 
 Colour mirror(RayTriangleIntersection intersection, vec3 incident);
 Colour glass(vec3 rayDirection, RayTriangleIntersection closest, int depth);
 vec4 refract(vec3 I, vec3 N, float ior);
@@ -141,8 +140,10 @@ int main(int argc, char* argv[]) {
   initialise();
 
   // 2) Read In OBJ.
-  vector<ModelTriangle> faces = readOBJ(objFileName, mtlFileName, 1);
-
+  objects = readGroupedOBJ(objFileName, mtlFileName, 1);
+  //objects = readGroupedOBJ("logo.obj", "logo.mtl", 0.07);
+  
+  cout << "Number Of Objects: " << objects.size() << "\n";
   // 3) Read In Texture.
   textureFile = importPPM(texFileName);
 
@@ -161,27 +162,12 @@ int main(int argc, char* argv[]) {
   //  faces[i].texture = "glass";
   //}
   
-  // 5) Run set-up funtions for lighting and culling
-  //faces = averageVertexNormals(faces);
-  //faces = readOBJ(objFileName, mtlFileName, 1);
-
-  // 6) Split the faces into objects
-  //objects = createObjects(faces);
-
-  objects = readGroupedOBJ(objFileName, mtlFileName, 1);
-
-  
-  cout << "Number Of Objects: " << objects.size() << "\n";
-  //objects = readGroupedOBJ(objFileName, mtlFileName, 1);
-
-  //vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces)
-
   //objects[0].faces[10].texture = "texture";
   //objects[0].faces[10].vertices_textures[0] = vec2(0.4, 0.2);
   //objects[0].faces[10].vertices_textures[1] = vec2(0.2, 0.4);
   //objects[0].faces[10].vertices_textures[2] = vec2(0.6, 0.4);
   
-  //render();
+  render();
 
   SDL_Event event;
   while(true) { 
@@ -344,7 +330,6 @@ void setDepthPixelColour(int x, int y, double z, uint32_t clr) {
     depthMap.at(index) = z;
   }
 };
-
 
 // use this function to split the faces into separate objects (an 'Object' object has been created)
 // if you want, you can store a bounding box with the object too
@@ -1358,93 +1343,6 @@ float softShadows(RayTriangleIntersection intersection){
 } 
 
 void gouraudShading() { 
-} 
-
-vector<ModelTriangle> averageVertexNormals(vector<ModelTriangle> faces){ 
-  int currentFaceIndex = 0; // stores the number of how many faces we have gone through yet 
-  vector<vec3> faceVertices; // stores the indices of which vertices make up each face 
-   
-  // Attempt to open OBJFile. 
-  ifstream myfile(objFileName); 
- 
-  // if we cannot open the file, print an error 
-  if (myfile.is_open() == 0) cout << "Unable to open file" << "\n"; 
- 
-  string line; //used as buffer for ifstream. 
- 
-  // go through and figure out how many vertices we have 
-  int numberOfVertices = 0; 
-  while (getline(myfile, line)){ 
-    if (line.find('v')==0){ 
-      numberOfVertices++; 
-    } 
-  } 
- 
-  // open and close the file again 
-  myfile.close(); 
-
-
-
-
-  ifstream myfile2(objFileName); 
- 
-  // make a vector to store the normals for each vertex (so each element in the vector will be another 
-  // vector containing all the normals of the faces in which that vertex is a part of) 
-  vector<vector<vec3>> vertexNormals(numberOfVertices); 
-  vector<vec3> averagedNormals(numberOfVertices); // once all normals for each vertex have been found, this stores the average of them 
- 
-  // take the OBJ file again and go through each face, get the normal and then store that normal 
-  // in the vector for all 3 vertices 
- 
-   
-  while (getline(myfile2, line)){ 
-    if (line.find('f') == 0){   
-      // if this line is a face, then get the normal of it (we have pre-stored the faces so can do this) 
-      ModelTriangle face = faces[currentFaceIndex]; 
-      vec3 normal = face.getNormal(); 
-      currentFaceIndex++; 
- 
-      vector<string> faceLine = separateLine(line); // this turns 'f 1/1 2/2 3/3' into ['f','1/1','2/2','3/3'] 
- 
-      vec3 verticesIndex (0,0,0); 
- 
-      // go through the face and for each vertex, store the normal in the corresponding space in the vector 
-      for (int i = 1 ; i < 4 ; i++){ 
-        string element = faceLine[i]; // this will be '1/1' for example 
-        int slashIndex = element.find('/'); 
-        string number = element.substr(0, slashIndex); 
-        int index = stoi(number) - 1;// -1 as the vertices are numbered from 1, but c++ indexes from 0 
-        verticesIndex[i-1] = index; 
-        vertexNormals[index].push_back(normal); 
-      } 
-      faceVertices.push_back(verticesIndex); 
-    } 
-  } 
- 
-  myfile2.close(); 
- 
-  // for each vertex, go through and average each of the normals 
-  for (int i = 0 ; i < numberOfVertices ; i++){ 
-    vector<vec3> normals = vertexNormals[i]; 
-    int n = normals.size(); 
-    vec3 sum (0,0,0); 
-    for (int j = 0 ; j < n ; j++){ 
-      sum += normals[j]; 
-    } 
-    averagedNormals[i] = sum / (float(n)); 
-  } 
- 
-  // go through the faces again and store the average normal in the ModelTriangle object 
-  for (int i = 0 ; i < faces.size() ; i++){ 
-    vec3 v = faceVertices[i]; 
-    // for each vertex 
-    for (int j = 0 ; j < 3 ; j++){ 
-      int index = v[j]; 
-      vec3 normal = averagedNormals[index]; 
-      faces[i].normals[j] = normal; 
-    } 
-  } 
-  return faces;
 } 
 
 Colour glass(vec3 rayDirection, RayTriangleIntersection closest, int depth){
