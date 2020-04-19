@@ -10,7 +10,8 @@ class ModelTriangle
     Colour colour;
     glm::vec3 normals[3]; // these correspond to the averaged normals of the vertices
     std::string texture;
-    int faceIndex; // stores the number of which face it is out of all of them
+    int faceIndex;   // stores the number of which face it is out of all of them
+    int objectIndex; // used in OBJ - stores the group this triangle is in.
     bool culled; // has this face been culled or not? do we need to check for intersections with it?
 
     ModelTriangle() {
@@ -20,6 +21,7 @@ class ModelTriangle
       texture = "none";
       culled = false;
       faceIndex = -1;
+      objectIndex = -1;
     }
 
     ModelTriangle(glm::vec3 v0, glm::vec3 v1, glm::vec3 v2, Colour trigColour) {
@@ -33,6 +35,7 @@ class ModelTriangle
       texture = "none";
       culled = false;
       faceIndex = -1;
+      objectIndex = -1;
     }
     glm::vec3 getNormal() {
       const glm::vec3 e0 = (vertices[1] - vertices[0]); //v1 - v0
