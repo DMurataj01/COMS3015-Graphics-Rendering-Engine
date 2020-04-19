@@ -106,7 +106,6 @@ vector<Colour> readOBJMTL(string filename){
 
 
 vector<ModelTriangle> readOBJ(std::string objFileName, std::string mtlFileName, float scalingFactor){ 
-  
   vector<Colour> colours = readOBJMTL(mtlFileName); 
   vector<vec3> vertices; 
   vector<vec3> faceVertices; // stores the indices of which vertices make up each face
@@ -196,4 +195,96 @@ vector<ModelTriangle> readOBJ(std::string objFileName, std::string mtlFileName, 
   return faces; 
 } 
 
+vector<Object> readGroupedOBJ(std::string objFileName, std::string mtlFileName, float scalingFactor) {
+  vector<Colour> colours = readOBJMTL(mtlFileName); 
+  vector<vec3> vertices; 
+  vector<vec3> faceVertices; // stores the indices of which vertices make up each face
+  vector<ModelTriangle> faces; 
+    
+
+  string line; //buffer to store each read line.
+
+  ifstream myfile(objFileName); 
+  if (myfile.is_open() == 0) cout << "Unable to open file" << "\n"; 
+  
+  Colour colour (255,255,255); // buffer to store colour.
+
+  vector<vector<vec3>> vertexNormals;
+  vector<vec3> averagedNormals; // once all normals for each vertex have been found, this stores the average of them
+
+
+  int numberOfVertices = 0;
+
+  int i_faces = 0;
+  int i_group = 0;
+  while (getline(myfile, line)){ 
+    if (line.find("usemtl") == 0){ 
+      vector<string> colourVector = separateLine(line); 
+      // now go through each of the colours we have saved until we find it 
+      for (int i = 0; i < colours.size(); i++){ 
+        Colour col = colours[i]; 
+        if (colours[i].name == colourVector[1]){ 
+          colour = colours[i]; break; // optimised - stop once found.
+        } 
+      } 
+    } 
+    else if (line.find('g') == 0) {
+      i_group++;
+    }
+    // if we have a vertex, then put it in a vec3 and store it with all other vertices 
+    else if (line.find('v') == 0){ 
+      numberOfVertices++;
+      averagedNormals.push_back(vec3());
+      vertexNormals.push_back(vector<vec3>());
+      vertices.push_back(scalingFactor * getVertex(line)); 
+    } 
+    // if we have a face, then get the corresponding vertices and store it as a ModelTriangle object, then add it to the collection of faces 
+    else if (line.find('f') == 0){ 
+      ModelTriangle triangle = getFace(line, vertices, colour, scalingFactor);
+      triangle.objectIndex = i_group;
+      triangle.faceIndex = i_faces;
+      faces.push_back(triangle); 
+
+      // if this line is a face, then get the normal of it (we have pre-stored the faces so can do this)
+      vector<string> faceLine = separateLine(line); // this turns 'f 1/1 2/2 3/3' into ['f','1/1','2/2','3/3']
+      vec3 verticesIndex(0,0,0);
+
+      // go through the face and for each vertex, store the normal in the corresponding space in the vector
+      for (int i = 1 ; i < 4 ; i++){
+        string element = faceLine[i]; // this will be '1/1' for example
+        int slashIndex = element.find('/');
+        string number = element.substr(0, slashIndex);
+        int index = stoi(number) - 1;// -1 as the vertices are numbered from 1, but c++ indexes from 0
+        verticesIndex[i-1] = index;
+        vertexNormals[index].push_back(faces[i_faces].getNormal());
+      }
+      faceVertices.push_back(verticesIndex);
+      i_faces++;
+      
+    } 
+  } 
+
+  // for each vertex, go through and average each of the normals
+  for (int i = 0 ; i < numberOfVertices; i++){
+    vec3 sum (0,0,0);
+    const int n = vertexNormals[i].size();
+    for (int j = 0; j < n; j++){
+      sum += vertexNormals[i][j]; //Sum up each dimension.
+    }
+    averagedNormals[i] = sum / (float(n));
+  }
+
+  // go through the faces again and store the average normal in the ModelTriangle object
+  for (int i = 0 ; i < faces.size() ; i++){
+    // for each vertex
+    for (int j = 0 ; j < 3 ; j++) {
+      int index = faceVertices[i][j];
+      faces[i].normals[j] = averagedNormals[index];
+    }
+  }
+  Object newObject(faces);
+  vector<Object> out;
+  out.push_back(newObject);
+  return out;
+}
 #endif

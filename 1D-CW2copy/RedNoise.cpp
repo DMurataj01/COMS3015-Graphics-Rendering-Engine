@@ -157,18 +157,21 @@ int main(int argc, char* argv[]) {
   //}
 
   // || Glass Red Box ||
-  for (int i = 12 ; i < 22 ; i++){
-    faces[i].texture = "glass";
-  }
+  //for (int i = 12 ; i < 22 ; i++){
+  //  faces[i].texture = "glass";
+  //}
   
   // 5) Run set-up funtions for lighting and culling
   //faces = averageVertexNormals(faces);
   //faces = readOBJ(objFileName, mtlFileName, 1);
 
   // 6) Split the faces into objects
-  objects = createObjects(faces);
+  //objects = createObjects(faces);
+
+  objects = readGroupedOBJ(objFileName, mtlFileName, 1);
 
   
+  cout << "Number Of Objects: " << objects.size() << "\n";
   //objects = readGroupedOBJ(objFileName, mtlFileName, 1);
 
   //vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces)
