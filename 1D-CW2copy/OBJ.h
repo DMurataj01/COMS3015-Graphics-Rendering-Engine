@@ -175,25 +175,21 @@ vector<ModelTriangle> readOBJNormal(std::string objFileName, std::string mtlFile
     } 
   } 
 
-  // ** NOW COMPUTE NORMALS ** 
-
   // for each vertex, go through and average each of the normals
-  for (int i = 0 ; i < numberOfVertices ; i++){
-    vector<vec3> normals = vertexNormals[i];
-    int n = normals.size();
+  for (int i = 0 ; i < numberOfVertices; i++){
     vec3 sum (0,0,0);
-    for (int j = 0 ; j < n ; j++){
-      sum += normals[j];
+    const int n = vertexNormals[i].size();
+    for (int j = 0; j < n; j++){
+      sum += vertexNormals[i][j]; //Sum up each dimension.
     }
     averagedNormals[i] = sum / (float(n));
   }
 
   // go through the faces again and store the average normal in the ModelTriangle object
   for (int i = 0 ; i < faces.size() ; i++){
-    vec3 v = faceVertices[i];
     // for each vertex
-    for (int j = 0 ; j < 3 ; j++){
-      int index = v[j];
+    for (int j = 0 ; j < 3 ; j++) {
+      int index = faceVertices[i][j];
       faces[i].normals[j] = averagedNormals[index];
     }
   }
