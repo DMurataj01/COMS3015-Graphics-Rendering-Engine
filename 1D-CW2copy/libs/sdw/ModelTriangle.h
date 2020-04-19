@@ -2,8 +2,7 @@
 #include <Colour.h>
 #include <string>
 
-class ModelTriangle
-{
+class ModelTriangle {
   public:
     glm::vec3 vertices[3];
     glm::vec2 vertices_textures[3];

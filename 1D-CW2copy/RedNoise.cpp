@@ -917,6 +917,7 @@ void rasterize(){
 // RAYTRACING CODE 
 //////////////////////////////////////////////////////// 
   
+
 // this will be the main function for the raytracer 
 void raytracer(){
   // for each pixel 
@@ -942,7 +943,7 @@ Colour solveLight(RayTriangleIntersection closest, vec3 rayDirection, float Ka, 
   return getFinalColour(closest.intersectedTriangle.colour, Ka, Kd, Ks); 
 } 
  
- 
+
 
 //OPTIMISED - Compute only once outside the loop. 
 //const vec2 pixelSize(imageWidth/WIDTH, imageHeight/HEIGHT)
@@ -974,8 +975,7 @@ vector<vector<vec4>> checkForIntersections(vec3 point, vec3 rayDirection){
   // for each object, does it have a bounding box?
   // if so, does the ray intersect it?
   // if so, which of the faces in that object does the ray intersect?
-  int n = objects.size();
-  for (int i = 0 ; i < n ; i++){
+  for (int i = 0 ; i < objects.size(); i++) {
     vector<vec4> objectSolutions; // to store the solutions if any for this object
     objectSolutions.push_back(vec4 (-1,0,0,-1));
     if (objects[i].hasBoundingBox){
@@ -1014,7 +1014,7 @@ vector<vec4> faceIntersections(vector<ModelTriangle> inputFaces, vec3 point, vec
       mat3 DEMatrix(-rayDirection, e0, e1); 
       vec3 possibleSolution = glm::inverse(DEMatrix) * SPVector;
       //add possiblesolution to solution list.
-      solutions.push_back( vec4(possibleSolution[0], possibleSolution[1], possibleSolution[2], triangle.faceIndex) ); 
+      solutions.push_back( vec4(possibleSolution[0], possibleSolution[1], possibleSolution[2], triangle.faceIndex)); 
     }
     // if it has been culled then return a fake solution
     else {
@@ -1090,7 +1090,6 @@ RayTriangleIntersection closestIntersection(vector<vector<vec4>> objectSolutions
 Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){ 
   // cull the faces
   backfaceCulling(rayDirection);
-
   // stop recursing if our reflections get too much
   if (depth == 7) return Colour(255,255,255);  
 
@@ -1122,7 +1121,7 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
     return glass(rayDirection, closest, depth);
   }
   else if (triangle.texture == "texture") {
-    bool mydebug = false; //(closest.intersectUV[0] > 0.2 && closest.intersectUV[1] > 0.2);
+    bool mydebug = true; //(closest.intersectUV[0] > 0.2 && closest.intersectUV[1] > 0.2);
 
     if (mydebug) {
       cout << "How Far Along X: " << closest.intersectUV[0] << "\n";

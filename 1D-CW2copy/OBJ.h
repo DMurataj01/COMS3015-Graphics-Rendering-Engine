@@ -216,7 +216,7 @@ vector<Object> readGroupedOBJ(std::string objFileName, std::string mtlFileName, 
   int numberOfVertices = 0;
 
   int i_faces = 0;
-  int i_group = 0;
+  int i_group = 0; // 0 based index.
   while (getline(myfile, line)){ 
     if (line.find("usemtl") == 0){ 
       vector<string> colourVector = separateLine(line); 
@@ -241,7 +241,7 @@ vector<Object> readGroupedOBJ(std::string objFileName, std::string mtlFileName, 
     // if we have a face, then get the corresponding vertices and store it as a ModelTriangle object, then add it to the collection of faces 
     else if (line.find('f') == 0){ 
       ModelTriangle triangle = getFace(line, vertices, colour, scalingFactor);
-      triangle.objectIndex = i_group;
+      triangle.objectIndex = (i_group - 1);
       triangle.faceIndex = i_faces;
       faces.push_back(triangle); 
 
@@ -274,17 +274,33 @@ vector<Object> readGroupedOBJ(std::string objFileName, std::string mtlFileName, 
     averagedNormals[i] = sum / (float(n));
   }
 
+  vector<Object> outputList(i_group);
+  vector<int> perObjectFaceIndex(i_group);
+
+  for (int i=0; i< i_group; i++) perObjectFaceIndex.at(i) = 0;
+  
+
   // go through the faces again and store the average normal in the ModelTriangle object
-  for (int i = 0 ; i < faces.size() ; i++){
+  for (int i = 0 ; i < faces.size(); i++){
     // for each vertex
     for (int j = 0 ; j < 3 ; j++) {
       int index = faceVertices[i][j];
       faces[i].normals[j] = averagedNormals[index];
     }
+    ModelTriangle face = faces[i];
+
+ 
+    int objectIndex = face.objectIndex;
+    face.faceIndex = perObjectFaceIndex[objectIndex];
+    perObjectFaceIndex[objectIndex]++;
+    outputList[objectIndex].faces.push_back(face);
   }
-  Object newObject(faces);
-  vector<Object> out;
-  out.push_back(newObject);
-  return out;
+
+
+  //At this point we have i_group GROUPS.
+
+
+
+  return outputList;
 }
 #endif
