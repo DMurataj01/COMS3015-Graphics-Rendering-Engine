@@ -3,6 +3,11 @@
   #include <ModelTriangle.h>
 #endif
 
+#ifndef VECTOR_H
+  #define VECTOR_H
+  #include <vector>
+#endif
+
 class Object {
   public:
     std::vector<ModelTriangle> faces; // stores the faces of the object
@@ -20,6 +25,16 @@ class Object {
       faces.clear();
       hasBoundingBox = false;
       boxFaces.clear();
-
+    }
+    void ApplyMaterial(std::string texture) {
+      for(int i= 0; i< faces.size(); i++) {
+        faces.at(i).texture = texture;
+      }
+    }
+    void ApplyColour(Colour colour, bool resetTexture) {
+      for(int i= 0; i< faces.size(); i++) {
+        faces.at(i).colour = colour;
+        if (resetTexture) faces.at(i).texture = "";
+      }
     }
 };

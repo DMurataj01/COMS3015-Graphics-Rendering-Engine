@@ -21,6 +21,8 @@
   #include <ModelTriangle.h>
 #endif
 
+#include "Material.h"
+
 using namespace std;
 using namespace glm;
 
@@ -285,25 +287,19 @@ vector<Object> readGroupedOBJ(std::string objFileName, std::string mtlFileName, 
 
   // go through the faces again and store the average normal in the ModelTriangle object
   for (int i = 0 ; i < faces.size(); i++){
-    // for each vertex
-    for (int j = 0 ; j < 3 ; j++) {
-      int index = faceVertices[i][j];
-      faces[i].normals[j] = averagedNormals[index];
-    }
     ModelTriangle face = faces[i];
+     
+    // for each vertex
+    face.normals[0] = averagedNormals[faceVertices[i][0]];
+    face.normals[1] = averagedNormals[faceVertices[i][1]];
+    face.normals[2] = averagedNormals[faceVertices[i][2]];
 
- 
-    int objectIndex = face.objectIndex;
+    const int objectIndex = face.objectIndex;
     face.faceIndex = perObjectFaceIndex[objectIndex];
     perObjectFaceIndex[objectIndex]++;
     outputList[objectIndex].faces.push_back(face);
   }
-
-
   //At this point we have i_group GROUPS.
-
-
-
   return outputList;
 }
 #endif

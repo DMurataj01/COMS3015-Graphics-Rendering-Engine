@@ -1,0 +1,7 @@
+#ifndef MATERIAL_H
+#define MATERIAL_H
+
+enum MATERIAL {NONE, GLASS, MIRROR, TEXTURE};
+
+#endif
+

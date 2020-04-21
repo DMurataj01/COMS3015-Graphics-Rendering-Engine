@@ -15,6 +15,7 @@ using namespace glm;
 enum MOVEMENT {UP, DOWN, LEFT, RIGHT, ROLL_LEFT, ROLL_RIGHT, PAN_LEFT, PAN_RIGHT, TILT_UP, TILT_DOWN};
 enum RENDERTYPE {WIREFRAME, RASTERIZE, RAYTRACE};
 
+enum SHADOW {NO=0, YES=1, REFLECTIVE=2};
 // Press '1' for Wireframe 
 // Press '2' for Rasterized 
 // Press '3' for Raytraced  
@@ -26,6 +27,8 @@ enum RENDERTYPE {WIREFRAME, RASTERIZE, RAYTRACE};
 
 RENDERTYPE currentRender = RASTERIZE; //Set default RenderType here. 
 std::string defaultPPMFileName = "snapshot.ppm";
+
+const int maximumNumberOfReflections = 7;
 
 #define W 600 //Set desired screen width here. 
 #define H 600 //Set desired screen height here.
@@ -59,11 +62,9 @@ void drawLine(CanvasPoint start, CanvasPoint end, Colour colour);
 void drawStrokedTriangle(CanvasTriangle triangle); 
 void drawFilledTriangle(CanvasTriangle triangle); 
 vector<Object> createObjects(vector<ModelTriangle> inputFaces);
-vector<string> separateLine(string inputLine); 
 void rasterize(); 
 void updateView (MOVEMENT movement);
 /* FUNCTION Declarations */ 
-ImageFile readImage(string fileName); 
 void renderImageFile(ImageFile imageFile); 
 void lookAt(vec3 point); 
 vec3 findCentreOfScene(); 
@@ -78,7 +79,7 @@ Colour getFinalColour(Colour colour, float Ka, float Kd, float Ks);
 float intensityDropOff(const vec3 point); 
 float angleOfIncidence(RayTriangleIntersection intersection); 
 float distanceVec3(vec3 from, vec3 to); 
-bool InShadow(vec3 point); 
+SHADOW InShadow(vec3 point); 
 float calculateSpecularLight(vec3 point, vec3 rayDirection, vec3 normal);
 float softShadows(RayTriangleIntersection intersection);
 Colour mirror(RayTriangleIntersection intersection, vec3 incident);
@@ -86,7 +87,6 @@ Colour glass(vec3 rayDirection, RayTriangleIntersection closest, int depth);
 vec4 refract(vec3 I, vec3 N, float ior);
 float fresnel(vec3 incident, vec3 normal, float ior);
 void backfaceCulling(vec3 rayDirection);
-vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces);
 void spin(vec3 point, float angle, float distance);
 void spinAround(float angle, int stepNumber, bool clockwise, int zoom);
 void translateVertices(int objectIndex, vec3 direction, float distance);
@@ -141,26 +141,28 @@ int main(int argc, char* argv[]) {
 
   // 2) Read In OBJ.
   objects = readGroupedOBJ(objFileName, mtlFileName, 1);
-  //objects = readGroupedOBJ("logo.obj", "logo.mtl", 0.07);
-  
+
+  vector<Object> hackspaceLogo = readGroupedOBJ("logo.obj", "logo.mtl", 0.07);
+  objects.push_back(hackspaceLogo.at(0));
+
   cout << "Number Of Objects: " << objects.size() << "\n";
+
+  translateVertices(9, vec3(-1,0,0), 0.7);
+  translateVertices(9, vec3(0,0,-1), 1.7);
+  translateVertices(9, vec3(0,1,0), 1.5);
+  
+  //Mirrored floor
+  objects[3].ApplyMaterial("mirror");
+  //Mirrored Red Box.
+  objects[6].ApplyMaterial("glass");
+
+  //Apply colour to Hacksapce logo for SHADOWing
+  objects[9].ApplyColour(Colour(24, 21, 180), true);
+  //Apply Material for the Raytracer
+  objects[9].ApplyMaterial("glass");
+
   // 3) Read In Texture.
   textureFile = importPPM(texFileName);
-
-  // 4) Create textures
-
-  // || Mirrored floor ||
-  //faces[6].texture = "mirror"; 
-  //faces[7].texture = "mirror";  
-
-  //for (int i=8; i<10; i++) {
-  //  faces[i].texture = "texture";
-  //}
-
-  // || Glass Red Box ||
-  //for (int i = 12 ; i < 22 ; i++){
-  //  faces[i].texture = "glass";
-  //}
   
   //objects[0].faces[10].texture = "texture";
   //objects[0].faces[10].vertices_textures[0] = vec2(0.4, 0.2);
@@ -283,7 +285,7 @@ void handleEvent(SDL_Event event) {
     else if(event.key.keysym.sym == SDLK_s)     updateView(PAN_LEFT);
     else if(event.key.keysym.sym == SDLK_w)     updateView(TILT_DOWN); 
     else if(event.key.keysym.sym == SDLK_z)     updateView(TILT_UP); 
-    else if(event.key.keysym.sym == SDLK_c)     bounce(1, 1.5, 5);
+    else if(event.key.keysym.sym == SDLK_c)     bounce(9, 1.5, 5);
     else if(event.key.keysym.sym == SDLK_p)     playOrPause();
 
     // pressing 1 changes to wireframe mode 
@@ -493,17 +495,14 @@ vec3 findCentreOfScene(){
   vec3 sum (0,0,0); 
   for (int o=0; o<objects.size(); o++){
     for (int i = 0 ; i < objects[o].faces.size(); i++){ 
-      ModelTriangle face = objects[o].faces[i]; 
-      // for each vertex 
-      for (int j = 0 ; j < 3 ; j++){ 
-        sum += face.vertices[j]; 
-      } 
+      const ModelTriangle face = objects[o].faces[i]; 
+      sum += face.vertices[0] + face.vertices[1] + face.vertices[2]; 
     }
-    n += objects[o].faces.size(); 
+    n += (3 * objects[o].faces.size()); 
   }
   
-  sum /= (float)(n*3); 
-  return (sum); 
+  sum /= (float)(n); 
+  return sum; 
 } 
   
 void renderImageFile(ImageFile imageFile){  
@@ -892,7 +891,6 @@ void rasterize(){
       else {
         if (canvasTriangle.textured) drawTexturedTriangle(&textureFile, canvasTriangle);
         else drawFilledTriangle(canvasTriangle); 
-        //drawFilledTriangle(canvasTriangle); 
       }
     } 
   }
@@ -1068,6 +1066,7 @@ RayTriangleIntersection closestIntersection(vector<vector<vec4>> objectSolutions
 // LIGHTING 
 //////////////////////////////////////////////////////// 
  
+
 // rayPoint is the point in which this ray starts (normalls camera, but could be an intersection point if recursed)
 // rayDirection is the direction of the ray
 // depth coutns how many recursions we have done (this happens when there are reflections) - it starts at 0 when rays are shot from camera
@@ -1076,7 +1075,7 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
   // cull the faces
   backfaceCulling(rayDirection);
   // stop recursing if our reflections get too much
-  if (depth == 7) return Colour(255,255,255);  
+  if (depth == maximumNumberOfReflections) return Colour(255,255,255);  
 
   // does this ray intersect any of the faces?
   vector<vector<vec4>> solutions = checkForIntersections(rayPoint, rayDirection); 
@@ -1148,13 +1147,15 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
 
     //colour = getPixelColour(&textureFile, texX, texY);
 
-  colour = getPixelColour(&textureFile, closest.intersectUV[0] * textureFile.width, closest.intersectUV[1] * textureFile.height);
+    colour = getPixelColour(&textureFile, closest.intersectUV[0] * textureFile.width, closest.intersectUV[1] * textureFile.height);
     //cout << "Tex X, Tex Y: " << texX << ", " << texY << "\n";
 
     return colour;
-
   }
 
+  else if (triangle.texture == "bump") {
+
+  }
   // else we use Phong shading to get the colour
   else {
     Kd *= (intensityDropOff(point) * angleOfIncidence(closest)); // multiply Kd by the diffuse intensity.
@@ -1180,7 +1181,8 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
 
  
   // CODE FOR SOFT SHADOWS
-  if (InShadow(closest.intersectionPoint)){
+
+  if (InShadow(closest.intersectionPoint) == YES || InShadow(closest.intersectionPoint) == REFLECTIVE){
     const float shadowFraction = softShadows(closest);
     // mix shadow and normal colour
     Colour shadowColour = getFinalColour(colour, Ka/2, 0, 0); //getFinalColour(Colour, Ka, Kd, Ks)
@@ -1232,10 +1234,9 @@ float distanceVec3(const vec3 from, const vec3 to){
 } 
  
 // this returns a true or false depending on if we are in shadow or not 
-bool InShadow(vec3 point){ 
-  vec3 shadowRayDirection = lightPosition - point; 
-  float distance = distanceVec3(lightPosition, point); 
-  shadowRayDirection = normalize(shadowRayDirection); 
+SHADOW InShadow(vec3 point){ 
+  const vec3 shadowRayDirection = normalize(lightPosition - point);
+  const float distance = distanceVec3(lightPosition, point); 
   for (int o=0; o<objects.size(); o++) {
     // for each face, send a 'shadow ray' from the point to the light and check for intersections 
     for (int i = 0 ; i < objects[o].faces.size(); i++){ 
@@ -1247,9 +1248,9 @@ bool InShadow(vec3 point){
       vec3 SPVector = point - triangle.vertices[0]; 
       mat3 DEMatrix(-shadowRayDirection, e0, e1); 
       vec3 possibleSolution = glm::inverse(DEMatrix) * SPVector; // this is a 1x3 vector of (t,u,v) (look at notes) 
-      float t = possibleSolution[0]; 
-      float u = possibleSolution[1]; 
-      float v = possibleSolution[2]; 
+      const float t = possibleSolution[0]; 
+      const float u = possibleSolution[1]; 
+      const float v = possibleSolution[2]; 
         
       // if it is actually a solution 
       bool bool1 = (t > 0.0001); // this is not 0 to avoid self-intersection 
@@ -1257,10 +1258,13 @@ bool InShadow(vec3 point){
       bool bool3 = (t < distance); // an intersection beyond the light doesn't matter 
       // if we have an intersection then we can stop checking the other faces 
       // it is 0.000001 to avoid self intersection 
-      if (bool1 && bool2 && bool3) return true; 
+      if (bool1 && bool2 && bool3) {
+        if (triangle.texture == "glass") return REFLECTIVE;
+        else return YES; 
+      }
     } 
   }
-  return false; 
+  return NO; 
 } 
 
 float calculateSpecularLight(vec3 point, vec3 rayDirection, vec3 normal){ 
@@ -1315,32 +1319,33 @@ float softShadows(RayTriangleIntersection intersection){
   int numberOfSteps = 50; // how smooth it should be
   ///////////////////
 
-  ModelTriangle triangle = intersection.intersectedTriangle;
-  vec3 normal = triangle.getNormal();
+  vec3 normal = intersection.intersectedTriangle.getNormal();
   vec3 point = intersection.intersectionPoint;
   vec3 up = gradientConstant * normal;
   //vec3 down = -gradientConstant * normal;
   vec3 pointAbove = point + up;
   vec3 pointBelow = point;//point + down;
-  const bool above = InShadow(pointAbove);
-  const bool below = InShadow(pointBelow);
   //float shadowFraction = 0;
-  // we are in total light 
-  if ((above == 0) && (below == 0)) return 0; //shadowFraction = 0
-  // we are in total shadow 
-  else if ((above == 1) && (below == 1)) return 1; //shadowFraction = 1
-  // we are in-between, and need to calculate the gradient 
+
+  // Total Light.
+  if ((InShadow(pointAbove) == NO) && (InShadow(pointBelow) == NO)) return 0;
+  // Total Shadow.
+  else if ((InShadow(pointAbove) == YES) && (InShadow(pointBelow) == YES)) return 1;
+  // Reflective Surface.
+  else if ((InShadow(pointAbove) == REFLECTIVE) || (InShadow(pointBelow) == REFLECTIVE)) return 0.08;
+  // Somewhere in-between total light and total shadow.
   else {
     vec3 upVector = pointAbove - pointBelow;
     for (int i = 1 ; i <= numberOfSteps ; i++){
       vec3 point = pointBelow + ((i / (float)numberOfSteps) * upVector);
-      bool inShadow = InShadow(point);
       // the first point will definitely be in shadow and as we move up we find how in shadow it should be
-      if (!inShadow) return (i / (float)numberOfSteps); //shadowFraction = (i / (float)numberOfSteps)
+      if (InShadow(point) == NO) return (i / (float)numberOfSteps); //shadowFraction = (i / (float)numberOfSteps)
     }
   }
   return 0; //return shadowFraction
 } 
+
+
 
 void gouraudShading() { 
 } 
@@ -1457,87 +1462,6 @@ void backfaceCulling(vec3 rayDirection){
   }
 }
 
-
-// for a set of vertices (an object maybe), create a bounding box
-vector<ModelTriangle> boundingBox(vector<ModelTriangle> inputFaces) {
-  // we want to find the minimum and maximum values of x,y,z in all the vertices
-  // first set the min to be (inf, inf, inf)
-  // set max to be (-inf, -inf, -inf)
-  vec3 minBound(numeric_limits<float>::infinity(), numeric_limits<float>::infinity(), numeric_limits<float>::infinity());
-  vec3 maxBound = -minBound;
-  print(minBound);
-  print(maxBound);
-  int n = inputFaces.size();
-  // for each face
-  for (int i = 0 ; i < n ; i++){
-    ModelTriangle triangle = inputFaces[i];
-    // get each component
-  
-    float tempMinX = min(triangle.vertices[0][0], triangle.vertices[1][0], triangle.vertices[1][0]);
-    float tempMinY = min(triangle.vertices[0][1], triangle.vertices[1][1], triangle.vertices[1][1]);
-    float tempMinZ = min(triangle.vertices[0][2], triangle.vertices[1][2], triangle.vertices[1][2]);
-
-    float tempMaxX = max(triangle.vertices[0][0], triangle.vertices[1][0], triangle.vertices[1][0]);
-    float tempMaxY = max(triangle.vertices[0][1], triangle.vertices[1][1], triangle.vertices[1][1]);
-    float tempMaxZ = max(triangle.vertices[0][2], triangle.vertices[1][2], triangle.vertices[1][2]);
-
-    // check for all the x,y,z values separately to see if it is a new min or maximum
-    if (tempMinX < minBound[0]) minBound[0] = tempMinX;
-    if (tempMinY < minBound[1]) minBound[1] = tempMinX;
-    if (tempMinZ < minBound[2]) minBound[2] = tempMinX;
-    
-    if (tempMaxX > maxBound[0]) maxBound[0] = tempMaxX;
-    if (tempMaxY > maxBound[1]) maxBound[1] = tempMaxX;
-    if (tempMaxZ > maxBound[2]) maxBound[2] = tempMaxX;      
-  }
-
-  print(minBound);
-  print(maxBound);
-
-  // create the box object
-  vector<ModelTriangle> boxFaces; // this is a cube so will have 12 faces
-  vector<vec3> vertices; // these must be in a particular order so the faces can be constructed facing the right way and also the right faces are constructed
-  vertices.push_back( vec3(minBound[0], minBound[1], minBound[2]) ); // bottom-left-forward   v1
-  vertices.push_back( vec3(maxBound[0], minBound[1], minBound[2]) ); // bottom-right-forward  v2 
-  vertices.push_back( vec3(minBound[0], maxBound[1], minBound[2]) ); // top-left-forward      v3
-  vertices.push_back( vec3(maxBound[0], maxBound[1], minBound[2]) ); // top-right-forward     v4
-  vertices.push_back( vec3(minBound[0], minBound[1], maxBound[2]) ); // bottom-left-back      v5
-  vertices.push_back( vec3(maxBound[0], minBound[1], maxBound[2]) ); // bottom-right-back     v6
-  vertices.push_back( vec3(minBound[0], maxBound[1], maxBound[2]) ); // top-left-back         v7
-  vertices.push_back( vec3(maxBound[0], maxBound[1], maxBound[2]) ); // top-right-back        v8
-
-  cout << "n: " << vertices.size() << endl;
-
-  vector<vec3> vertexIndices;
-  vertexIndices.push_back(vec3 (1,2,3)); // front face
-  vertexIndices.push_back(vec3 (2,4,3)); // front face
-  vertexIndices.push_back(vec3 (3,4,7)); //   top face
-  vertexIndices.push_back(vec3 (4,8,7)); //   top face
-  vertexIndices.push_back(vec3 (7,8,5)); //  back face
-  vertexIndices.push_back(vec3 (8,6,5)); //  back face
-  vertexIndices.push_back(vec3 (5,6,1)); //bottom face
-  vertexIndices.push_back(vec3 (6,2,1)); //bottom face
-  vertexIndices.push_back(vec3 (5,1,7)); //  left face
-  vertexIndices.push_back(vec3 (1,3,7)); //  left face
-  vertexIndices.push_back(vec3 (2,6,4)); // right face
-  vertexIndices.push_back(vec3 (6,8,4)); // right face
-
-
-  // make the vertices into faces
-  for (int i = 0 ; i < 12 ; i++){
-    const vec3 indices = vertexIndices[i];
-    ModelTriangle triangle;
-    triangle.colour = Colour (255,255,255); // arbitrarily set colour to white (for testing)
-    for (int j = 0 ; j < 3 ; j ++){
-      const int index = indices[j] - 1;
-      triangle.vertices[j] = vertices[index];
-      print(vertices[index]);
-    }
-    boxFaces.push_back(triangle);
-  }
-  return boxFaces;
-}
-
 ////////////////////////////////
 // ANIMATION CODE
 ////////////////////////////////
@@ -1570,9 +1494,7 @@ void spinAround(float angle, int stepNumber, bool clockwise, int zoom){
 
   const float distanceStep = (endDistance - startDistance) / stepNumber;
   
-  float angleStep = angle / stepNumber;
-  if (clockwise) angleStep = -angleStep;
-  
+  const float angleStep = (!clockwise) ? (angle/stepNumber) : (-angle/stepNumber);
 
   // for each step we move the camera the right amount
   for (int i = 0 ; i < stepNumber ; i++){
@@ -1582,15 +1504,14 @@ void spinAround(float angle, int stepNumber, bool clockwise, int zoom){
 }
 
 
-void translateVertices(int objectIndex, vec3 direction, float distance){
+void translateVertices(int objectIndex, vec3 direction, float distance) {
   direction = normalize(direction);
   // for each face
   for (int i = 0 ; i < objects[objectIndex].faces.size() ; i++){
     // for each vertex
-    for (int j = 0 ; j < 3 ; j++){
-      vec3 vertex = objects[objectIndex].faces[i].vertices[j];
-      objects[objectIndex].faces[i].vertices[j] = vertex + (distance * direction);
-    }
+    objects[objectIndex].faces[i].vertices[0] = objects[objectIndex].faces[i].vertices[0] + (distance * direction);
+    objects[objectIndex].faces[i].vertices[1] = objects[objectIndex].faces[i].vertices[1] + (distance * direction);
+    objects[objectIndex].faces[i].vertices[2] = objects[objectIndex].faces[i].vertices[2] + (distance * direction);
   }
 }
 
@@ -1660,7 +1581,6 @@ void squash(int objectIndex, float squashFactor){
     for (int j = 0 ; j < 3 ; j++){
       vec3 vertex = objects[objectIndex].faces[i].vertices[j];
       vec3 direction = vertex - squashCentre;
-      //direction = normalize(direction);
       // increase the y and z, but decrease the x
       vec3 newPoint = vertex + (squashFactor * direction);
       newPoint[1] = vertex[1] - (squashFactor * direction[1]);
@@ -1694,8 +1614,6 @@ void pixarJump(int objectIndex, float height, bool rotate, float maxSquashFactor
   // calculating how long the jump will take
   float totalTime = (u / -a) * 2;
   float timeStep = 0.02; // this will depend on how many frames we produce per second (normally about 24)
-
-
 
   // for the jump we want the object to go from normal to stretch then down to normal again (squashFactor = 0)
   // we can stretch by using negative values in the squash function
