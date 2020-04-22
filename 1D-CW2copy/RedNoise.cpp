@@ -120,7 +120,7 @@ float imageHeight = imageWidth * (HEIGHT / float(WIDTH)); // HEIGHT
 
 // light parameters 
 vec3 lightPosition (-0.234011, 5, -3); // this is roughly the centre of the white light box 
-float lightIntensity = 100; 
+const float lightIntensity = 100; 
 
 void initialise() {
   if (!(AA>=1)) exit(1);
@@ -490,18 +490,11 @@ void lookAt(vec3 point){
  
 // this function averages all the vertices in the scene to find the centre of the scene 
 vec3 findCentreOfScene(){ 
-  int n=0; //overall faces count.
-
-  vec3 sum (0,0,0); 
+  vec3 sum(0,0,0); 
   for (int o=0; o<objects.size(); o++){
-    for (int i = 0 ; i < objects[o].faces.size(); i++){ 
-      const ModelTriangle face = objects[o].faces[i]; 
-      sum += face.vertices[0] + face.vertices[1] + face.vertices[2]; 
-    }
-    n += (3 * objects[o].faces.size()); 
+    sum += objects.at(o).GetCentre(); 
   }
-  
-  sum /= (float)(n); 
+  sum /= (float)(objects.size()); 
   return sum; 
 } 
   
@@ -1322,10 +1315,8 @@ float softShadows(RayTriangleIntersection intersection){
   vec3 normal = intersection.intersectedTriangle.getNormal();
   vec3 point = intersection.intersectionPoint;
   vec3 up = gradientConstant * normal;
-  //vec3 down = -gradientConstant * normal;
   vec3 pointAbove = point + up;
   vec3 pointBelow = point;//point + down;
-  //float shadowFraction = 0;
 
   // Total Light.
   if ((InShadow(pointAbove) == NO) && (InShadow(pointBelow) == NO)) return 0;

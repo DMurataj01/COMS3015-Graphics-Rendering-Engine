@@ -17,24 +17,36 @@ class Object {
     Object() {
       hasBoundingBox = false;
     }
+    
     Object(std::vector<ModelTriangle> inputFaces) {
       faces = inputFaces;
       hasBoundingBox = false;
     }
+
     void Clear() {
       faces.clear();
       hasBoundingBox = false;
       boxFaces.clear();
     }
+
     void ApplyMaterial(std::string texture) {
       for(int i= 0; i< faces.size(); i++) {
         faces.at(i).texture = texture;
       }
     }
+
     void ApplyColour(Colour colour, bool resetTexture) {
       for(int i= 0; i< faces.size(); i++) {
         faces.at(i).colour = colour;
         if (resetTexture) faces.at(i).texture = "";
       }
+    }
+
+    glm::vec3 GetCentre() {
+      glm::vec3 sum(0,0,0);
+      for (int i=0; i< faces.size(); i++) {
+        sum += ((faces.at(i).vertices[0] + faces.at(i).vertices[1] + faces.at(i).vertices[2])/(float)3);
+      }
+      return sum/(float) faces.size();
     }
 };
