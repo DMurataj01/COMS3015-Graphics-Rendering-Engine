@@ -4,6 +4,7 @@
 // Call Headers [ Safe from double includes ]
 #include "OBJ.h"
 #include "PPM.h"
+#include "Materials.h"
 #include "Interpolate.h"
 
 #include <Utils.h> 
@@ -152,14 +153,15 @@ int main(int argc, char* argv[]) {
   translateVertices(9, vec3(0,1,0), 1.5);
   
   //Mirrored floor
-  objects[3].ApplyMaterial("mirror");
+  
+  objects[3].ApplyMaterial(MIRROR);
   //Mirrored Red Box.
-  objects[6].ApplyMaterial("glass");
+  objects[6].ApplyMaterial(GLASS);
 
   //Apply colour to Hacksapce logo for SHADOWing
   objects[9].ApplyColour(Colour(24, 21, 180), true);
   //Apply Material for the Raytracer
-  objects[9].ApplyMaterial("glass");
+  objects[9].ApplyMaterial(GLASS);
   //objects[9].ApplyMaterial("texture");
   // 3) Read In Texture.
   textureFile = importPPM(texFileName);
@@ -843,7 +845,7 @@ void rasterize(){
       ModelTriangle triangle = objects[o].faces[i]; 
       CanvasTriangle canvasTriangle; 
       canvasTriangle.colour = triangle.colour;
-      canvasTriangle.textured = (triangle.texture == "texture");
+      canvasTriangle.textured = (triangle.material == TEXTURE);
 
       // for each vertex 
       for (int j = 0 ; j < 3 ; j++){ 
@@ -1087,17 +1089,17 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
   ModelTriangle triangle = closest.intersectedTriangle;
 
   // if this face is a mirror, create a reflected ray and shoot this ray (recurse this function) 
-  if (triangle.texture == "mirror"){ 
+  if (triangle.material == MIRROR){ 
     vec3 incident = rayDirection; 
     vec3 normal = closest.intersectedTriangle.getNormal(); 
     vec3 reflection = normalize(incident - (2 * dot(incident, normal) * normal));
     // avoid self-intersection 
     return shootRay(point + ((float)0.00001 * normal), reflection, depth + 1, currentIOR);
   } 
-  else if (triangle.texture == "glass"){
+  else if (triangle.material == GLASS){
     return glass(rayDirection, closest, depth);
   }
-  else if (triangle.texture == "texture") {
+  else if (triangle.material == TEXTURE) {
     bool mydebug = true; //(closest.intersectUV[0] > 0.2 && closest.intersectUV[1] > 0.2);
 
     if (mydebug) {
@@ -1146,7 +1148,7 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
     return colour;
   }
 
-  else if (triangle.texture == "bump") {
+  else if (triangle.material == BUMP) {
 
   }
   // else we use Phong shading to get the colour
@@ -1252,7 +1254,7 @@ SHADOW InShadow(vec3 point){
       // if we have an intersection then we can stop checking the other faces 
       // it is 0.000001 to avoid self intersection 
       if (bool1 && bool2 && bool3) {
-        if (triangle.texture == "glass") return REFLECTIVE;
+        if (triangle.material == GLASS) return REFLECTIVE;
         else return YES; 
       }
     } 
@@ -1448,7 +1450,7 @@ void backfaceCulling(vec3 rayDirection){
       //ModelTriangle face = objects[o].faces[i];
       const vec3 normal = objects[o].faces[i].getNormal();
       //True if faces face the other way && !glass.
-      objects[o].faces[i].culled = ((dot(normal, rayDirection) > 0) && (objects[o].faces[i].texture != "glass"));
+      objects[o].faces[i].culled = ((dot(normal, rayDirection) > 0) && (objects[o].faces[i].material != GLASS));
     }
   }
 }

@@ -1,14 +1,14 @@
 #include <glm/glm.hpp>
 #include <Colour.h>
 #include <string>
-
+#include "Materials.h"
 class ModelTriangle {
   public:
     glm::vec3 vertices[3];
     glm::vec2 vertices_textures[3];
     Colour colour;
     glm::vec3 normals[3]; // these correspond to the averaged normals of the vertices
-    std::string texture;
+    MATERIAL material;
     int faceIndex;   // stores the number of which face it is out of all of them
     int objectIndex; // used in OBJ - stores the group this triangle is in.
     bool culled; // has this face been culled or not? do we need to check for intersections with it?
@@ -17,7 +17,7 @@ class ModelTriangle {
       normals[0] = glm::vec3 (0,0,0);
       normals[1] = glm::vec3 (0,0,0);
       normals[2] = glm::vec3 (0,0,0);
-      texture = "none";
+      material = NONE;
       culled = false;
       faceIndex = -1;
       objectIndex = -1;
@@ -31,7 +31,7 @@ class ModelTriangle {
       normals[0] = glm::vec3 (0,0,0);
       normals[1] = glm::vec3 (0,0,0);
       normals[2] = glm::vec3 (0,0,0);
-      texture = "none";
+      material = NONE;
       culled = false;
       faceIndex = -1;
       objectIndex = -1;

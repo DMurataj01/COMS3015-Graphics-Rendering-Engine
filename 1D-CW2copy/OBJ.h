@@ -21,8 +21,6 @@
   #include <ModelTriangle.h>
 #endif
 
-#include "Material.h"
-
 using namespace std;
 using namespace glm;
 
