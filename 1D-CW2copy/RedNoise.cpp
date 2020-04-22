@@ -27,7 +27,7 @@ enum SHADOW {NO=0, YES=1, REFLECTIVE=2};
 //––---------------------------------//
 
 RENDERTYPE currentRender = RASTERIZE; //Set default RenderType here. 
-std::string defaultPPMFileName = "snapshot.ppm";
+std::string defaultPPMFileName = "render/snapshot";
 
 const int maximumNumberOfReflections = 7;
 
@@ -107,6 +107,9 @@ vector<Object> objects;
 ImageFile textureFile;
 
 bool animate = false;
+int currentFrame = 0;
+
+bool recording = false;
  
 // initial camera parameters 
 vec3 cameraPosition (0,2,3.5);//(0,-2,-3.5); 
@@ -274,6 +277,10 @@ void render(){
 
   double duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
   if (displayRenderTime) cout << "Time Taken To Render: " << duration << "\n";
+  if (recording) {
+    exportToPPM(defaultPPMFileName + std::to_string(currentFrame) + ".ppm", CreateImageFileFromWindow(window, WIDTH, HEIGHT)); 
+    currentFrame++;
+  }
 } 
 
 
@@ -305,13 +312,20 @@ void handleEvent(SDL_Event event) {
       currentRender = RAYTRACE;
       render(); 
     } 
-    else if(event.key.keysym.sym == SDLK_n) {
-      ImageFile displaySnapShot = CreateImageFileFromWindow(window, WIDTH, HEIGHT);
-      exportToPPM(defaultPPMFileName, displaySnapShot); 
-    }
-    else if(event.key.keysym.sym == SDLK_m) {
+     else if(event.key.keysym.sym == SDLK_m) {
       ImageFile imageFile = importPPM("texture.ppm");
       renderImageFile(imageFile);
+    }
+    else if(event.key.keysym.sym == SDLK_n) {
+      ImageFile displaySnapShot = CreateImageFileFromWindow(window, WIDTH, HEIGHT);
+      exportToPPM(defaultPPMFileName + std::to_string(currentFrame) + ".ppm", displaySnapShot); 
+      currentFrame++;
+    }
+
+    else if(event.key.keysym.sym == SDLK_r) {
+      recording = !recording;
+      if (recording) cout << "Recording Started\n";
+      else cout << "Recording Stopped\n";
     }
   } 
 } 
