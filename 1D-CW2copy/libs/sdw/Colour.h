@@ -60,6 +60,10 @@ class Colour
       uint32_t col = (255<<24) + (red<<16) + (green<<8) + blue; 
       return col; 
     }
+    uint32_t toUINT32_t(float percentage) {
+      uint32_t col = (255<<24) + (red<<16) + (green<<8) + blue; 
+      return col; 
+    }
     
 };
 

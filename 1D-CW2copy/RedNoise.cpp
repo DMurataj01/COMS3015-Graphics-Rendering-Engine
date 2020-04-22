@@ -580,6 +580,120 @@ void drawLine(CanvasPoint start, CanvasPoint end, vector<TexturePoint> texturePo
     } 
   } 
 } 
+
+
+////////////////////////////////////////////////////////////////////////////////
+float fpart(float x) {
+	return x - floor(x);
+}
+////////////////////////////////////////////////////////////////////////////////
+float rfpart(float x) {
+	return 1 - fpart(x);
+}
+////////////////////////////////////////////////////////////////////////////////
+
+void drawNewLine(CanvasPoint ptStart, CanvasPoint ptEnd, Colour ptClr) {
+  float diffX = (ptEnd.x - ptStart.x);
+  float diffY = (ptEnd.y - ptStart.y);
+
+  int x1 = ptStart.x;
+  int x2 = ptEnd.x;
+  int y1 = ptStart.y;
+  int y2 = ptEnd.y;
+
+  if ((abs(diffX) == 0.f) || (abs(diffY) == 0.f)) {
+    drawLine(ptStart, ptEnd, ptClr);
+  }
+  else if (abs(diffX) > abs(diffY)) {
+    // horizontal line.
+    if(x2 < x1) { swap(x1, x2); swap(y1, y2); }
+
+    float gradient = diffY / diffX;
+
+    float xend = float(round(x1));
+    float yend = y1 + gradient * (xend - x1);
+    float xgap = rfpart(x1 + 0.5f);
+    
+    int xpxl1 = int(xend);
+    int ypxl1 = floor(yend);
+    
+    // Add the first endpoint.
+    setDepthPixelColour( xpxl1, ypxl1    , 0.05, ptClr.toUINT32_t( rfpart(yend) * xgap));
+    setDepthPixelColour( xpxl1, ypxl1 + 1, 0.05, ptClr.toUINT32_t(  fpart(yend) * xgap));
+    
+    float intery = yend + gradient;
+
+    xend = float(round(x2));
+    yend = y2 + gradient * (xend - x2);
+    xgap = fpart(x2 + 0.5f);
+    
+    int xpxl2 = int(xend);
+    int ypxl2 = floor(yend);
+    
+    // Add the second endpoint
+
+    setDepthPixelColour( xpxl2, ypxl2    , 0.05, ptClr.toUINT32_t( rfpart(yend) * xgap));
+    setDepthPixelColour( xpxl2, ypxl2 + 1, 0.05, ptClr.toUINT32_t(  fpart(yend) * xgap));
+
+    
+    // Add all the points between the endpoints
+    for(int x = xpxl1 + 1; x <= xpxl2 - 1; ++x){
+      int i_intery = floor(intery);
+
+      //int index0 = (WIDTH*(i_intery)) + x;
+      //int index1 = (WIDTH*(i_intery+1)) + x;
+      
+      setDepthPixelColour(x, i_intery    , 0.05, ptClr.toUINT32_t(rfpart(intery)));
+      setDepthPixelColour(x, i_intery + 1, 0.05, ptClr.toUINT32_t( fpart(intery)));
+
+      intery += gradient;
+    }
+
+  }   
+  else {
+    if(y2 < y1) { swap(x1, x2); swap(y1, y2); }
+
+    float gradient = diffX / diffY;
+    float yend = float(round(y1));
+    float xend = x1 + gradient * (yend - y1);
+    float ygap = rfpart(y1 + 0.5f);
+    
+    int ypxl1 = int(yend);
+    int xpxl1 = floor(xend);
+
+    // Add the first endpoint
+    setDepthPixelColour( xpxl1, ypxl1    , 0.05, ptClr.toUINT32_t( rfpart(xend) * ygap));
+    setDepthPixelColour( xpxl1, ypxl1 + 1, 0.05, ptClr.toUINT32_t(  fpart(xend) * ygap));
+    
+    float interx = xend + gradient;
+
+    yend = float(round(y2));
+    xend = x2 + gradient * (yend - y2);
+    ygap = fpart(y2 + 0.5f);
+    
+    int ypxl2 = int(yend);
+    int xpxl2 = floor(xend);
+    
+    // Add the second endpoint
+    setDepthPixelColour( xpxl2, ypxl2    , 0.05, ptClr.toUINT32_t( rfpart(xend) * ygap));//getColour(ptClr, rfpart(xend) * ygap));
+    setDepthPixelColour( xpxl2, ypxl2 + 1, 0.05, ptClr.toUINT32_t(  fpart(xend) * ygap )); //getColour(ptClr, fpart(xend) * ygap));
+    
+    // Add all the points between the endpoints
+    for(int y = ypxl1 + 1; y <= ypxl2 - 1; ++y){
+
+      int i_interx = floor(interx);
+
+      //int index0 = (WIDTH*y) + i_interx;
+      //int index1 = (WIDTH*y) + i_interx + 1;
+
+      setDepthPixelColour( i_interx    , y, 0.05, ptClr.toUINT32_t(rfpart(interx)));
+      setDepthPixelColour( i_interx + 1, y, 0.05, ptClr.toUINT32_t( fpart(interx)));
+      interx += gradient;
+    }
+  }
+
+  return;
+}
  
 CanvasTriangle sortTriangleVertices(CanvasTriangle tri) {
   //** Unrolled 'Bubble Sort' for 3 items.
@@ -612,9 +726,9 @@ void drawStrokedTriangle(CanvasTriangle triangle){
   CanvasPoint point3 = triangle.vertices[2]; 
   Colour colour = triangle.colour; 
  
-  drawLine(point1,point2,colour); 
-  drawLine(point2,point3,colour); 
-  drawLine(point3,point1,colour); 
+  drawNewLine(point1,point2,colour); 
+  drawNewLine(point2,point3,colour); 
+  drawNewLine(point3,point1,colour); 
 } 
  
 void drawFilledTriangle(CanvasTriangle triangle){ 
