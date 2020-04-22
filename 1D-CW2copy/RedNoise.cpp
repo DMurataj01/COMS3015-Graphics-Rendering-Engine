@@ -96,7 +96,6 @@ void squash(int objectIndex, float squashFactor);
 void pixarJump(int objectIndex, float height, bool rotate, float maxSquashFactor);
 void jumpSquash(int objectIndex, float maxSquashFactor);
 void bounce(int objectIndex, float height, int numberOfBounces);
-vec3 findObjectCentre(Object object);
 void rotateObject(int objectIndex, float theta, vec3 point);
  
 DrawingWindow window;
@@ -784,7 +783,7 @@ void drawFilledTriangle(CanvasTriangle triangle){
     } 
   } 
   
-  // this code draws the outline of the triangle ontop of the filled triangle to make sure it is correct 
+  //this code draws the outline of the triangle ontop of the filled triangle.
   drawLine(maxPoint, middlePoint, triangle.colour); 
   drawLine(middlePoint, minPoint, triangle.colour); 
   drawLine(maxPoint, minPoint, triangle.colour); 
@@ -1847,23 +1846,6 @@ void bounce(int objectIndex, float height, int numberOfBounces){
     pixarJump(objectIndex, bounceHeight, false, squashFactor);
   }
 }
-
-
-vec3 findObjectCentre(Object object){
-  vec3 averagedVertex (0,0,0);
-  int n = object.faces.size();
-  // for each face
-  for (int i = 0 ; i < n ; i++){
-    // for each vertex
-    for (int j = 0 ; j < 3 ; j++){
-      vec3 vertex = object.faces[i].vertices[j];
-      averagedVertex = averagedVertex + vertex;
-    }
-  }
-  averagedVertex = averagedVertex / float(n*3);
-  return averagedVertex;
-}
-
 
 // this function rotates an object in the secen by the specified angle
 // it can rotate around a certain point (this is normally set at the objects centre)
