@@ -90,14 +90,11 @@ float fresnel(vec3 incident, vec3 normal, float ior);
 void backfaceCulling(vec3 rayDirection);
 void spin(vec3 point, float angle, float distance);
 void spinAround(float angle, int stepNumber, bool clockwise, int zoom);
-void translateVertices(int objectIndex, vec3 direction, float distance);
 void jump(int objectIndex, float height);
 void squash(int objectIndex, float squashFactor);
 void pixarJump(int objectIndex, float height, bool rotate, float maxSquashFactor);
 void jumpSquash(int objectIndex, float maxSquashFactor);
 void bounce(int objectIndex, float height, int numberOfBounces);
-vec3 findObjectCentre(Object object);
-void rotateObject(int objectIndex, float theta, vec3 point);
  
 DrawingWindow window;
  
@@ -151,9 +148,9 @@ int main(int argc, char* argv[]) {
 
   cout << "Number Of Objects: " << objects.size() << "\n";
 
-  translateVertices(9, vec3(-1,0,0), 0.7);
-  translateVertices(9, vec3(0,0,-1), 1.7);
-  translateVertices(9, vec3(0,1,0), 1.5);
+  objects.at(9).Move(vec3(-1,0,0), 0.7);
+  objects.at(9).Move(vec3(0,0,-1), 1.7);
+  objects.at(9).Move(vec3(0,1, 0), 1.5);
   
   //Mirrored floor
   
@@ -194,6 +191,9 @@ int main(int argc, char* argv[]) {
  
 void update() {
   // Function for performing animation (shifting artifacts or moving the camera)
+  
+  //objects.at(2).RotateXZ(0.1);
+  //render();
   const float pi = 4 * atan(1);
   spinAround(pi, 100, true, -1);
   spinAround(pi, 100, true, 1);
@@ -784,10 +784,10 @@ void drawFilledTriangle(CanvasTriangle triangle){
     } 
   } 
   
-  // this code draws the outline of the triangle ontop of the filled triangle to make sure it is correct 
-  drawWuLine(maxPoint, middlePoint, Colour (255,255,255)); 
-  drawWuLine(middlePoint, minPoint, Colour (255,255,255)); 
-  drawWuLine(maxPoint, minPoint, Colour (255,255,255)); 
+  //this code draws the outline of the triangle ontop of the filled triangle.
+  drawLine(maxPoint, middlePoint, triangle.colour); 
+  drawLine(middlePoint, minPoint, triangle.colour); 
+  drawLine(maxPoint, minPoint, triangle.colour); 
   
   
 }  
@@ -1116,17 +1116,16 @@ RayTriangleIntersection closestIntersection(vector<vector<vec4>> objectSolutions
   float closestT = numeric_limits<float>::infinity(); 
   int closestIndex = -1; 
   // for each possible solution / for each face 
-  int n = objectSolutions.size(); 
   // for each object
-  for (int o=0; o<n; o++) {
+  for (int o=0; o<objectSolutions.size(); o++) {
     vector<vec4> solutions = objectSolutions[o];
     for (int i = 0 ; i < objects[o].faces.size() ; i++){ 
       
       vec4 possibleSolution = solutions[i]; 
-      float t = possibleSolution[0]; 
-      float u = possibleSolution[1]; 
-      float v = possibleSolution[2];
-      int index = possibleSolution[3];
+      const float t = possibleSolution[0]; 
+      const float u = possibleSolution[1]; 
+      const float v = possibleSolution[2];
+      const int index = possibleSolution[3];
       
       // if it is actually a solution 
       bool bool1 = (t > 0); 
@@ -1134,29 +1133,31 @@ RayTriangleIntersection closestIntersection(vector<vector<vec4>> objectSolutions
       bool bool3 = (u + v) <= 1; 
       if (bool1 && bool2 && bool3){ 
         ModelTriangle triangle = objects[o].faces[index]; 
+        
         // is it closer than what we currently have? 
         if (t < closestT){ 
           closestT = t; 
           closestIndex = i; 
           
           // calculating the point of intersection 
-          vec3 p0 = triangle.vertices[0]; 
-          vec3 p1 = triangle.vertices[1]; 
-          vec3 p2 = triangle.vertices[2]; 
-          vec3 intersection = p0 + (u * (p1 - p0)) + (v * (p2 - p0)); 
-          // calculating the distance between the camera and intersection point 
-          vec3 d = intersection - rayPoint; 
-          float distance = sqrt( (d[0]*d[0]) + (d[1] * d[1]) + (d[2] * d[2])); 
-          // calculating the normal of the intersection 
-          vec3 n0 = triangle.normals[0]; 
-          vec3 n1 = triangle.normals[1]; 
-          vec3 n2 = triangle.normals[2]; 
-          vec3 normal = n0 + (u * (n1 - n0)) + (v * (n2 - n0)); 
+          const vec3 p0 = triangle.vertices[0]; 
+          const vec3 p1 = triangle.vertices[1]; 
+          const vec3 p2 = triangle.vertices[2]; 
+          const vec3 intersection = p0 + (u * (p1 - p0)) + (v * (p2 - p0)); 
           closest.intersectionPoint = intersection; 
+
+          // calculating the distance between the camera and intersection point 
+          const vec3 d = intersection - rayPoint; 
+          closest.distanceFromCamera = sqrt( (d[0]*d[0]) + (d[1] * d[1]) + (d[2] * d[2]));
+
+          // calculating the normal of the intersection 
+          const vec3 n0 = triangle.normals[0]; 
+          const vec3 n1 = triangle.normals[1]; 
+          const vec3 n2 = triangle.normals[2]; 
+          closest.normal = n0 + (u * (n1 - n0)) + (v * (n2 - n0));
+
           closest.intersectUV = vec2(u, v);
-          closest.distanceFromCamera = distance; 
           closest.intersectedTriangle = triangle; 
-          closest.normal = normal; 
         } 
       } 
     } 
@@ -1603,19 +1604,6 @@ void spinAround(float angle, int stepNumber, bool clockwise, int zoom){
   }
 }
 
-
-void translateVertices(int objectIndex, vec3 direction, float distance) {
-  direction = normalize(direction);
-  // for each face
-  for (int i = 0 ; i < objects[objectIndex].faces.size() ; i++){
-    // for each vertex
-    objects[objectIndex].faces[i].vertices[0] = objects[objectIndex].faces[i].vertices[0] + (distance * direction);
-    objects[objectIndex].faces[i].vertices[1] = objects[objectIndex].faces[i].vertices[1] + (distance * direction);
-    objects[objectIndex].faces[i].vertices[2] = objects[objectIndex].faces[i].vertices[2] + (distance * direction);
-  }
-}
-
-
 // use equations of motion to animate a jump
 void jump(int objectIndex, float height){
   // if we just define the height of the bounce, then we can calculate what the initial velocity must be and also how long it will take
@@ -1637,11 +1625,11 @@ void jump(int objectIndex, float height){
   for (float t = 0 ; t < totalTime ; t += timeStep){
     // using the 2nd equations of motion (displacement one written above)
     float displacement = (u*t) + (0.5 * a * t * t);
-    translateVertices(objectIndex, vec3 (0,1,0), displacement);
+    objects[objectIndex].Move(vec3(0,1,0), displacement);
     render();
     window.renderFrame();
     // translate the vertices back to original
-    translateVertices(objectIndex, vec3 (0,-1,0), displacement);
+    objects[objectIndex].Move(vec3(0,-1,0), displacement);
   }
 }
 
@@ -1750,15 +1738,12 @@ void pixarJump(int objectIndex, float height, bool rotate, float maxSquashFactor
     // using the 2nd equations of motion (displacement one written above)
     float displacement = (u*t) + (0.5 * a * t * t);
     // translate
-    translateVertices(objectIndex, vec3 (0,1,0), displacement);
+    objects[objectIndex].Move(vec3(0,1,0), displacement);
     // squash
     float squashFactor = (aQuad*t*t) + (bQuad*t);
     squash(objectIndex, squashFactor);
     // rotate
-    if (rotate) {
-      vec3 centre = objects[objectIndex].GetCentre();
-      rotateObject(objectIndex, stepAngle*i, centre);
-    }
+    if (rotate) objects[objectIndex].RotateXZ(stepAngle*i);
     // render
     render();
     window.renderFrame();
@@ -1845,45 +1830,5 @@ void bounce(int objectIndex, float height, int numberOfBounces){
     float bounceHeight = (a*n*n) + (b*n) + c;
     float squashFactor = 0.5 * (bounceHeight / height);
     pixarJump(objectIndex, bounceHeight, false, squashFactor);
-  }
-}
-
-
-vec3 findObjectCentre(Object object){
-  vec3 averagedVertex (0,0,0);
-  int n = object.faces.size();
-  // for each face
-  for (int i = 0 ; i < n ; i++){
-    // for each vertex
-    for (int j = 0 ; j < 3 ; j++){
-      vec3 vertex = object.faces[i].vertices[j];
-      averagedVertex = averagedVertex + vertex;
-    }
-  }
-  averagedVertex = averagedVertex / float(n*3);
-  return averagedVertex;
-}
-
-
-// this function rotates an object in the secen by the specified angle
-// it can rotate around a certain point (this is normally set at the objects centre)
-void rotateObject(int objectIndex, float theta, vec3 point) {
-  // create the rotation matrix
-  vec3 col1 = vec3 (cos(theta), 0, -sin(theta)); 
-  vec3 col2 = vec3 (0, 1, 0); 
-  vec3 col3 = vec3 (sin(theta), 0, cos(theta));
-  mat3 rotationMatrix (col1, col2, col3);
-
-  Object object = objects[objectIndex];
-  // for each face
-  for (int i = 0 ; i < object.faces.size() ; i++){
-    // for each vertex
-    for (int j = 0 ; j < 3 ; j++){
-      vec3 vertex = object.faces[i].vertices[j];
-      vec3 centreToVertex = vertex - point;
-      // rotate this by the angle
-      vec3 newVertex = point + rotationMatrix * centreToVertex;
-      objects[objectIndex].faces[i].vertices[j] = newVertex;
-    }
   }
 }

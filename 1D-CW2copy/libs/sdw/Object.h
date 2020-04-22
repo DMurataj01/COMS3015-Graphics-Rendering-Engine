@@ -54,4 +54,73 @@ class Object {
       }
       return sum/(float) faces.size();
     }
+
+    // Rotate about the centre in the XZ direction.
+    void RotateXZ(float theta) {
+      glm::vec3 col1 = glm::vec3 (cos(theta), 0, sin(theta)); 
+      glm::vec3 col2 = glm::vec3 (0, 1, 0); 
+      glm::vec3 col3 = glm::vec3 (-sin(theta), 0, cos(theta));
+      glm::mat3 rotationMatrix (col1, col2, col3);
+      
+      const glm::vec3 centre = GetCentre();
+
+      for (int i=0; i<faces.size(); i++) {
+        faces.at(i).vertices[0] = centre + rotationMatrix * (faces.at(i).vertices[0] - centre);
+        faces.at(i).vertices[1] = centre + rotationMatrix * (faces.at(i).vertices[1] - centre);
+        faces.at(i).vertices[2] = centre + rotationMatrix * (faces.at(i).vertices[2] - centre);
+      }
+    }
+    // Rotate about the point in the XZ direction.
+    void RotateXZ(float theta, glm::vec3 point) {
+      glm::vec3 col1 = glm::vec3 (cos(theta), 0, -sin(theta)); 
+      glm::vec3 col2 = glm::vec3 (0, 1, 0); 
+      glm::vec3 col3 = glm::vec3 (sin(theta), 0, cos(theta));
+      glm::mat3 rotationMatrix (col1, col2, col3);
+      
+      for (int i=0; i<faces.size(); i++) {
+        faces.at(i).vertices[0] = point + rotationMatrix * (faces.at(i).vertices[0] - point);
+        faces.at(i).vertices[1] = point + rotationMatrix * (faces.at(i).vertices[1] - point);
+        faces.at(i).vertices[2] = point + rotationMatrix * (faces.at(i).vertices[2] - point);
+      }
+    }
+    // Rotate about the centre in the ZY direction.
+    void RotateZY(float theta) {
+      glm::vec3 col1 = glm::vec3 (1, 0, 0); 
+      glm::vec3 col2 = glm::vec3 (0,  cos(theta), -sin(theta)); 
+      glm::vec3 col3 = glm::vec3 (0, sin(theta), cos(theta));
+      glm::mat3 rotationMatrix (col1, col2, col3);
+      
+      const glm::vec3 centre = GetCentre();
+
+      for (int i=0; i<faces.size(); i++) {
+        faces.at(i).vertices[0] = centre + rotationMatrix * (faces.at(i).vertices[0] - centre);
+        faces.at(i).vertices[1] = centre + rotationMatrix * (faces.at(i).vertices[1] - centre);
+        faces.at(i).vertices[2] = centre + rotationMatrix * (faces.at(i).vertices[2] - centre);
+      }
+    }
+    // Rotate about the centre in the YX direction.
+    void RotateYX(float theta) {
+      glm::vec3 col1 = glm::vec3 (cos(theta), -sin(theta), 0); 
+      glm::vec3 col2 = glm::vec3 (sin(theta), cos(theta), 0); 
+      glm::vec3 col3 = glm::vec3 (0, 0, 1);
+      glm::mat3 rotationMatrix (col1, col2, col3);
+      
+      const glm::vec3 centre = GetCentre();
+
+      for (int i=0; i<faces.size(); i++) {
+        faces.at(i).vertices[0] = centre + rotationMatrix * (faces.at(i).vertices[0] - centre);
+        faces.at(i).vertices[1] = centre + rotationMatrix * (faces.at(i).vertices[1] - centre);
+        faces.at(i).vertices[2] = centre + rotationMatrix * (faces.at(i).vertices[2] - centre);
+      }
+    }
+    // Move d distance in normalised direction.
+    void Move(glm::vec3 direction, float distance) {
+      direction = normalize(direction);
+      for (int i = 0 ; i < faces.size() ; i++){
+        faces[i].vertices[0] += (distance * direction);
+        faces[i].vertices[1] += (distance * direction);
+        faces[i].vertices[2] += (distance * direction);
+      }
+    }
+
 };
