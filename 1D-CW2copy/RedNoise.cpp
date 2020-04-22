@@ -785,9 +785,9 @@ void drawFilledTriangle(CanvasTriangle triangle){
   } 
   
   // this code draws the outline of the triangle ontop of the filled triangle to make sure it is correct 
-  drawWuLine(maxPoint, middlePoint, Colour (255,255,255)); 
-  drawWuLine(middlePoint, minPoint, Colour (255,255,255)); 
-  drawWuLine(maxPoint, minPoint, Colour (255,255,255)); 
+  drawLine(maxPoint, middlePoint, triangle.colour); 
+  drawLine(middlePoint, minPoint, triangle.colour); 
+  drawLine(maxPoint, minPoint, triangle.colour); 
   
   
 }  
