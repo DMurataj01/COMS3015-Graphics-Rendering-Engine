@@ -46,6 +46,16 @@ int max_index(float a, float b, float c) {
   return i_max0;
 }
 
+// Returns the fractional part of a number.
+float fpart(float x) {
+	return x - floor(x);
+}
+// Returns 1 - the fractional part of a number.
+float rfpart(float x) {
+	return 1 - fpart(x);
+}
+
+
 float getValueBetweenNumbers(bool print, float a, float b, float percentage) {
   if (print) {
     std::cout << "In: " << a << "& " << b << ".. $" << percentage << "\n";
