@@ -580,6 +580,99 @@ void drawLine(CanvasPoint start, CanvasPoint end, vector<TexturePoint> texturePo
     } 
   } 
 } 
+
+void drawWuLine(CanvasPoint ptStart, CanvasPoint ptEnd, Colour ptClr) {
+  float diffX = (ptEnd.x - ptStart.x);
+  float diffY = (ptEnd.y - ptStart.y);
+
+  int x1 = ptStart.x;
+  int y1 = ptStart.y;
+  int x2 = ptEnd.x;
+  int y2 = ptEnd.y;
+  double d1 = ptStart.depth;
+  double d2 = ptEnd.depth;
+
+
+  if ((abs(diffX) == 0.f) || (abs(diffY) == 0.f) || (abs(diffX) == abs(diffY)) ) {
+    drawLine(ptStart, ptEnd, ptClr);
+  }
+  else if (abs(diffX) > abs(diffY)) {
+    // Mostly Horizontal line.
+    
+    if(x2 < x1) { swap(x1, x2); swap(y1, y2); swap(d1, d2);}
+
+    // Add the first endpoint.
+    setDepthPixelColour( x1, y1    , d1, ptClr.toUINT32_t(0.5));
+    setDepthPixelColour( x1, y1 + 1, d1, ptClr.toUINT32_t(0.5));
+
+    // Add the second endpoint
+    setDepthPixelColour( x2, y2    , d2, ptClr.toUINT32_t(0.5));
+    setDepthPixelColour( x2, y2 + 1, d2, ptClr.toUINT32_t(0.5));
+    
+    // get dy/dx gradient.
+    const float gradient = diffY / diffX;
+    
+    const float numberOfSteps = int((x2 - 1) - (x1 + 1));
+    //printf("Number of Steps: %d\n", numberOfSteps);
+    if (numberOfSteps > 0) {
+      
+      float intery = y1 + gradient;
+      
+      // Add all the points between the endpoints)
+      for(int x = x1 + 1; x <= x2 - 1; x++) {
+        int i = x - (x1+1);
+        float proportion = i / numberOfSteps;
+
+        const double inverseDepth = ((1 - proportion) * (1 / d1)) + (proportion * (1 / d2)); // got this equation from notes 
+        const double depth = 1 / inverseDepth; 
+
+        setDepthPixelColour(x, floor(intery)    , depth, ptClr.toUINT32_t( 1- fpart(intery)));
+        setDepthPixelColour(x, floor(intery) + 1, depth, ptClr.toUINT32_t( fpart(intery)));
+
+        intery += gradient;
+      }
+    }
+    
+
+  }   
+  else {
+    if(y2 < y1) { swap(x1, x2); swap(y1, y2); swap(d1, d2);}
+
+    const float gradient = diffX / diffY;
+
+    // Add the first endpoint
+    setDepthPixelColour( x1, y1    , d1, ptClr.toUINT32_t(0.5) );
+    setDepthPixelColour( x1, y1 + 1, d1, ptClr.toUINT32_t(0.5) );
+    
+    // Add the second endpoint
+    setDepthPixelColour( x2, y2    , d2, ptClr.toUINT32_t(0.5) );
+    setDepthPixelColour( x2, y2 + 1, d2, ptClr.toUINT32_t(0.5) );
+
+    const float numberOfSteps = int((y2 - 1) - (y1 + 1));
+
+    if (numberOfSteps > 0) {
+
+      float interx = x1 + gradient;
+      
+      // Add all the points between the endpoints
+      for(int y = y1 + 1; y <= y2 - 1; y++){
+        int i_interx = floor(interx);
+
+        const int i = y - (y1+1);
+        const float proportion = i / numberOfSteps; 
+        const double inverseDepth = ((1 - proportion) * (1 / d1)) + (proportion * (1 / d2)); // got this equation from notes 
+        const double depth = 1 / inverseDepth; 
+
+        setDepthPixelColour( i_interx    , y, depth, ptClr.toUINT32_t( 1 - fpart(interx)));
+        setDepthPixelColour( i_interx + 1, y, depth, ptClr.toUINT32_t( fpart(interx)));
+        interx += gradient;
+      }  
+    }
+
+  }
+
+  return;
+}
  
 CanvasTriangle sortTriangleVertices(CanvasTriangle tri) {
   //** Unrolled 'Bubble Sort' for 3 items.
@@ -612,9 +705,9 @@ void drawStrokedTriangle(CanvasTriangle triangle){
   CanvasPoint point3 = triangle.vertices[2]; 
   Colour colour = triangle.colour; 
  
-  drawLine(point1,point2,colour); 
-  drawLine(point2,point3,colour); 
-  drawLine(point3,point1,colour); 
+  drawWuLine(point1,point2,colour); 
+  drawWuLine(point2,point3,colour); 
+  drawWuLine(point3,point1,colour); 
 } 
  
 void drawFilledTriangle(CanvasTriangle triangle){ 
@@ -690,13 +783,13 @@ void drawFilledTriangle(CanvasTriangle triangle){
       drawLine(start, end, triangle.colour); 
     } 
   } 
-  /* 
+  
   // this code draws the outline of the triangle ontop of the filled triangle to make sure it is correct 
-  drawLine(point1,point2,Colour (255,255,255)); 
-  drawLine(point2,point3,Colour (255,255,255)); 
-  drawLine(point3,point1,Colour (255,255,255)); 
-  drawLine(points[1],cutterPoint,Colour (255,255,255)); 
-  */ 
+  drawWuLine(maxPoint, middlePoint, Colour (255,255,255)); 
+  drawWuLine(middlePoint, minPoint, Colour (255,255,255)); 
+  drawWuLine(maxPoint, minPoint, Colour (255,255,255)); 
+  
+  
 }  
  
 void drawTexturedTriangle(ImageFile *imageFile, CanvasTriangle triangle) {
@@ -1663,7 +1756,7 @@ void pixarJump(int objectIndex, float height, bool rotate, float maxSquashFactor
     squash(objectIndex, squashFactor);
     // rotate
     if (rotate) {
-      vec3 centre = findObjectCentre(objects[objectIndex]);
+      vec3 centre = objects[objectIndex].GetCentre();
       rotateObject(objectIndex, stepAngle*i, centre);
     }
     // render

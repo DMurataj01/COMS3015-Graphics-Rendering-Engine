@@ -32,8 +32,7 @@ class Colour
       else blue = b;
     }
 
-    Colour(std::string n, int r, int g, int b)
-    {
+    Colour(std::string n, int r, int g, int b) {
       name = n;
       if (r>255) red = 255;
       else red = r;
@@ -57,8 +56,10 @@ class Colour
     }
 
     uint32_t toUINT32_t() {
-      uint32_t col = (255<<24) + (red<<16) + (green<<8) + blue; 
-      return col; 
+      return (255<<24) + (red<<16) + (green<<8) + blue; 
+    }
+    uint32_t toUINT32_t(float percentage) {
+      return (255<<24) + (int(red*percentage)<<16) + (int(green*percentage)<<8) + (int(blue*percentage));
     }
     
 };
