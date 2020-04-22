@@ -1115,17 +1115,16 @@ RayTriangleIntersection closestIntersection(vector<vector<vec4>> objectSolutions
   float closestT = numeric_limits<float>::infinity(); 
   int closestIndex = -1; 
   // for each possible solution / for each face 
-  int n = objectSolutions.size(); 
   // for each object
-  for (int o=0; o<n; o++) {
+  for (int o=0; o<objectSolutions.size(); o++) {
     vector<vec4> solutions = objectSolutions[o];
     for (int i = 0 ; i < objects[o].faces.size() ; i++){ 
       
       vec4 possibleSolution = solutions[i]; 
-      float t = possibleSolution[0]; 
-      float u = possibleSolution[1]; 
-      float v = possibleSolution[2];
-      int index = possibleSolution[3];
+      const float t = possibleSolution[0]; 
+      const float u = possibleSolution[1]; 
+      const float v = possibleSolution[2];
+      const int index = possibleSolution[3];
       
       // if it is actually a solution 
       bool bool1 = (t > 0); 
@@ -1133,29 +1132,31 @@ RayTriangleIntersection closestIntersection(vector<vector<vec4>> objectSolutions
       bool bool3 = (u + v) <= 1; 
       if (bool1 && bool2 && bool3){ 
         ModelTriangle triangle = objects[o].faces[index]; 
+        
         // is it closer than what we currently have? 
         if (t < closestT){ 
           closestT = t; 
           closestIndex = i; 
           
           // calculating the point of intersection 
-          vec3 p0 = triangle.vertices[0]; 
-          vec3 p1 = triangle.vertices[1]; 
-          vec3 p2 = triangle.vertices[2]; 
-          vec3 intersection = p0 + (u * (p1 - p0)) + (v * (p2 - p0)); 
-          // calculating the distance between the camera and intersection point 
-          vec3 d = intersection - rayPoint; 
-          float distance = sqrt( (d[0]*d[0]) + (d[1] * d[1]) + (d[2] * d[2])); 
-          // calculating the normal of the intersection 
-          vec3 n0 = triangle.normals[0]; 
-          vec3 n1 = triangle.normals[1]; 
-          vec3 n2 = triangle.normals[2]; 
-          vec3 normal = n0 + (u * (n1 - n0)) + (v * (n2 - n0)); 
+          const vec3 p0 = triangle.vertices[0]; 
+          const vec3 p1 = triangle.vertices[1]; 
+          const vec3 p2 = triangle.vertices[2]; 
+          const vec3 intersection = p0 + (u * (p1 - p0)) + (v * (p2 - p0)); 
           closest.intersectionPoint = intersection; 
+
+          // calculating the distance between the camera and intersection point 
+          const vec3 d = intersection - rayPoint; 
+          closest.distanceFromCamera = sqrt( (d[0]*d[0]) + (d[1] * d[1]) + (d[2] * d[2]));
+
+          // calculating the normal of the intersection 
+          const vec3 n0 = triangle.normals[0]; 
+          const vec3 n1 = triangle.normals[1]; 
+          const vec3 n2 = triangle.normals[2]; 
+          closest.normal = n0 + (u * (n1 - n0)) + (v * (n2 - n0));
+
           closest.intersectUV = vec2(u, v);
-          closest.distanceFromCamera = distance; 
           closest.intersectedTriangle = triangle; 
-          closest.normal = normal; 
         } 
       } 
     } 
