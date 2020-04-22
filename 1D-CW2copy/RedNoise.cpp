@@ -90,13 +90,11 @@ float fresnel(vec3 incident, vec3 normal, float ior);
 void backfaceCulling(vec3 rayDirection);
 void spin(vec3 point, float angle, float distance);
 void spinAround(float angle, int stepNumber, bool clockwise, int zoom);
-void translateVertices(int objectIndex, vec3 direction, float distance);
 void jump(int objectIndex, float height);
 void squash(int objectIndex, float squashFactor);
 void pixarJump(int objectIndex, float height, bool rotate, float maxSquashFactor);
 void jumpSquash(int objectIndex, float maxSquashFactor);
 void bounce(int objectIndex, float height, int numberOfBounces);
-void rotateObject(int objectIndex, float theta, vec3 point);
  
 DrawingWindow window;
  
@@ -150,9 +148,9 @@ int main(int argc, char* argv[]) {
 
   cout << "Number Of Objects: " << objects.size() << "\n";
 
-  translateVertices(9, vec3(-1,0,0), 0.7);
-  translateVertices(9, vec3(0,0,-1), 1.7);
-  translateVertices(9, vec3(0,1,0), 1.5);
+  objects.at(9).Move(vec3(-1,0,0), 0.7);
+  objects.at(9).Move(vec3(0,0,-1), 1.7);
+  objects.at(9).Move(vec3(0,1, 0), 1.5);
   
   //Mirrored floor
   
@@ -193,6 +191,9 @@ int main(int argc, char* argv[]) {
  
 void update() {
   // Function for performing animation (shifting artifacts or moving the camera)
+  
+  //objects.at(2).RotateXZ(0.1);
+  //render();
   const float pi = 4 * atan(1);
   spinAround(pi, 100, true, -1);
   spinAround(pi, 100, true, 1);
@@ -1603,19 +1604,6 @@ void spinAround(float angle, int stepNumber, bool clockwise, int zoom){
   }
 }
 
-
-void translateVertices(int objectIndex, vec3 direction, float distance) {
-  direction = normalize(direction);
-  // for each face
-  for (int i = 0 ; i < objects[objectIndex].faces.size() ; i++){
-    // for each vertex
-    objects[objectIndex].faces[i].vertices[0] = objects[objectIndex].faces[i].vertices[0] + (distance * direction);
-    objects[objectIndex].faces[i].vertices[1] = objects[objectIndex].faces[i].vertices[1] + (distance * direction);
-    objects[objectIndex].faces[i].vertices[2] = objects[objectIndex].faces[i].vertices[2] + (distance * direction);
-  }
-}
-
-
 // use equations of motion to animate a jump
 void jump(int objectIndex, float height){
   // if we just define the height of the bounce, then we can calculate what the initial velocity must be and also how long it will take
@@ -1637,11 +1625,11 @@ void jump(int objectIndex, float height){
   for (float t = 0 ; t < totalTime ; t += timeStep){
     // using the 2nd equations of motion (displacement one written above)
     float displacement = (u*t) + (0.5 * a * t * t);
-    translateVertices(objectIndex, vec3 (0,1,0), displacement);
+    objects[objectIndex].Move(vec3(0,1,0), displacement);
     render();
     window.renderFrame();
     // translate the vertices back to original
-    translateVertices(objectIndex, vec3 (0,-1,0), displacement);
+    objects[objectIndex].Move(vec3(0,-1,0), displacement);
   }
 }
 
@@ -1750,15 +1738,12 @@ void pixarJump(int objectIndex, float height, bool rotate, float maxSquashFactor
     // using the 2nd equations of motion (displacement one written above)
     float displacement = (u*t) + (0.5 * a * t * t);
     // translate
-    translateVertices(objectIndex, vec3 (0,1,0), displacement);
+    objects[objectIndex].Move(vec3(0,1,0), displacement);
     // squash
     float squashFactor = (aQuad*t*t) + (bQuad*t);
     squash(objectIndex, squashFactor);
     // rotate
-    if (rotate) {
-      vec3 centre = objects[objectIndex].GetCentre();
-      rotateObject(objectIndex, stepAngle*i, centre);
-    }
+    if (rotate) objects[objectIndex].RotateXZ(stepAngle*i);
     // render
     render();
     window.renderFrame();
@@ -1845,28 +1830,5 @@ void bounce(int objectIndex, float height, int numberOfBounces){
     float bounceHeight = (a*n*n) + (b*n) + c;
     float squashFactor = 0.5 * (bounceHeight / height);
     pixarJump(objectIndex, bounceHeight, false, squashFactor);
-  }
-}
-
-// this function rotates an object in the secen by the specified angle
-// it can rotate around a certain point (this is normally set at the objects centre)
-void rotateObject(int objectIndex, float theta, vec3 point) {
-  // create the rotation matrix
-  vec3 col1 = vec3 (cos(theta), 0, -sin(theta)); 
-  vec3 col2 = vec3 (0, 1, 0); 
-  vec3 col3 = vec3 (sin(theta), 0, cos(theta));
-  mat3 rotationMatrix (col1, col2, col3);
-
-  Object object = objects[objectIndex];
-  // for each face
-  for (int i = 0 ; i < object.faces.size() ; i++){
-    // for each vertex
-    for (int j = 0 ; j < 3 ; j++){
-      vec3 vertex = object.faces[i].vertices[j];
-      vec3 centreToVertex = vertex - point;
-      // rotate this by the angle
-      vec3 newVertex = point + rotationMatrix * centreToVertex;
-      objects[objectIndex].faces[i].vertices[j] = newVertex;
-    }
   }
 }
