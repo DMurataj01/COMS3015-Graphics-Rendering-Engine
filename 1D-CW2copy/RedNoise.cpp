@@ -581,7 +581,7 @@ void drawLine(CanvasPoint start, CanvasPoint end, vector<TexturePoint> texturePo
   } 
 } 
 
-void drawNewLine(CanvasPoint ptStart, CanvasPoint ptEnd, Colour ptClr) {
+void drawWuLine(CanvasPoint ptStart, CanvasPoint ptEnd, Colour ptClr) {
   float diffX = (ptEnd.x - ptStart.x);
   float diffY = (ptEnd.y - ptStart.y);
 
@@ -601,50 +601,33 @@ void drawNewLine(CanvasPoint ptStart, CanvasPoint ptEnd, Colour ptClr) {
     
     if(x2 < x1) { swap(x1, x2); swap(y1, y2); swap(d1, d2);}
 
-
-    const float gradient = diffY / diffX;
-
-    float xend = round(x1);
-    float yend = y1 + gradient * (xend - x1);
-    float xgap = (1 - fpart(x1 + 0.5f));
-    
-    int xpxl1 = int(xend);
-    
     // Add the first endpoint.
-    setDepthPixelColour( x1, y1    , d1, ptClr.toUINT32_t( (1 - fpart(y1)) * (1 - fpart(x1 + 0.5f))));
-    setDepthPixelColour( x1, y1 + 1, d1, ptClr.toUINT32_t(      fpart(y1) * (1 - fpart(x1 + 0.5f))));
-    
+    setDepthPixelColour( x1, y1    , d1, ptClr.toUINT32_t(0.5));
+    setDepthPixelColour( x1, y1 + 1, d1, ptClr.toUINT32_t(0.5));
 
-    float intery = yend + gradient;
-
-    yend = y2 + gradient * (xend - x2);
-    xgap = fpart(x2 + 0.5f);
-    
-    int xpxl2 = round(x2);
-    int ypxl2 = floor(yend);
-    
     // Add the second endpoint
-
-    setDepthPixelColour( xpxl2, ypxl2    , 0.05, ptClr.toUINT32_t( rfpart(yend) * xgap));
-    setDepthPixelColour( xpxl2, ypxl2 + 1, 0.05, ptClr.toUINT32_t(  fpart(yend) * xgap));
+    setDepthPixelColour( x2, y2    , d2, ptClr.toUINT32_t(0.5));
+    setDepthPixelColour( x2, y2 + 1, d2, ptClr.toUINT32_t(0.5));
     
-
-    const int numberOfSteps = (xpxl2 - 1) - (xpxl1 + 1);
-
+    // get dy/dx gradient.
+    const float gradient = diffY / diffX;
+    
+    const float numberOfSteps = int((x2 - 1) - (x1 + 1));
+    //printf("Number of Steps: %d\n", numberOfSteps);
     if (numberOfSteps > 0) {
-
-      //int offset = xpxl1+1;
+      
+      float intery = y1 + gradient;
+      
       // Add all the points between the endpoints)
-      for(int x = xpxl1 + 1; x <= xpxl2 - 1; x++) {
-        int i_intery = floor(intery);
+      for(int x = x1 + 1; x <= x2 - 1; x++) {
+        int i = x - (x1+1);
+        float proportion = i / numberOfSteps;
 
-        const int i = x - (xpxl1+1);
-        const float proportion = i / numberOfSteps; 
         const double inverseDepth = ((1 - proportion) * (1 / d1)) + (proportion * (1 / d2)); // got this equation from notes 
         const double depth = 1 / inverseDepth; 
 
-        setDepthPixelColour(x, i_intery    , depth, ptClr.toUINT32_t( 1- fpart(intery)));
-        setDepthPixelColour(x, i_intery + 1, depth, ptClr.toUINT32_t( fpart(intery)));
+        setDepthPixelColour(x, floor(intery)    , depth, ptClr.toUINT32_t( 1- fpart(intery)));
+        setDepthPixelColour(x, floor(intery) + 1, depth, ptClr.toUINT32_t( fpart(intery)));
 
         intery += gradient;
       }
@@ -655,39 +638,27 @@ void drawNewLine(CanvasPoint ptStart, CanvasPoint ptEnd, Colour ptClr) {
   else {
     if(y2 < y1) { swap(x1, x2); swap(y1, y2); swap(d1, d2);}
 
-    float gradient = diffX / diffY;
-    float yend = float(round(y1));
-    float xend = x1 + gradient * (yend - y1);
-    float ygap = rfpart(y1 + 0.5f);
-    
-    int ypxl1 = int(yend);
-    int xpxl1 = floor(xend);
+    const float gradient = diffX / diffY;
 
     // Add the first endpoint
-    setDepthPixelColour( xpxl1, ypxl1    , d1, ptClr.toUINT32_t( (1 - fpart(xend)) * ygap));
-    setDepthPixelColour( xpxl1, ypxl1 + 1, d1, ptClr.toUINT32_t(  fpart(xend) * ygap));
-    
-    float interx = xend + gradient;
-
-    yend = float(round(y2));
-    xend = x2 + gradient * (yend - y2);
-    ygap = fpart(y2 + 0.5f);
-    
-    int ypxl2 = int(yend);
-    int xpxl2 = floor(xend);
+    setDepthPixelColour( x1, y1    , d1, ptClr.toUINT32_t(0.5) );
+    setDepthPixelColour( x1, y1 + 1, d1, ptClr.toUINT32_t(0.5) );
     
     // Add the second endpoint
-    setDepthPixelColour( xpxl2, ypxl2    , d2, ptClr.toUINT32_t( (1 - fpart(xend)) * ygap));//getColour(ptClr, rfpart(xend) * ygap));
-    setDepthPixelColour( xpxl2, ypxl2 + 1, d2, ptClr.toUINT32_t(  fpart(xend) * ygap )); //getColour(ptClr, fpart(xend) * ygap));
-    
-    const int numberOfSteps = (ypxl2 - 1) - (ypxl1 + 1);
+    setDepthPixelColour( x2, y2    , d2, ptClr.toUINT32_t(0.5) );
+    setDepthPixelColour( x2, y2 + 1, d2, ptClr.toUINT32_t(0.5) );
+
+    const float numberOfSteps = int((y2 - 1) - (y1 + 1));
 
     if (numberOfSteps > 0) {
+
+      float interx = x1 + gradient;
+      
       // Add all the points between the endpoints
-      for(int y = ypxl1 + 1; y <= ypxl2 - 1; y++){
+      for(int y = y1 + 1; y <= y2 - 1; y++){
         int i_interx = floor(interx);
 
-        const int i = y - (ypxl1+1);
+        const int i = y - (y1+1);
         const float proportion = i / numberOfSteps; 
         const double inverseDepth = ((1 - proportion) * (1 / d1)) + (proportion * (1 / d2)); // got this equation from notes 
         const double depth = 1 / inverseDepth; 
@@ -734,9 +705,9 @@ void drawStrokedTriangle(CanvasTriangle triangle){
   CanvasPoint point3 = triangle.vertices[2]; 
   Colour colour = triangle.colour; 
  
-  drawNewLine(point1,point2,colour); 
-  drawNewLine(point2,point3,colour); 
-  drawNewLine(point3,point1,colour); 
+  drawWuLine(point1,point2,colour); 
+  drawWuLine(point2,point3,colour); 
+  drawWuLine(point3,point1,colour); 
 } 
  
 void drawFilledTriangle(CanvasTriangle triangle){ 
@@ -812,13 +783,13 @@ void drawFilledTriangle(CanvasTriangle triangle){
       drawLine(start, end, triangle.colour); 
     } 
   } 
-  /* 
+  
   // this code draws the outline of the triangle ontop of the filled triangle to make sure it is correct 
-  drawLine(point1,point2,Colour (255,255,255)); 
-  drawLine(point2,point3,Colour (255,255,255)); 
-  drawLine(point3,point1,Colour (255,255,255)); 
-  drawLine(points[1],cutterPoint,Colour (255,255,255)); 
-  */ 
+  drawWuLine(maxPoint, middlePoint, Colour (255,255,255)); 
+  drawWuLine(middlePoint, minPoint, Colour (255,255,255)); 
+  drawWuLine(maxPoint, minPoint, Colour (255,255,255)); 
+  
+  
 }  
  
 void drawTexturedTriangle(ImageFile *imageFile, CanvasTriangle triangle) {
@@ -1785,7 +1756,7 @@ void pixarJump(int objectIndex, float height, bool rotate, float maxSquashFactor
     squash(objectIndex, squashFactor);
     // rotate
     if (rotate) {
-      vec3 centre = findObjectCentre(objects[objectIndex]);
+      vec3 centre = objects[objectIndex].GetCentre();
       rotateObject(objectIndex, stepAngle*i, centre);
     }
     // render
