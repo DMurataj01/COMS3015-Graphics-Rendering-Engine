@@ -160,7 +160,7 @@ int main(int argc, char* argv[]) {
   objects[9].ApplyColour(Colour(24, 21, 180), true);
   //Apply Material for the Raytracer
   objects[9].ApplyMaterial("glass");
-
+  //objects[9].ApplyMaterial("texture");
   // 3) Read In Texture.
   textureFile = importPPM(texFileName);
   
