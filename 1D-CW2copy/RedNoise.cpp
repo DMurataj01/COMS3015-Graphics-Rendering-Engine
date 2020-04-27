@@ -1,5 +1,4 @@
-// Note that in this code we use a left-handed coordinate system 
- 
+// Note that in this code we use a left-handed coordinate system.
 
 // Call Headers [ Safe from double includes ]
 #include "OBJ.h"
@@ -15,8 +14,8 @@ using namespace glm;
 
 enum MOVEMENT {UP, DOWN, LEFT, RIGHT, ROLL_LEFT, ROLL_RIGHT, PAN_LEFT, PAN_RIGHT, TILT_UP, TILT_DOWN};
 enum RENDERTYPE {WIREFRAME, RASTERIZE, RAYTRACE};
-
 enum SHADOW {NO=0, YES=1, REFLECTIVE=2};
+
 // Press '1' for Wireframe 
 // Press '2' for Rasterized 
 // Press '3' for Raytraced  
@@ -34,7 +33,7 @@ const int maximumNumberOfReflections = 7;
 #define W 800 //Set desired screen width here. 
 #define H 800 //Set desired screen height here.
 
-const int AA = 2; //Set Anti-Aliasing Multiplier here, applied to both x and y so expect ~AA^2 time [eg. 800x800x1 5.43s, 800x800x4 88.7s ~16.4x]
+const int AA = 1; //Set Anti-Aliasing Multiplier here, applied to both x and y so expect ~AA^2 time [eg. 800x800x1 5.43s, 800x800x4 88.7s ~16.4x]
 
 bool displayRenderTime = false;
 
@@ -559,7 +558,7 @@ void drawLine(CanvasPoint start, CanvasPoint end, vector<TexturePoint> texturePo
   const float numberOfSteps = glm::max(abs(diffX),abs(diffY)); 
  
   // if we are starting and ending on the same pixel 
-  if (numberOfSteps == 0) setDepthPixelColour(start.x, start.y, glm::min(start.depth, end.depth), getPixelColour(&textureFile, texturePoints.at(0).x, texturePoints.at(0).y).toUINT32_t()); 
+  if (numberOfSteps == 0) setDepthPixelColour(start.x, start.y, glm::min(start.depth, end.depth), getImageFilePixelColour(&textureFile, texturePoints.at(0).x, texturePoints.at(0).y).toUINT32_t()); 
   else { 
     const float stepSizeX = diffX / numberOfSteps; 
     const float stepSizeY = diffY / numberOfSteps; 
@@ -574,7 +573,7 @@ void drawLine(CanvasPoint start, CanvasPoint end, vector<TexturePoint> texturePo
       const float inverseDepth = ((1 - proportion) * (1 / start.depth)) + (proportion * (1 / end.depth)); // got this equation from notes 
       const float depth = 1 / inverseDepth; 
       //cout << "Requesting [x,y, i]" << i << "\n";
-      setDepthPixelColour(x, y, depth, getPixelColour(&textureFile, texturePoints.at(i).x, texturePoints.at(i).y).toUINT32_t());
+      setDepthPixelColour(x, y, depth, getImageFilePixelColour(&textureFile, texturePoints.at(i).x, texturePoints.at(i).y).toUINT32_t());
     } 
   } 
 } 
@@ -1154,7 +1153,6 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
   // if this ray doesn't intersect anything, then we return the colour black 
   if (closest.distanceFromCamera <= 0) return Colour(0,0,0); 
   
- 
   // the ambient, diffuse and specular light constants 
   float Ka = 0.2, Kd = 0.4, Ks = 0.4; 
  
@@ -1172,52 +1170,16 @@ Colour shootRay(vec3 rayPoint, vec3 rayDirection, int depth, float currentIOR){
     return glass(rayDirection, closest, depth);
   }
   else if (triangle.material == TEXTURE) {
-    bool mydebug = true; //(closest.intersectUV[0] > 0.2 && closest.intersectUV[1] > 0.2);
+    const vec2 e0 = closest.intersectedTriangle.vertices_textures[1] - closest.intersectedTriangle.vertices_textures[0];
+    const vec2 e1 = closest.intersectedTriangle.vertices_textures[2] - closest.intersectedTriangle.vertices_textures[0];
 
-    if (mydebug) {
-      cout << "How Far Along X: " << closest.intersectUV[0] << "\n";
-      cout << "How Far Along Y: " << closest.intersectUV[1] << "\n";
-     
-      cout << "Texture [0]: " << closest.intersectedTriangle.vertices_textures[0].x << ", " << closest.intersectedTriangle.vertices_textures[0].y << "\n";
-      cout << "Texture [1]: " << closest.intersectedTriangle.vertices_textures[1].x << ", " << closest.intersectedTriangle.vertices_textures[1].y << "\n";
-      cout << "Texture [2]: " << closest.intersectedTriangle.vertices_textures[2].x << ", " << closest.intersectedTriangle.vertices_textures[2].y << "\n";
+    const vec2 texture_point = closest.intersectedTriangle.vertices_textures[0] + (closest.intersectUV[0] * e0) + (closest.intersectUV[1] * e1);
 
-      cout << "V [0]: " << closest.intersectedTriangle.vertices[0].x << ", " << closest.intersectedTriangle.vertices[0].y << "\n";
-      cout << "V [1]: " << closest.intersectedTriangle.vertices[1].x << ", " << closest.intersectedTriangle.vertices[1].y << "\n";
-      cout << "V [2]: " << closest.intersectedTriangle.vertices[2].x << ", " << closest.intersectedTriangle.vertices[2].y << "\n";
-    }
+    // std::cout << closest_point[0] << " , " << closest_point[1] << std::endl;
+    const float x = texture_point.x * textureFile.width;
+    const float y = texture_point.y * textureFile.height;
 
-    int minIndexX = min_index(closest.intersectedTriangle.vertices[0].x, closest.intersectedTriangle.vertices[1].x, closest.intersectedTriangle.vertices[2].x);
-    int minIndexY = min_index(closest.intersectedTriangle.vertices[0].y, closest.intersectedTriangle.vertices[1].y, closest.intersectedTriangle.vertices[2].y);
-    int maxIndexX = max_index(closest.intersectedTriangle.vertices[0].x, closest.intersectedTriangle.vertices[1].x, closest.intersectedTriangle.vertices[2].x);
-    int maxIndexY = max_index(closest.intersectedTriangle.vertices[0].y, closest.intersectedTriangle.vertices[1].y, closest.intersectedTriangle.vertices[2].y);
-
-    if (mydebug) cout << "|MinX " << minIndexX << "|MaxX " << maxIndexX << "|MinY " << minIndexY << "|Max Y " << maxIndexY << "\n";
-
-    // texX : from minIndex closest.intersectedTriangle.vertices_textures[minIndex].x
-    // texX :   to maxIndex closest.intersectedTriangle.vertices_textures[maxIndex].x 
-    // texY : from minIndex closest.intersectedTriangle.vertices_textures[minIndex].y
-    // texY :   to maxIndex closest.intersectedTriangle.vertices_textures[maxIndex].y 
-    //cout << "Intersect UV: " << closest.intersectUV[0] << ", " << closest.intersectUV[1] << "\n";
-    int tX = textureFile.width;
-    int tY = textureFile.height;
-    
-    float texX;
-    float texY;
-    if (mydebug) {
-      texX = getValueBetweenNumbers(true, tX * closest.intersectedTriangle.vertices_textures[minIndexX].x, tX* closest.intersectedTriangle.vertices_textures[maxIndexX].x, closest.intersectUV[0]);
-      texY = getValueBetweenNumbers(true, tY * closest.intersectedTriangle.vertices_textures[minIndexY].y, tY*closest.intersectedTriangle.vertices_textures[maxIndexY].y, closest.intersectUV[1]);
-    } else {
-      texX = getValueBetweenNumbers(false, tX * closest.intersectedTriangle.vertices_textures[minIndexX].x, tX * closest.intersectedTriangle.vertices_textures[maxIndexX].x, closest.intersectUV[0]);
-      texY = getValueBetweenNumbers(false, tY * closest.intersectedTriangle.vertices_textures[minIndexY].y, tY *closest.intersectedTriangle.vertices_textures[maxIndexY].y, closest.intersectUV[1]);
-    }
-
-    //colour = getPixelColour(&textureFile, texX, texY);
-
-    colour = getPixelColour(&textureFile, closest.intersectUV[0] * textureFile.width, closest.intersectUV[1] * textureFile.height);
-    //cout << "Tex X, Tex Y: " << texX << ", " << texY << "\n";
-
-    return colour;
+    return getImageFilePixelColour(&textureFile, x, y);
   }
 
   else if (triangle.material == BUMP) {
@@ -1326,7 +1288,7 @@ SHADOW InShadow(vec3 point){
       // if we have an intersection then we can stop checking the other faces 
       // it is 0.000001 to avoid self intersection 
       if (bool1 && bool2 && bool3) {
-        if (triangle.material == GLASS) return REFLECTIVE;
+        if (triangle.material != NONE) return REFLECTIVE;
         else return YES; 
       }
     } 

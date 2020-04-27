@@ -55,7 +55,6 @@ float rfpart(float x) {
 	return 1 - fpart(x);
 }
 
-
 float getValueBetweenNumbers(bool print, float a, float b, float percentage) {
   if (print) {
     std::cout << "In: " << a << "& " << b << ".. $" << percentage << "\n";

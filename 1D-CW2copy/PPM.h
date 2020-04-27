@@ -90,7 +90,7 @@ ImageFile importPPM(std::string fileName) {
   return outputImageFile;
 }
 
-Colour getPixelColour(ImageFile *imageFile, int x, int y) {
+Colour getImageFilePixelColour(ImageFile *imageFile, int x, int y) {
   int index = (imageFile->width * y) + x;
 
   try {
