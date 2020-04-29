@@ -91,9 +91,12 @@ void spin(vec3 point, float angle, float distance);
 void spinAround(float angle, int stepNumber, bool clockwise, int zoom);
 void jump(int objectIndex, float height);
 void squash(int objectIndex, float squashFactor);
-void pixarJump(int objectIndex, float height, float rotateAngle, float maxSquashFactor);
-void jumpSquash(int objectIndex, float maxSquashFactor);
-void bounce(int objectIndex, float height, int numberOfBounces, float rotateAngle);
+vec3 getBottomCentreOfObject(Object object);
+void pixarJump(vector<int> objectIndices, float height, float rotateAngle, float maxSquashFactor, vec3 rotateCentre, bool firstJump, float scaleDownFactor);
+void scaleObject(int objectIndex, vec3 point, float scaleFactor);
+void jumpSquash(vector<int> objectIndices, float maxSquashFactor);
+void bounce(vector<int> objectIndices, float height, int numberOfBounces, float rotateAngle, vec3 rotateCentre, float scaleDownFactor);
+void cubeJumps(bool firstJump);
  
 DrawingWindow window;
  
@@ -206,18 +209,22 @@ void update() {
   spinAround(pi, 100, true, -1);
   spinAround(pi, 100, true, 1);
   */
-
-  /* ROTATE THEN JUMP ANIATION */
-  // spin the camera 90 degrees
-  spinAround(pi/2, 50, false, 0);
-  wait(40);
-  // make the object jump and turn 90 degrees
-  bounce(6, 1.5, 1, -pi/2);
-  wait(10);
-  spinAround(pi/2, 50, false, 0);
-  wait(40);
-  bounce(6, 1.5, 1, -pi/2);
-  wait(10);
+  vector<int> objectIndices;
+  objectIndices.push_back(6);
+  objectIndices.push_back(7);
+  bounce(objectIndices, 1, 3, 0, vec3 (0,0,0), 0.3);
+  wait(20);
+  cubeJumps(true);
+  cubeJumps(false);
+  cubeJumps(false);
+  cubeJumps(false);
+  wait(80);
+  bounce(objectIndices, 1, 3, 0, vec3 (0,0,0), 0.3);
+  wait(20);
+  cubeJumps(true);
+  cubeJumps(false);
+  cubeJumps(false);
+  cubeJumps(false);
 } 
 
 void wait(int n){
@@ -360,7 +367,13 @@ void handleEvent(SDL_Event event) {
 
     }
     */
-    else if(event.key.keysym.sym == SDLK_c)     bounce(8, 1.5, 5, 0);
+    else if(event.key.keysym.sym == SDLK_c)     {
+      vector<int> objectIndices;
+      objectIndices.push_back(7);
+      Object object = objects.at(7);
+      vec3 point = object.GetCentre();
+      bounce(objectIndices, 1.5, 5, 0, point, 0);
+    }
     else if(event.key.keysym.sym == SDLK_p)     playOrPause();
 
     // pressing 1 changes to wireframe mode 
@@ -1371,7 +1384,7 @@ float softShadows(RayTriangleIntersection intersection){
   ///////////////////
   // PARAMETERS
   ///////////////////
-  float gradientConstant = 0.5; // how big the gradient should be
+  float gradientConstant = 1; // how big the gradient should be
   int numberOfSteps = 50; // how smooth it should be
   ///////////////////
 
@@ -1550,7 +1563,6 @@ void spinAround(float angle, int stepNumber, bool clockwise, int zoom){
   for (int i = 0; i < stepNumber; i++){
       float distance = startDistance + (i * distanceStep);
       spin(point, angleStep, distance);
-      objects.at(9).RotateXZ(pi/10);
       render();
       window.renderFrame();
   }
@@ -1593,6 +1605,29 @@ void squash(int objectIndex, float squashFactor){
   // also find the centre of the underside
   // (when we squash an object it squashes downwards)
   Object object = objects[objectIndex];
+  vec3 squashCentre = getBottomCentreOfObject(object);
+
+  // for a squash we want to make the object flatter but also wider
+  // make the y coordinates closer to the centre but the x and z coordinates further away from the centre
+  // for each face
+  for (int i = 0 ; i < object.faces.size() ; i++){
+    // for each vertex
+    for (int j = 0 ; j < 3 ; j++){
+      vec3 vertex = objects[objectIndex].faces[i].vertices[j];
+      vec3 direction = vertex - squashCentre;
+      // increase the y and z, but decrease the x
+      vec3 newPoint = vertex + (squashFactor * direction);
+      newPoint[1] = vertex[1] - (squashFactor * direction[1]);
+      objects[objectIndex].faces[i].vertices[j] = newPoint;
+    }
+  }
+}
+
+
+vec3 getBottomCentreOfObject(Object object){
+  // find the bottom of the object
+  // also find the centre of the underside
+  // (when we squash an object it squashes downwards)
   float lowestPoint = numeric_limits<float>::infinity();
   vec3 averagedVertices (0,0,0);
 
@@ -1615,32 +1650,26 @@ void squash(int objectIndex, float squashFactor){
   // we squash the object around the following point (the centre but on the under side of the object)
   vec3 squashCentre = averagedVertices;
   squashCentre[1] = lowestPoint;
-
-  // for a squash we want to make the object flatter but also wider
-  // make the y coordinates closer to the centre but the x and z coordinates further away from the centre
-  // for each face
-  for (int i = 0 ; i < object.faces.size() ; i++){
-    // for each vertex
-    for (int j = 0 ; j < 3 ; j++){
-      vec3 vertex = objects[objectIndex].faces[i].vertices[j];
-      vec3 direction = vertex - squashCentre;
-      // increase the y and z, but decrease the x
-      vec3 newPoint = vertex + (squashFactor * direction);
-      newPoint[1] = vertex[1] - (squashFactor * direction[1]);
-      objects[objectIndex].faces[i].vertices[j] = newPoint;
-    }
-  }
+  return squashCentre;
 }
 
 
 // same function as the jump except we include a squash and stretch transformation with the vertices
 // before the jump we want a squash and also after it lands
 // we want a stretch as it jumps in the air
-void pixarJump(int objectIndex, float height, float rotateAngle, float maxSquashFactor){
-  // save the object so we can go back to it
-  Object objectCopy = objects[objectIndex];
+void pixarJump(vector<int> objectIndices, float height, float rotateAngle, float maxSquashFactor, vec3 rotateCentre, bool firstJump, float scaleDownFactor){
+  // for each object save the original so we can go back to it
+  vector<Object> objectCopies;
+  for (int o = 0 ; o < objectIndices.size() ; o++){
+    objectCopies.push_back(objects[objectIndices[o]]);
+  }
 
-  //jumpSquash(objectIndex);
+  // for each object, work out the centre of the object but
+
+  // if this is our first jump then we need to squash the object before it jumps
+  if (firstJump){
+    jumpSquash(objectIndices, 0.5);
+  }
 
   // these are equations to work out the height of the object at each time frame
   // if we just define the height of the bounce, then we can calculate what the initial velocity must be and also how long it will take
@@ -1685,37 +1714,75 @@ void pixarJump(int objectIndex, float height, float rotateAngle, float maxSquash
   float numberOfSteps = int(totalTime / timeStep);
   // we can also make the object rotate as it jumps
   float stepAngle = rotateAngle / numberOfSteps;
+  float scaleDownStep = scaleDownFactor / numberOfSteps;
   
   // for each time frame, calculate the height of the object
   for (int i = 0 ; i < numberOfSteps ; i++){
     float t = i*timeStep;
     // using the 2nd equations of motion (displacement one written above)
     float displacement = (u*t) + (0.5 * a * t * t);
-    // translate
-    objects[objectIndex].Move(vec3(0,1,0), displacement);
-    // squash
-    float squashFactor = (aQuad*t*t) + (bQuad*t);
-    squash(objectIndex, squashFactor);
-    // rotate
-    if (rotateAngle != 0) objects[objectIndex].RotateXZ(stepAngle*i);
+    
+    // for each object, do the transformations
+    for (int o = 0 ; o < objectIndices.size() ; o++){
+      int objectIndex = objectIndices[o];
+      // translate
+      objects[objectIndex].Move(vec3(0,1,0), displacement);
+      // squash
+      float squashFactor = (aQuad*t*t) + (bQuad*t);
+      squash(objectIndex, squashFactor);
+      // rotate
+      if (rotateAngle != 0) objects[objectIndex].RotateXZ(stepAngle*i, rotateCentre);
+      // scale down
+      if (scaleDownFactor != 0){
+        vec3 scaleCentre = getBottomCentreOfObject(objects.at(objectIndex));
+        float scaleFactor = (i * scaleDownStep);
+        scaleObject(objectIndex, scaleCentre, scaleFactor);
+      }
+    }
+
     // render
     render();
     window.renderFrame();
     // translate the vertices back to original and undo the squash
-    objects[objectIndex] = objectCopy;
+    for (int o = 0 ; o < objectIndices.size() ; o++){
+      int objectIndex = objectIndices[o];
+      objects[objectIndex] = objectCopies[o];
+    }
   }
-  // on the last step we want to keep the rotation the same once resetting the object back to normal, so rotate by full angle again
-  objects[objectIndex].RotateXZ(rotateAngle);
+  // on the last step we want to keep the rotation and the scale the same once resetting the object back to normal, so rotate by full angle again
+  for (int o = 0 ; o < objectIndices.size() ; o++){
+    int objectIndex = objectIndices[o];
+    vec3 scaleCentre = getBottomCentreOfObject(objects.at(objectIndex));
+    objects[objectIndex].RotateXZ(rotateAngle, rotateCentre);
+    scaleObject(objectIndex, scaleCentre, scaleDownFactor);
+  }
 
   // after the jump we want the object to go from normal to squashed to normal again
   // can do the same as we did before the jump
-  jumpSquash(objectIndex, maxSquashFactor);
+  jumpSquash(objectIndices, maxSquashFactor);
+}
+
+// scale an about about a point (often the bottom of the object)
+void scaleObject(int objectIndex, vec3 point, float scaleFactor){
+  int n = objects[objectIndex].faces.size();
+  for (int i = 0 ; i < n ; i++){
+    for (int j = 0 ; j < 3 ; j++){
+      vec3 vertex = objects[objectIndex].faces[i].vertices[j];
+      vec3 pointToVertex = vertex - point;
+      vec3 newVertex = pointToVertex * (1 - scaleFactor);
+      vec3 newPoint = point + newVertex;
+      objects.at(objectIndex).faces[i].vertices[j] = newPoint;
+    }
+  }
 }
 
 
-void jumpSquash(int objectIndex, float maxSquashFactor){
+void jumpSquash(vector<int> objectIndices, float maxSquashFactor){
   // save the object before the transformations so we can go back to it
-  Object objectCopy = objects[objectIndex];
+  vector<Object> objectCopies;
+  for (int o = 0 ; o < objectIndices.size() ; o++){
+    objectCopies.push_back(objects[objectIndices[o]]);
+  }
 
   // before the jump, squash the object down
   // use a quadratic step in the squash factor so it squashes quickly at first and then slows down as it gets to the maximum squash
@@ -1749,16 +1816,21 @@ void jumpSquash(int objectIndex, float maxSquashFactor){
 
   //vector<float> squashSteps {0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4};
   for (int i = 0 ; i < squashSteps.size() ; i++){
-    squash(objectIndex, squashSteps[i]);
+    // for each object
+    for (int o = 0 ; o < objectIndices.size() ; o++){
+      squash(objectIndices[o], squashSteps[i]);
+    }
     render();
     window.renderFrame();
-    // put the object back to it's original
-    objects[objectIndex] = objectCopy;
+    // put the objects back to it's original
+    for (int o = 0 ; o < objectIndices.size() ; o++){
+      objects[objectIndices[o]] = objectCopies[o];
+    }
   }
 }
 
 
-void bounce(int objectIndex, float height, int numberOfBounces, float rotateAngle){
+void bounce(vector<int> objectIndices, float height, int numberOfBounces, float rotateAngle, vec3 rotateCentre, float scaleDownFactor){
   // use a quadratic to get the heights of the bounces
   // y = an^2 + bn + c
   // n is the bounce number
@@ -1780,12 +1852,44 @@ void bounce(int objectIndex, float height, int numberOfBounces, float rotateAngl
   float c = height;
 
   // squash before the jump
-  jumpSquash(objectIndex, 0.5);
+  jumpSquash(objectIndices, 0.5);
   // for each bounce, jump but decrease the height
   for (int n = 0 ; n < numberOfBounces ; n++){
     float bounceHeight = (a*n*n) + (b*n) + c;
     float squashFactor = 0.5 * (bounceHeight / height);
     float rotate = rotateAngle * (bounceHeight / height);
-    pixarJump(objectIndex, bounceHeight, rotate, squashFactor);
+    float scaleDown = (bounceHeight / height);
+    scaleDown = scaleDownFactor * scaleDown;
+    pixarJump(objectIndices, bounceHeight, rotate, squashFactor, rotateCentre, false, scaleDown);
   }
+}
+
+
+
+void cubeJumps(bool firstJump) {
+  // first get the centre of the two objects
+  // for the 1st object
+  vec3 sum (0,0,0);
+  Object object1 = objects.at(6);
+  int n1 = object1.faces.size();
+  for (int i = 0 ; i < n1 ; i++){
+    for (int j = 0 ; j < 3 ; j++){
+      sum = sum + object1.faces[i].vertices[j];
+    }
+  }
+  // for the 2nd object
+  Object object2 = objects.at(7);
+  int n2 = object2.faces.size();
+  for (int i = 0 ; i < n2 ; i++){
+    for (int j = 0 ; j < 3 ; j++){
+      sum = sum + object2.faces[i].vertices[j];
+    }
+  }
+  vec3 centre = sum / float((n1*3) + (n2*3));
+  vector<int> objectIndices;
+  objectIndices.push_back(6);
+  objectIndices.push_back(7);
+
+  pixarJump(objectIndices, 1.5, 3.14159/2, 0.5, centre, firstJump, 0);
+
 }
