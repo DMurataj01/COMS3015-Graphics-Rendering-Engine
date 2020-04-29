@@ -116,10 +116,28 @@ class Object {
     // Move d distance in normalised direction.
     void Move(glm::vec3 direction, float distance) {
       direction = normalize(direction);
-      for (int i = 0 ; i < faces.size() ; i++){
+      for (int i = 0; i < faces.size(); i++){
         faces[i].vertices[0] += (distance * direction);
         faces[i].vertices[1] += (distance * direction);
         faces[i].vertices[2] += (distance * direction);
+      }
+    }
+
+    // Snap To Floor - move object down or up so the lowest vertex is at Y=0.
+    void SnapToY0() {
+      float minY = std::numeric_limits<float>::infinity();
+      // go through each vertex to find the minimum Y value.
+      for (int i = 0; i < faces.size(); i++) {
+        for (int j = 0; j < 3; j++) {
+          const float tempY = faces.at(i).vertices[j].y;
+          if (tempY < minY) minY = tempY;
+        }
+      }
+      // go through each vertex and move up by - minY.
+      for (int i = 0; i < faces.size(); i++) {
+        for (int j = 0; j< 3; j++) {
+          faces.at(i).vertices[j] += glm::vec3(0, -minY, 0);
+        }
       }
     }
 

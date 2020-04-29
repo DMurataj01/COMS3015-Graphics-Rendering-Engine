@@ -28,12 +28,12 @@ enum SHADOW {NO=0, YES=1, REFLECTIVE=2};
 RENDERTYPE currentRender = WIREFRAME; //Set default RenderType here. 
 std::string defaultPPMFileName = "render/snapshot";
 
-const int maximumNumberOfReflections = 7;
+const int maximumNumberOfReflections = 10;
 
 #define W 800 //Set desired screen width here. 
 #define H 800 //Set desired screen height here.
 
-const int AA = 1; //Set Anti-Aliasing Multiplier here, applied to both x and y so expect ~AA^2 time [eg. 800x800x1 5.43s, 800x800x4 88.7s ~16.4x]
+const int AA = 3; //Set Anti-Aliasing Multiplier here, applied to both x and y so expect ~AA^2 time [eg. 800x800x1 5.43s, 800x800x4 88.7s ~16.4x]
 
 bool displayRenderTime = false;
 
@@ -61,7 +61,6 @@ void clear();
 void drawLine(CanvasPoint start, CanvasPoint end, Colour colour); 
 void drawStrokedTriangle(CanvasTriangle triangle); 
 void drawFilledTriangle(CanvasTriangle triangle); 
-vector<Object> createObjects(vector<ModelTriangle> inputFaces);
 void rasterize(); 
 void updateView (MOVEMENT movement);
 /* FUNCTION Declarations */ 
@@ -122,8 +121,11 @@ float imageHeight = imageWidth * (HEIGHT / float(WIDTH)); // HEIGHT
 vec3 lightPosition (-0.234011, 5, -3); // this is roughly the centre of the white light box 
 const float lightIntensity = 100; 
 
+const float pi = 3.14159265358979323846;
+
 void initialise() {
   if (!(AA>=1)) exit(1);
+
   //1) Create Drawing Window.
   window = DrawingWindow(W, H, false); 
   window.clearPixels();
@@ -139,34 +141,27 @@ int main(int argc, char* argv[]) {
   // 1) Initialise.
   initialise();
 
-  // 2) Read In OBJ.
-  objects = readGroupedOBJ(objFileName, mtlFileName, 1);
-
-  vector<Object> hackspaceLogo = readGroupedOBJ("logo.obj", "logo.mtl", 0.07);
-  objects.push_back(hackspaceLogo.at(0));
-
-  cout << "Number Of Objects: " << objects.size() << "\n";
-
-  objects.at(9).Move(vec3(-1,0,0), 0.7);
-  objects.at(9).Move(vec3(0,0,-1), 1.7);
-  objects.at(9).Move(vec3(0,1, 0), 1.5);
-  
-  //Mirrored floor
-  objects[3].ApplyMaterial(MIRROR);
-  //Mirrored Red Box.
-  objects[6].ApplyMaterial(GLASS);
-
-  //Apply colour to Hacksapce logo for SHADOWing
-  //objects[9].ApplyColour(Colour(24, 21, 180), true);
-  //Apply Material for the Raytracer
-  //objects[9].ApplyMaterial(GLASS);
-  objects.at(9).ApplyMaterial(TEXTURE);
-  //objects[9].ApplyMaterial("texture");
-  // 3) Read In Texture.
+  // 2) Read In Texture.
   textureFile = importPPM(texFileName);
   
-  //recording = true;
-  //cameraPosition += (glm::vec3(0, 0.5, 0));
+  // 3) Read In OBJ [ Cornell Box ].
+  objects = readGroupedOBJ(objFileName, mtlFileName, 1);
+  
+  // 4) Read in Hackspace logo, scale and append to object list.
+  vector<Object> hackspaceLogo = readGroupedOBJ("logo.obj", "logo.mtl", 0.06);
+  hackspaceLogo.at(0).Move(vec3(0,0,-1), 0.7);
+  hackspaceLogo.at(0).Move(vec3(-1,0,0), 2.5);
+  hackspaceLogo.at(0).SnapToY0();
+  hackspaceLogo.at(0).ApplyMaterial(TEXTURE);
+  objects.push_back(hackspaceLogo.at(0));
+
+  
+  cout << "Number Of Objects: " << objects.size() << "\n";
+  
+  objects.at(4).ApplyMaterial(MIRROR); // Mirrored floor
+  objects.at(6).ApplyMaterial(GLASS);  // Mirrored Red Box.
+
+  // 5) Render
   render();
 
 
@@ -188,22 +183,14 @@ int main(int argc, char* argv[]) {
  
 void update() {
   // Function for performing animation (shifting artifacts or moving the camera)
-  
-  //objects.at(2).RotateXZ(0.1);
-  //render();
-  const float pi = 4 * atan(1);
   spinAround(pi, 100, true, -1);
   spinAround(pi, 100, true, 1);
 } 
 
 // this function starts and stops the animation in the window (press p)
 void playOrPause(){
-  if (animate){
-    animate = false;
-  }
-  if (not(animate)){
-    animate = true;
-  }
+  animate = !animate;
+
 }
 
 // OPTIMISED - this function sets the screen pixel buffer. (if AA multiplier == 1 -> buffer is ignored.)
@@ -291,7 +278,45 @@ void handleEvent(SDL_Event event) {
     else if(event.key.keysym.sym == SDLK_s)     updateView(PAN_LEFT);
     else if(event.key.keysym.sym == SDLK_w)     updateView(TILT_DOWN); 
     else if(event.key.keysym.sym == SDLK_z)     updateView(TILT_UP); 
-    else if(event.key.keysym.sym == SDLK_c)     bounce(9, 1.5, 5);
+    else if(event.key.keysym.sym == SDLK_c)     {
+      bounce(9, 1.5, 5);
+      objects.erase(objects.begin() + 9);
+      render();
+      vector<Object> hackspaceLogo = readGroupedOBJ("logo.obj", "logo.mtl", 0.06);
+      hackspaceLogo.at(0).ApplyMaterial(GLASS);
+      hackspaceLogo.at(0).Move(vec3(-1,0,0), 0.7);
+      hackspaceLogo.at(0).Move(vec3(0,0,-1), 1.7);
+      hackspaceLogo.at(0).Move(vec3(0,1, 0), 1.5);
+      hackspaceLogo.at(0).RotateXZ(pi/8);
+      objects.push_back(hackspaceLogo.at(0));
+      recording = true;
+      render();
+      objects.at(9).RotateZY(pi/14);
+      render();
+      objects.at(9).RotateZY(pi/14);
+      render();
+      objects.at(9).RotateZY(pi/14);
+      render();
+      objects.at(9).RotateZY(pi/14);
+      render();
+      objects.at(9).RotateZY(pi/14);
+      render();
+      objects.at(9).RotateZY(pi/14);
+      render();
+      objects.at(9).RotateZY(-pi/14);
+      render();
+      objects.at(9).RotateZY(-pi/14);
+      render();
+      objects.at(9).RotateZY(-pi/14);
+      render();
+      objects.at(9).RotateZY(-pi/14);
+      render();
+      objects.at(9).RotateZY(-pi/14);
+      render();
+      objects.at(9).RotateZY(-pi/14);
+      render();
+
+    }
     else if(event.key.keysym.sym == SDLK_p)     playOrPause();
 
     // pressing 1 changes to wireframe mode 
@@ -345,48 +370,6 @@ void setDepthPixelColour(int x, int y, double z, uint32_t clr) {
     depthMap.at(index) = z;
   }
 };
-
-// use this function to split the faces into separate objects (an 'Object' object has been created)
-// if you want, you can store a bounding box with the object too
-vector<Object> createObjects(vector<ModelTriangle> inputFaces) {
-  // how many objects do you want?
-  vector<ModelTriangle> objectFaces1;
-  vector<ModelTriangle> objectFaces2;
-
-
-  // for each face, split it up into objects
-  for (int i = 0 ; i < inputFaces.size() ; i++){
-    ModelTriangle face = inputFaces[i];
-
-    // red box
-    if ((i > 11) && (i < 22)){
-      objectFaces2.push_back(inputFaces[i]);
-    }
-    // the rest of the faces
-    else {
-      objectFaces1.push_back(inputFaces[i]);
-    }
-  }
-
-  // create the objects
-  Object object1 (objectFaces1);
-  Object object2 (objectFaces2);
-  
-  vector<Object> outputVec;
-  outputVec.push_back(object1);
-  outputVec.push_back(object2);
-
-
-  // for each object, sort out the face indices
-  for (int i = 0 ; i < outputVec.size() ; i++){
-    Object object = outputVec[i];
-    for (int j = 0 ; j < object.faces.size() ; j++){
-      outputVec[i].faces[j].faceIndex = j;
-    }
-  }
-
-  return outputVec;
-}
    
 void updateView (MOVEMENT movement) {
   vec3 col1, col2, col3;
@@ -1288,7 +1271,7 @@ SHADOW InShadow(vec3 point){
       // if we have an intersection then we can stop checking the other faces 
       // it is 0.000001 to avoid self intersection 
       if (bool1 && bool2 && bool3) {
-        if (triangle.material != NONE) return REFLECTIVE;
+        if (triangle.material == GLASS) return REFLECTIVE;
         else return YES; 
       }
     } 
@@ -1495,38 +1478,39 @@ void backfaceCulling(vec3 rayDirection){
 
 void spin(vec3 point, float theta, float distance){
   // we spin round by starting at the centre point looking at the camera, then spin around a set amount and work out the new camera position
-  vec3 pointToCamera = cameraPosition - point;
-  pointToCamera = normalize(pointToCamera);
+  vec3 pointToCamera = normalize(cameraPosition - point);
   // rotate the vector by the angle
-  vec3 col1 = vec3 (cos(theta), 0, -sin(theta)); 
-  vec3 col2 = vec3 (0, 1, 0); 
-  vec3 col3 = vec3 (sin(theta), 0, cos(theta));
+  vec3 col1(cos(theta), 0, -sin(theta)); 
+  vec3 col2(0, 1, 0); 
+  vec3 col3(sin(theta), 0, cos(theta));
   mat3 rotationMatrix (col1, col2, col3);
-  vec3 vec = rotationMatrix * pointToCamera;
-  vec = normalize(vec);
+  vec3 vec = normalize(rotationMatrix * pointToCamera);
   cameraPosition = point + (distance * vec);
   lookAt(point);
-  render();
-  window.renderFrame();
 }
 
 void spinAround(float angle, int stepNumber, bool clockwise, int zoom){
   vec3 point = findCentreOfScene();
   float startDistance = distanceVec3(point, cameraPosition);
-  float endDistance;
+  float endDistance = startDistance;
   
   if (zoom == 1) endDistance = startDistance / 1.5;
   else if (zoom == -1) endDistance = startDistance * 1.5;
-  else  endDistance = startDistance;
 
   const float distanceStep = (endDistance - startDistance) / stepNumber;
   
   const float angleStep = (!clockwise) ? (angle/stepNumber) : (-angle/stepNumber);
 
+  cout << "Step Number: " << angle << ", .... step: " << stepNumber << "\n";
+  
+
   // for each step we move the camera the right amount
-  for (int i = 0 ; i < stepNumber ; i++){
+  for (int i = 0; i < stepNumber; i++){
       float distance = startDistance + (i * distanceStep);
       spin(point, angleStep, distance);
+      objects.at(9).RotateXZ(pi/10);
+      render();
+      window.renderFrame();
   }
 }
 
@@ -1547,8 +1531,9 @@ void jump(int objectIndex, float height){
   float totalTime = (u / -a) * 2;
   float timeStep = 0.02; // this will depend on how many frames we produce per second (normally about 24)
 
+
   // for each time frame, calculate the height of the object
-  for (float t = 0 ; t < totalTime ; t += timeStep){
+  for (float t = 0; t < totalTime; t += timeStep){
     // using the 2nd equations of motion (displacement one written above)
     float displacement = (u*t) + (0.5 * a * t * t);
     objects[objectIndex].Move(vec3(0,1,0), displacement);
@@ -1576,11 +1561,13 @@ void squash(int objectIndex, float squashFactor){
     for (int j = 0 ; j < 3 ; j++){
       vec3 vertex = face.vertices[j];
       averagedVertices = averagedVertices + vertex;
+      
       if (vertex[1] < lowestPoint){
         lowestPoint = vertex[1];
       }
     }
   }
+
   averagedVertices /= float(object.faces.size() * 3);
 
   // we squash the object around the following point (the centre but on the under side of the object)
@@ -1615,7 +1602,7 @@ void pixarJump(int objectIndex, float height, bool rotate, float maxSquashFactor
 
   // these are equations to work out the height of the object at each time frame
   // if we just define the height of the bounce, then we can calculate what the initial velocity must be and also how long it will take
-  float a = -50; // real life acceleratoin is a = -9.81, but this looked too slow in the render
+  float a = -50; // real life acceleration is a = -9.81, but this looked too slow in the render
 
   // equations: 
   // v = u + at where u is initial velocity
@@ -1650,13 +1637,10 @@ void pixarJump(int objectIndex, float height, bool rotate, float maxSquashFactor
   // can now work out a and b
   float aQuad = (maxSquashFactor * 4) / (totalTime * totalTime);
   float bQuad = -totalTime * aQuad;
-
-  // we can also make the object rotate as it jumps
-  float fullTurn = 3.1415926;
   
   // number of steps
   float numberOfSteps = int(totalTime / timeStep);
-  float stepAngle = fullTurn / numberOfSteps;
+  float stepAngle = pi / numberOfSteps;
   
   // for each time frame, calculate the height of the object
   for (int i = 0 ; i < numberOfSteps ; i++){
@@ -1756,5 +1740,6 @@ void bounce(int objectIndex, float height, int numberOfBounces){
     float bounceHeight = (a*n*n) + (b*n) + c;
     float squashFactor = 0.5 * (bounceHeight / height);
     pixarJump(objectIndex, bounceHeight, false, squashFactor);
+    //objects.at(9).RotateXZ(-pi/25);
   }
 }
