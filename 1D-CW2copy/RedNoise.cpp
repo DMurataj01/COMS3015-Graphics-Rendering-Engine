@@ -54,6 +54,7 @@ vector<uint32_t> pixelBuffer;
 vector<float> depthMap;
   
 void update();
+void wait(int n);
 void handleEvent(SDL_Event event);
 void playOrPause();
 void render(); 
@@ -90,9 +91,9 @@ void spin(vec3 point, float angle, float distance);
 void spinAround(float angle, int stepNumber, bool clockwise, int zoom);
 void jump(int objectIndex, float height);
 void squash(int objectIndex, float squashFactor);
-void pixarJump(int objectIndex, float height, bool rotate, float maxSquashFactor);
+void pixarJump(int objectIndex, float height, float rotateAngle, float maxSquashFactor);
 void jumpSquash(int objectIndex, float maxSquashFactor);
-void bounce(int objectIndex, float height, int numberOfBounces);
+void bounce(int objectIndex, float height, int numberOfBounces, float rotateAngle);
  
 DrawingWindow window;
  
@@ -147,6 +148,7 @@ int main(int argc, char* argv[]) {
   // 3) Read In OBJ [ Cornell Box ].
   objects = readGroupedOBJ(objFileName, mtlFileName, 1);
   
+  /*
   // 4) Read in Hackspace logo, scale and append to object list.
   vector<Object> hackspaceLogo = readGroupedOBJ("logo.obj", "logo.mtl", 0.06);
   hackspaceLogo.at(0).Move(vec3(0,0,-1), 0.7);
@@ -154,12 +156,26 @@ int main(int argc, char* argv[]) {
   hackspaceLogo.at(0).SnapToY0();
   hackspaceLogo.at(0).ApplyMaterial(TEXTURE);
   objects.push_back(hackspaceLogo.at(0));
+  */
+  
+  
 
   
   cout << "Number Of Objects: " << objects.size() << "\n";
-  
-  objects.at(4).ApplyMaterial(MIRROR); // Mirrored floor
-  objects.at(6).ApplyMaterial(GLASS);  // Mirrored Red Box.
+  //Mirrored floor
+  objects[4].ApplyMaterial(MIRROR);
+  //Mirrored Red Box.
+  objects[6].ApplyMaterial(GLASS);
+
+  //Apply colour to Hacksapce logo for SHADOWing
+  //objects[9].ApplyColour(Colour(24, 21, 180), true);
+  //Apply Material for the Raytracer
+  //objects[9].ApplyMaterial(GLASS);
+  //objects.at(9).ApplyMaterial(TEXTURE);
+  //objects[9].ApplyMaterial("texture");
+  // 3) Read In Texture.
+  //textureFile = importPPM(texFileName);
+
 
   // 5) Render
   render();
@@ -183,15 +199,41 @@ int main(int argc, char* argv[]) {
  
 void update() {
   // Function for performing animation (shifting artifacts or moving the camera)
+  const float pi = 4 * atan(1);
+  /* SPIN ANIMATION
+  //objects.at(2).RotateXZ(0.1);
+  //render();
   spinAround(pi, 100, true, -1);
   spinAround(pi, 100, true, 1);
+  */
+
+  /* ROTATE THEN JUMP ANIATION */
+  // spin the camera 90 degrees
+  spinAround(pi/2, 50, false, 0);
+  wait(40);
+  // make the object jump and turn 90 degrees
+  bounce(6, 1.5, 1, -pi/2);
+  wait(10);
+  spinAround(pi/2, 50, false, 0);
+  wait(40);
+  bounce(6, 1.5, 1, -pi/2);
+  wait(10);
 } 
+
+void wait(int n){
+  for (int i = 0 ; i < n ; i++){
+    render();
+  }
+}
+
 
 // this function starts and stops the animation in the window (press p)
 void playOrPause(){
   animate = !animate;
 
 }
+
+
 
 // OPTIMISED - this function sets the screen pixel buffer. (if AA multiplier == 1 -> buffer is ignored.)
 void SetBufferColour(int x, int y, uint32_t col) {
@@ -278,8 +320,8 @@ void handleEvent(SDL_Event event) {
     else if(event.key.keysym.sym == SDLK_s)     updateView(PAN_LEFT);
     else if(event.key.keysym.sym == SDLK_w)     updateView(TILT_DOWN); 
     else if(event.key.keysym.sym == SDLK_z)     updateView(TILT_UP); 
-    else if(event.key.keysym.sym == SDLK_c)     {
-      bounce(9, 1.5, 5);
+    /*else if(event.key.keysym.sym == SDLK_c)     {
+      //bounce(9, 1.5, 5);
       objects.erase(objects.begin() + 9);
       render();
       vector<Object> hackspaceLogo = readGroupedOBJ("logo.obj", "logo.mtl", 0.06);
@@ -317,6 +359,8 @@ void handleEvent(SDL_Event event) {
       render();
 
     }
+    */
+    else if(event.key.keysym.sym == SDLK_c)     bounce(8, 1.5, 5, 0);
     else if(event.key.keysym.sym == SDLK_p)     playOrPause();
 
     // pressing 1 changes to wireframe mode 
@@ -1500,8 +1544,6 @@ void spinAround(float angle, int stepNumber, bool clockwise, int zoom){
   const float distanceStep = (endDistance - startDistance) / stepNumber;
   
   const float angleStep = (!clockwise) ? (angle/stepNumber) : (-angle/stepNumber);
-
-  cout << "Step Number: " << angle << ", .... step: " << stepNumber << "\n";
   
 
   // for each step we move the camera the right amount
@@ -1594,7 +1636,7 @@ void squash(int objectIndex, float squashFactor){
 // same function as the jump except we include a squash and stretch transformation with the vertices
 // before the jump we want a squash and also after it lands
 // we want a stretch as it jumps in the air
-void pixarJump(int objectIndex, float height, bool rotate, float maxSquashFactor){
+void pixarJump(int objectIndex, float height, float rotateAngle, float maxSquashFactor){
   // save the object so we can go back to it
   Object objectCopy = objects[objectIndex];
 
@@ -1637,10 +1679,12 @@ void pixarJump(int objectIndex, float height, bool rotate, float maxSquashFactor
   // can now work out a and b
   float aQuad = (maxSquashFactor * 4) / (totalTime * totalTime);
   float bQuad = -totalTime * aQuad;
+
   
   // number of steps
   float numberOfSteps = int(totalTime / timeStep);
-  float stepAngle = pi / numberOfSteps;
+  // we can also make the object rotate as it jumps
+  float stepAngle = rotateAngle / numberOfSteps;
   
   // for each time frame, calculate the height of the object
   for (int i = 0 ; i < numberOfSteps ; i++){
@@ -1653,13 +1697,15 @@ void pixarJump(int objectIndex, float height, bool rotate, float maxSquashFactor
     float squashFactor = (aQuad*t*t) + (bQuad*t);
     squash(objectIndex, squashFactor);
     // rotate
-    if (rotate) objects[objectIndex].RotateXZ(stepAngle*i);
+    if (rotateAngle != 0) objects[objectIndex].RotateXZ(stepAngle*i);
     // render
     render();
     window.renderFrame();
     // translate the vertices back to original and undo the squash
     objects[objectIndex] = objectCopy;
   }
+  // on the last step we want to keep the rotation the same once resetting the object back to normal, so rotate by full angle again
+  objects[objectIndex].RotateXZ(rotateAngle);
 
   // after the jump we want the object to go from normal to squashed to normal again
   // can do the same as we did before the jump
@@ -1679,7 +1725,7 @@ void jumpSquash(int objectIndex, float maxSquashFactor){
   // how many steps do we want (how quickly should it squash)
   int steps = 10;
   vector<float> squashSteps;
-  for (float t = 0 ; t < steps ; t++){
+  for (float t = 0 ; t <= steps ; t++){
     // use y = -at^2 + bt + c
     // at t = 0, we want squashFactor = 0 and at t = steps we want squashFactor = 0
     // half way through (so t = steps/2) we want squashFactor = maxSquashFactor
@@ -1712,7 +1758,7 @@ void jumpSquash(int objectIndex, float maxSquashFactor){
 }
 
 
-void bounce(int objectIndex, float height, int numberOfBounces){
+void bounce(int objectIndex, float height, int numberOfBounces, float rotateAngle){
   // use a quadratic to get the heights of the bounces
   // y = an^2 + bn + c
   // n is the bounce number
@@ -1739,7 +1785,7 @@ void bounce(int objectIndex, float height, int numberOfBounces){
   for (int n = 0 ; n < numberOfBounces ; n++){
     float bounceHeight = (a*n*n) + (b*n) + c;
     float squashFactor = 0.5 * (bounceHeight / height);
-    pixarJump(objectIndex, bounceHeight, false, squashFactor);
-    //objects.at(9).RotateXZ(-pi/25);
+    float rotate = rotateAngle * (bounceHeight / height);
+    pixarJump(objectIndex, bounceHeight, rotate, squashFactor);
   }
 }
