@@ -28,12 +28,12 @@ enum SHADOW {NO=0, YES=1, REFLECTIVE=2};
 RENDERTYPE currentRender = WIREFRAME; //Set default RenderType here. 
 std::string defaultPPMFileName = "render/snapshot";
 
-const int maximumNumberOfReflections = 10;
+const int maximumNumberOfReflections = 7;
 
 #define W 800 //Set desired screen width here. 
 #define H 800 //Set desired screen height here.
 
-const int AA = 3; //Set Anti-Aliasing Multiplier here, applied to both x and y so expect ~AA^2 time [eg. 800x800x1 5.43s, 800x800x4 88.7s ~16.4x]
+const int AA = 1; //Set Anti-Aliasing Multiplier here, applied to both x and y so expect ~AA^2 time [eg. 800x800x1 5.43s, 800x800x4 88.7s ~16.4x]
 
 bool displayRenderTime = false;
 
