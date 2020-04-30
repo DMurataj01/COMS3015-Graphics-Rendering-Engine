@@ -88,6 +88,7 @@ float fresnel(vec3 incident, vec3 normal, float ior);
 void backfaceCulling(vec3 rayDirection);
 void spin(vec3 point, float angle, float distance);
 void spinAround(float angle, int stepNumber, bool clockwise, int zoom);
+void spinAroundAndSpinSubObject(float angle, int stepNumber, bool clockwise, int zoom, int subObjectIndex, float subObjectRotation);
 void jump(int objectIndex, float height);
 void squash(int objectIndex, float squashFactor);
 void pixarJump(int objectIndex, float height, bool rotate, float maxSquashFactor);
@@ -377,45 +378,12 @@ void bounce(vector<int> objectIndices, float height, int numberOfBounces, float 
 }
 
 
-
-
-vec3 getBottomCentreOfObject(Object object){
-  // find the bottom of the object
-  // also find the centre of the underside
-  // (when we squash an object it squashes downwards)
-  float lowestPoint = numeric_limits<float>::infinity();
-  vec3 averagedVertices (0,0,0);
-
-  // for each face
-  for (int i = 0 ; i < object.faces.size() ; i++){
-    ModelTriangle face = object.faces[i];
-    // for each vertex
-    for (int j = 0 ; j < 3 ; j++){
-      vec3 vertex = face.vertices[j];
-      averagedVertices = averagedVertices + vertex;
-      
-      if (vertex[1] < lowestPoint){
-        lowestPoint = vertex[1];
-      }
-    }
-  }
-
-  averagedVertices /= float(object.faces.size() * 3);
-
-  // we squash the object around the following point (the centre but on the under side of the object)
-  vec3 squashCentre = averagedVertices;
-  squashCentre[1] = lowestPoint;
-  return squashCentre;
-}
-
-
-void ReRenderWait(int n){
+void ReRenderWait(int n) {
   for (int i = 0 ; i < n ; i++){
     render();
   }
 }
 
-void spinAroundAndSpinSubObject(float angle, int stepNumber, bool clockwise, int zoom, int subObjectIndex, float subObjectRotation);
 
 void handleEvent(SDL_Event event) { 
   if(event.type == SDL_KEYDOWN) { 
@@ -446,10 +414,11 @@ void handleEvent(SDL_Event event) {
     } 
 
     else if(event.key.keysym.sym == SDLK_8)     {
+      currentRender = WIREFRAME;
       resetToOriginalScene();
       // 0) Read in Hackspace logo, scale and append to object list.
       vector<Object> hackspaceLogo = readGroupedOBJ("logo.obj", "logo.mtl", 0.06);
-      hackspaceLogo.at(0).ApplyMaterial(GLASS);
+      hackspaceLogo.at(0).ApplyColour(Colour(0,0, 255), true);
       hackspaceLogo.at(0).Move(vec3(-1,0,0), 0.7);
       hackspaceLogo.at(0).Move(vec3(0,0,-1), 1.7);
       hackspaceLogo.at(0).Move(vec3(0,1, 0), 1.5);
@@ -527,6 +496,7 @@ void handleEvent(SDL_Event event) {
       render();
     }
     else if(event.key.keysym.sym == SDLK_9)     {
+      currentRender = RASTERIZE;
       resetToOriginalScene();
       vector<int> objectIndices;
       objectIndices.push_back(6);
@@ -540,6 +510,7 @@ void handleEvent(SDL_Event event) {
       cubeJumps(false); cubeJumps(false); cubeJumps(false); cubeJumps(false);
     }
     else if(event.key.keysym.sym == SDLK_0)     {
+      currentRender = RAYTRACE;
       resetToOriginalScene();
       vector<Object> hackspaceLogo = readGroupedOBJ("logo.obj", "logo.mtl", 0.06);
       hackspaceLogo.at(0).Move(vec3(0,0,-1), 0.7);
@@ -1768,6 +1739,10 @@ void backfaceCulling(vec3 rayDirection){
   }
 }
 
+
+
+
+
 ////////////////////////////////
 // ANIMATION CODE
 ////////////////////////////////
@@ -1804,7 +1779,6 @@ void spinAround(float angle, int stepNumber, bool clockwise, int zoom){
   for (int i = 0; i < stepNumber; i++){
       float distance = startDistance + (i * distanceStep);
       spin(point, angleStep, distance);
-      //objects.at(9).RotateXZ(pi/10);
       render();
   }
 }
@@ -1820,9 +1794,6 @@ void spinAroundAndSpinSubObject(float angle, int stepNumber, bool clockwise, int
   const float distanceStep = (endDistance - startDistance) / stepNumber;
   
   const float angleStep = (!clockwise) ? (angle/stepNumber) : (-angle/stepNumber);
-
-  cout << "Step Number: " << angle << ", .... step: " << stepNumber << "\n";
-  
 
   // for each step we move the camera the right amount
   for (int i = 0; i < stepNumber; i++){
@@ -1905,7 +1876,6 @@ void squash(int objectIndex, float squashFactor){
     }
   }
 }
-
 
 // same function as the jump except we include a squash and stretch transformation with the vertices
 // before the jump we want a squash and also after it lands
@@ -2060,7 +2030,7 @@ void pixarJump(vector<int> objectIndices, float height, float rotateAngle, float
       // scale down
       if (scaleDownFactor != 0){
         float scaleFactor = (i * scaleDownStep);
-        vec3 scaleCentre = getBottomCentreOfObject(objects.at(objectIndex));
+        vec3 scaleCentre = objects.at(objectIndex).getBottomCentreOfObject(); 
         objects.at(objectIndex).ScaleObject(scaleCentre, scaleFactor);
       }
     }
@@ -2075,7 +2045,7 @@ void pixarJump(vector<int> objectIndices, float height, float rotateAngle, float
   // on the last step we want to keep the rotation and the scale the same once resetting the object back to normal, so rotate by full angle again
   for (int o = 0 ; o < objectIndices.size() ; o++){
     int objectIndex = objectIndices[o];
-    vec3 scaleCentre = getBottomCentreOfObject(objects.at(objectIndex));
+    vec3 scaleCentre = objects.at(objectIndex).getBottomCentreOfObject(); 
     objects[objectIndex].RotateXZ(rotateAngle, rotateCentre);
     objects.at(objectIndex).ScaleObject(scaleCentre, scaleDownFactor);
   }

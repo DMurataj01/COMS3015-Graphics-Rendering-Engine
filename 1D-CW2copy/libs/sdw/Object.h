@@ -177,8 +177,6 @@ class Object {
       }
     }
 
-
-
     void Scale_Locked_YMin(glm::vec3 scale) {      
       float minY = std::numeric_limits<float>::infinity();
       int i_faceY = -1;
@@ -208,6 +206,28 @@ class Object {
         }
       }
       
+    }
+
+    glm::vec3 getBottomCentreOfObject() {
+      // find the bottom of the object
+      // also find the centre of the underside
+      // (when we squash an object it squashes downwards)
+      float lowestPoint = std::numeric_limits<float>::infinity();
+      glm::vec3 averagedVertices (0,0,0);
+
+      for (int i = 0; i < faces.size(); i++){
+        for (int j = 0 ; j < 3 ; j++){
+          glm::vec3 vertex = faces[i].vertices[j];
+          averagedVertices += vertex;
+          if (vertex[1] < lowestPoint) lowestPoint = vertex[1];
+        }
+      }
+      averagedVertices /= float(faces.size() * 3);
+
+      // we squash the object around the following point (the centre but on the under side of the object)
+      glm::vec3 squashCentre = averagedVertices;
+      squashCentre[1] = lowestPoint;
+      return squashCentre;
     }
 
 };
