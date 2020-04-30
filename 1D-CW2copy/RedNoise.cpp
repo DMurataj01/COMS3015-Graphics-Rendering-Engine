@@ -409,7 +409,7 @@ vec3 getBottomCentreOfObject(Object object){
 }
 
 
-void wait(int n){
+void ReRenderWait(int n){
   for (int i = 0 ; i < n ; i++){
     render();
   }
@@ -445,7 +445,6 @@ void handleEvent(SDL_Event event) {
       render(); 
     } 
 
-
     else if(event.key.keysym.sym == SDLK_8)     {
       resetToOriginalScene();
       // 0) Read in Hackspace logo, scale and append to object list.
@@ -469,9 +468,8 @@ void handleEvent(SDL_Event event) {
 
       // 2) Bounce Hackspace logo.
       bounce(9, 1, 3);
-      render();
-
-      for (int i=0; i<30; i++) render();
+      
+      ReRenderWait(31);
 
       // 3) Funky spins and stuff.
       objects.at(9).RotateXZ(-pi/20);
@@ -520,8 +518,7 @@ void handleEvent(SDL_Event event) {
       //Hinge light to Bottom of the Hackspace Logo.
       lightPosition.y = objects.at(0).getLowestYValue();
       
-      // Slide for 60 frames --- Light Intensity Slider ( from 20 -> 100 )
-      for (int i=0; i<60; i++) render();
+      ReRenderWait(60);
       
       objects.at(0).Scale(vec3(5, 5, 5));
       cameraPosition.x = objects.at(0).GetCentre().x;
@@ -535,11 +532,11 @@ void handleEvent(SDL_Event event) {
       objectIndices.push_back(6);
       objectIndices.push_back(7);
       bounce(objectIndices, 1, 3, 0, vec3 (0,0,0), 0.3);
-      wait(20);
+      ReRenderWait(20);
       cubeJumps(true); cubeJumps(false); cubeJumps(false); cubeJumps(false);
-      wait(20);
+      ReRenderWait(20);
       bounce(objectIndices, 1, 3, 0, vec3 (0,0,0), 0.3, true);
-      wait(20);
+      ReRenderWait(20);
       cubeJumps(false); cubeJumps(false); cubeJumps(false); cubeJumps(false);
     }
     else if(event.key.keysym.sym == SDLK_0)     {
