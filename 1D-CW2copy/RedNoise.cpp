@@ -30,8 +30,8 @@ std::string defaultPPMFileName = "render/snapshot";
 
 const int maximumNumberOfReflections = 7;
 
-#define W 800 //Set desired screen width here. 
-#define H 800 //Set desired screen height here.
+#define W 576 //Set desired screen width here. 
+#define H 600 //Set desired screen height here.
 
 const int AA = 1; //Set Anti-Aliasing Multiplier here, applied to both x and y so expect ~AA^2 time [eg. 800x800x1 5.43s, 800x800x4 88.7s ~16.4x]
 
@@ -137,6 +137,18 @@ void initialise() {
   }
 }
 
+glm::vec3 GetSceneXCentre() { 
+  glm::vec3 sceneCentre; 
+  const int n = objects.size(); 
+   
+  for (int o=0; o<n; o++) { 
+    sceneCentre += objects.at(o).GetCentre(); 
+  } 
+   
+  return sceneCentre / glm::vec3(n, n, n); 
+} 
+ 
+
 int main(int argc, char* argv[]) { 
   // 1) Initialise.
   initialise();
@@ -155,12 +167,13 @@ int main(int argc, char* argv[]) {
   hackspaceLogo.at(0).ApplyMaterial(TEXTURE);
   objects.push_back(hackspaceLogo.at(0));
 
-  
   cout << "Number Of Objects: " << objects.size() << "\n";
   
   objects.at(4).ApplyMaterial(MIRROR); // Mirrored floor
   objects.at(6).ApplyMaterial(GLASS);  // Mirrored Red Box.
 
+
+  cameraPosition[0] = GetSceneXCentre()[0]; 
   // 5) Render
   render();
 
@@ -289,7 +302,6 @@ void handleEvent(SDL_Event event) {
       hackspaceLogo.at(0).Move(vec3(0,1, 0), 1.5);
       hackspaceLogo.at(0).RotateXZ(pi/8);
       objects.push_back(hackspaceLogo.at(0));
-      recording = true;
       render();
       objects.at(9).RotateZY(pi/14);
       render();
