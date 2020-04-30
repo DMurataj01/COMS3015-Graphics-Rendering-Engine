@@ -431,7 +431,29 @@ void wait(int n){
   }
 }
 
+void spinAroundEdge(float angle, int stepNumber, bool clockwise, int zoom){
+  vec3 point = findCentreOfScene();
+  float startDistance = distanceVec3(point, cameraPosition);
+  float endDistance = startDistance;
+  
+  if (zoom == 1) endDistance = startDistance / 1.5;
+  else if (zoom == -1) endDistance = startDistance * 1.5;
 
+  const float distanceStep = (endDistance - startDistance) / stepNumber;
+  
+  const float angleStep = (!clockwise) ? (angle/stepNumber) : (-angle/stepNumber);
+
+  cout << "Step Number: " << angle << ", .... step: " << stepNumber << "\n";
+  
+
+  // for each step we move the camera the right amount
+  for (int i = 0; i < stepNumber; i++){
+      float distance = startDistance + (i * distanceStep);
+      spin(point, angleStep, distance);
+      objects.at(9).RotateXZ(pi/10);
+      render();
+  }
+}
 
 void handleEvent(SDL_Event event) { 
   if(event.type == SDL_KEYDOWN) { 
@@ -564,12 +586,14 @@ void handleEvent(SDL_Event event) {
       hackspaceLogo.at(0).SnapToY0();
       hackspaceLogo.at(0).ApplyMaterial(TEXTURE);
       objects.push_back(hackspaceLogo.at(0));
+
       cameraPosition[0] = GetSceneXCentre()[0]; 
+
       render();
 
       // spin me right round.
-      spinAround(pi, 100, true, -1);
-      spinAround(pi, 100, true, 1);
+      spinAroundEdge(pi, 100, true, -1);
+      spinAroundEdge(pi, 100, true, 1);
 
       // delete old hsLogo.
       objects.erase(objects.begin() + 9);
@@ -590,7 +614,7 @@ void handleEvent(SDL_Event event) {
       for (int i=0; i<25; i++) render();
 
       const int n = 40;
-      for (int i=0; i<3*n; i++) {
+      for (int i=0; i<120; i++) {
         objects.at(9).RotateYX(pi/n);
         render();
       }
@@ -601,21 +625,17 @@ void handleEvent(SDL_Event event) {
         objects.at(9).Move(vec3(0, 0, cameraPosition.z), 0.06);
         objects.at(9).Move(vec3(0, -1, 0), 0.03);
         objects.at(9).Move(vec3(-1,  0, 0), 0.027);
-        render(); // testing
-        if (i == (n-1)) {
-          // Remove all the objects from the scene aside from the hackspace logo.
-          objects.erase(objects.begin(), objects.begin() + 9);
-
-          objects.at(0).RotateXZ(-pi/20);
-          cameraPosition.x = objects.at(0).GetCentre().x;
-        }
+        render();
       }
 
-      
-      lightIntensity = 0;
+      objects.erase(objects.begin(), objects.begin() + 9);
       objects.at(0).ApplyMaterial(NONE);
+      objects.at(0).RotateXZ(-pi/20);
+      cameraPosition.x = objects.at(0).GetCentre().x;
+      lightIntensity = 0;
       lightPosition = cameraPosition;
       render();
+      
       lightIntensity = 20; 
       
       //Beautiful orange.
