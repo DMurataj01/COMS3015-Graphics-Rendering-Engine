@@ -33,7 +33,7 @@ const int maximumNumberOfReflections = 7;
 #define W 576 //Set desired screen width here. 
 #define H 600 //Set desired screen height here.
 
-const int AA = 1; //Set Anti-Aliasing Multiplier here, applied to both x and y so expect ~AA^2 time [eg. 800x800x1 5.43s, 800x800x4 88.7s ~16.4x]
+const int AA = 2; //Set Anti-Aliasing Multiplier here, applied to both x and y so expect ~AA^2 time [eg. 800x800x1 5.43s, 800x800x4 88.7s ~16.4x]
 
 bool displayRenderTime = false;
 
@@ -295,6 +295,11 @@ void handleEvent(SDL_Event event) {
       //bounce(9, 1.5, 5);
       objects.erase(objects.begin() + 9);
       render();
+
+      // Hold me for 15 frames.
+      for (int i=0; i<15; i++) render();
+
+
       vector<Object> hackspaceLogo = readGroupedOBJ("logo.obj", "logo.mtl", 0.06);
       hackspaceLogo.at(0).ApplyMaterial(GLASS);
       hackspaceLogo.at(0).Move(vec3(-1,0,0), 0.7);
@@ -304,9 +309,11 @@ void handleEvent(SDL_Event event) {
       objects.push_back(hackspaceLogo.at(0));
       render();
 
+      // Hold me for around 0.3s.
+      for (int i=0; i<25; i++) render();
+
       const int n = 40;
       for (int i=0; i<3*n; i++) {
-        //objects.at(9).RotateZY(pi/n);
         objects.at(9).RotateYX(pi/n);
         render();
       }
@@ -353,7 +360,7 @@ void handleEvent(SDL_Event event) {
 
       // Note - We're rendering at 60FPS!
 
-
+      /*
       // Do R G B Christmas Tree.      
       for (int i=0; i<9; i++) {  
         if ((i % 3) == 0) {
@@ -378,6 +385,8 @@ void handleEvent(SDL_Event event) {
           } 
         }
       }
+
+      */
 
       // Note: Previous lasted 2.25s.
 
