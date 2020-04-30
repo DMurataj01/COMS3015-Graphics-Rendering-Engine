@@ -271,7 +271,7 @@ void render(){
       }
     }
   }
-
+  window.renderFrame(); 
   double duration = ( std::clock() - start ) / (double) CLOCKS_PER_SEC;
   if (displayRenderTime) cout << "Time Taken To Render: " << duration << "\n";
   if (recording) {
@@ -303,30 +303,16 @@ void handleEvent(SDL_Event event) {
       hackspaceLogo.at(0).RotateXZ(pi/8);
       objects.push_back(hackspaceLogo.at(0));
       render();
-      objects.at(9).RotateZY(pi/14);
-      render();
-      objects.at(9).RotateZY(pi/14);
-      render();
-      objects.at(9).RotateZY(pi/14);
-      render();
-      objects.at(9).RotateZY(pi/14);
-      render();
-      objects.at(9).RotateZY(pi/14);
-      render();
-      objects.at(9).RotateZY(pi/14);
-      render();
-      objects.at(9).RotateZY(-pi/14);
-      render();
-      objects.at(9).RotateZY(-pi/14);
-      render();
-      objects.at(9).RotateZY(-pi/14);
-      render();
-      objects.at(9).RotateZY(-pi/14);
-      render();
-      objects.at(9).RotateZY(-pi/14);
-      render();
-      objects.at(9).RotateZY(-pi/14);
-      render();
+
+      const int n = 40;
+      for (int i=0; i<n; i++) {
+        objects.at(9).RotateZY(pi/n);
+        render();
+      }
+      for (int i=0; i<n; i++) {
+        objects.at(9).RotateZY(pi/n);
+        render();
+      }
 
     }
     else if(event.key.keysym.sym == SDLK_p)     playOrPause();
@@ -1522,7 +1508,6 @@ void spinAround(float angle, int stepNumber, bool clockwise, int zoom){
       spin(point, angleStep, distance);
       objects.at(9).RotateXZ(pi/10);
       render();
-      window.renderFrame();
   }
 }
 
@@ -1550,7 +1535,6 @@ void jump(int objectIndex, float height){
     float displacement = (u*t) + (0.5 * a * t * t);
     objects[objectIndex].Move(vec3(0,1,0), displacement);
     render();
-    window.renderFrame();
     // translate the vertices back to original
     objects[objectIndex].Move(vec3(0,-1,0), displacement);
   }

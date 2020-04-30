@@ -123,8 +123,7 @@ class Object {
       }
     }
 
-    // Snap To Floor - move object down or up so the lowest vertex is at Y=0.
-    void SnapToY0() {
+    float getLowestYValue() {
       float minY = std::numeric_limits<float>::infinity();
       // go through each vertex to find the minimum Y value.
       for (int i = 0; i < faces.size(); i++) {
@@ -133,12 +132,58 @@ class Object {
           if (tempY < minY) minY = tempY;
         }
       }
+      return minY;
+    }
+
+    // Snap To Floor - move object down or up so the lowest vertex is at Y=0.
+    void SnapToY0() {
+      const float minY = getLowestYValue();
       // go through each vertex and move up by - minY.
       for (int i = 0; i < faces.size(); i++) {
         for (int j = 0; j< 3; j++) {
           faces.at(i).vertices[j] += glm::vec3(0, -minY, 0);
         }
       }
+    }
+
+    void Scale(glm::vec3 scale) {
+      glm::vec3 centre = GetCentre();
+      for (int i = 0; i < faces.size(); i++) {
+        faces[i].vertices[0] = centre + (scale * (faces[i].vertices[0] - centre));
+        faces[i].vertices[1] = centre + (scale * (faces[i].vertices[1] - centre));
+        faces[i].vertices[2] = centre + (scale * (faces[i].vertices[2] - centre));
+      }
+    }
+    
+    void Scale_Locked_YMin(glm::vec3 scale) {      
+      float minY = std::numeric_limits<float>::infinity();
+      int i_faceY = -1;
+      int i_vertexY = -1;
+
+      // go through each vertex to find the minimum Y value.
+      for (int i = 0; i < faces.size(); i++) {
+        for (int j = 0; j < 3; j++) {
+          const float tempY = faces.at(i).vertices[j].y;
+          if (tempY < minY) {
+            minY = tempY;
+            i_faceY = i;
+            i_vertexY = j;
+          }
+        }
+      }
+
+      Scale(scale);
+
+      const float scaledMinY = faces[i_faceY].vertices[i_vertexY][1]; // This is our current lowest Y value.
+      const float distToMoveDown = scaledMinY - minY;
+      
+      // go through each vertex and move up by - minY.
+      for (int i = 0; i < faces.size(); i++) {
+        for (int j = 0; j< 3; j++) {
+          faces.at(i).vertices[j] += glm::vec3(0, -distToMoveDown, 0);
+        }
+      }
+      
     }
 
 };
