@@ -51,6 +51,17 @@ float fpart(float x) {
 	return x - floor(x);
 }
 
+uint8_t getRedValueFromColor(uint32_t c) {
+  return (c >> 16);
+}
+uint8_t getGreenValueFromColor(uint32_t c) {
+    return (c >> 8);
+}
+uint8_t getBlueValueFromColor(uint32_t c) {
+    return (c);
+}
+
+
 float getValueBetweenNumbers(bool print, float a, float b, float percentage) {
   if (print) {
     std::cout << "In: " << a << "& " << b << ".. $" << percentage << "\n";

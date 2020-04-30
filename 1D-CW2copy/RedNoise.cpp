@@ -33,10 +33,10 @@ std::string defaultPPMFileName = "render/snapshot";
 
 const int maximumNumberOfReflections = 7;
 
-#define W 176 //Set desired screen width here. 
-#define H 200 //Set desired screen height here.
+#define W 576 //Set desired screen width here. 
+#define H 600 //Set desired screen height here.
 
-const int AA = 1; //Set Anti-Aliasing Multiplier here, applied to both x and y so expect ~AA^2 time [eg. 800x800x1 5.43s, 800x800x4 88.7s ~16.4x]
+const int AA = 2; //Set Anti-Aliasing Multiplier here, applied to both x and y so expect ~AA^2 time [eg. 800x800x1 5.43s, 800x800x4 88.7s ~16.4x]
 
 bool displayRenderTime = false;
 
@@ -186,16 +186,6 @@ void SetBufferColour(int x, int y, uint32_t col) {
     const int i = x + (y*WIDTH);
     pixelBuffer[i] = col;
   }
-}
-
-uint8_t getRedValueFromColor(uint32_t c) {
-  return (c >> 16);
-}
-uint8_t getGreenValueFromColor(uint32_t c) {
-    return (c >> 8);
-}
-uint8_t getBlueValueFromColor(uint32_t c) {
-    return (c);
 }
 
 // this function renders the scene, depending on what the value of STATE is (so whether we use wireframe, rasterize or raytrace) 
