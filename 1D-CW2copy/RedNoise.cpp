@@ -305,12 +305,18 @@ void handleEvent(SDL_Event event) {
       render();
 
       const int n = 40;
-      for (int i=0; i<n; i++) {
-        objects.at(9).RotateZY(pi/n);
+      for (int i=0; i<3*n; i++) {
+        //objects.at(9).RotateZY(pi/n);
+        objects.at(9).RotateYX(pi/n);
         render();
       }
       for (int i=0; i<n; i++) {
-        objects.at(9).RotateZY(pi/n);
+        //objects.at(9).RotateZY(pi/n);
+        objects.at(9).RotateYX(pi/n);
+        objects.at(9).Scale_Locked_YMin(vec3(1.025, 1.025, 1));
+        objects.at(9).Move(vec3(0, 0, cameraPosition.z), 0.06);
+        objects.at(9).Move(vec3(0, -1, 0), 0.03);
+        objects.at(9).Move(vec3(-1,  0, 0), 0.03);
         render();
       }
 
