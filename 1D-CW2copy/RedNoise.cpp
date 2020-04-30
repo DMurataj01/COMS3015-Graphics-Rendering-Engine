@@ -160,12 +160,13 @@ int main(int argc, char* argv[]) {
   objects = readGroupedOBJ(objFileName, mtlFileName, 1);
   
   // 4) Read in Hackspace logo, scale and append to object list.
-  vector<Object> hackspaceLogo = readGroupedOBJ("logo.obj", "logo.mtl", 0.06);
-  hackspaceLogo.at(0).Move(vec3(0,0,-1), 0.7);
-  hackspaceLogo.at(0).Move(vec3(-1,0,0), 2.5);
-  hackspaceLogo.at(0).SnapToY0();
-  hackspaceLogo.at(0).ApplyMaterial(TEXTURE);
-  objects.push_back(hackspaceLogo.at(0));
+      vector<Object> hackspaceLogo = readGroupedOBJ("logo.obj", "logo.mtl", 0.06);
+      hackspaceLogo.at(0).ApplyMaterial(GLASS);
+      hackspaceLogo.at(0).Move(vec3(-1,0,0), 0.7);
+      hackspaceLogo.at(0).Move(vec3(0,0,-1), 1.7);
+      hackspaceLogo.at(0).Move(vec3(0,1, 0), 1.5);
+      hackspaceLogo.at(0).RotateXZ(pi/8);
+      objects.push_back(hackspaceLogo.at(0));
 
   cout << "Number Of Objects: " << objects.size() << "\n";
   
@@ -292,75 +293,23 @@ void handleEvent(SDL_Event event) {
     else if(event.key.keysym.sym == SDLK_w)     updateView(TILT_DOWN); 
     else if(event.key.keysym.sym == SDLK_z)     updateView(TILT_UP); 
     else if(event.key.keysym.sym == SDLK_c)     {
-      bounce(9, 1.5, 3);
-      objects.erase(objects.begin() + 9);
+      bounce(9, 1, 3);
       render();
 
       // Hold me for 15 frames.
       for (int i=0; i<15; i++) render();
 
+      for (int i=0; i<145; i++) render();
 
-      vector<Object> hackspaceLogo = readGroupedOBJ("logo.obj", "logo.mtl", 0.06);
-      hackspaceLogo.at(0).ApplyMaterial(GLASS);
-      hackspaceLogo.at(0).Move(vec3(-1,0,0), 0.7);
-      hackspaceLogo.at(0).Move(vec3(0,0,-1), 1.7);
-      hackspaceLogo.at(0).Move(vec3(0,1, 0), 1.5);
-      hackspaceLogo.at(0).RotateXZ(pi/8);
-      objects.push_back(hackspaceLogo.at(0));
-      render();
-
-      // Hold me for around 0.3s.
-      for (int i=0; i<25; i++) render();
-
-      const int n = 40;
-      for (int i=0; i<3*n; i++) {
-        objects.at(9).RotateYX(pi/n);
-        render();
-      }
-
-
-      for (int i=0; i<n; i++) {
-        //objects.at(9).RotateZY(pi/n);
-        objects.at(9).RotateYX(pi/n);
-        objects.at(9).Scale_Locked_YMin(vec3(1.025, 1.025, 1));
-        objects.at(9).Move(vec3(0, 0, cameraPosition.z), 0.06);
-        objects.at(9).Move(vec3(0, -1, 0), 0.03);
-        objects.at(9).Move(vec3(-1,  0, 0), 0.027);
-        
-        render(); // testing
-                
-        if (i == (n-1)) {
-          // Remove all the objects from the scene aside from the hackspace logo.
-          objects.erase(objects.begin(), objects.begin() + 9);
-
-          objects.at(0).RotateXZ(-pi/20);
-          cameraPosition.x = objects.at(0).GetCentre().x;
-        }
-      }
-
-      //Set light to 0.
-      lightIntensity = 0;
+      objects.at(9).RotateXZ(-pi/20);
+    
+      cameraPosition.x = objects.at(9).GetCentre().x;
+    
+      // Remove all the objects from the scene aside from the hackspace logo.
+      objects.erase(objects.begin(), objects.begin() + 9);
       
-      //Remove Glass.
-      objects.at(0).ApplyMaterial(NONE);
-      
-      //Move light.
-      lightPosition = cameraPosition;
-
-      //recording = true; 
-      render();
-
-      lightIntensity = 20; 
-      
-
       // Note - We're rendering at 60FPS!
-      render();
-      render();
-      render();
-      render();
-      render();
-
-      objects.at(0).Scale(vec3(1, 0.8, 0.8));
+      for (int i=0; i<6; i++) render();
 
       // Do R G B Christmas Tree.      
       for (int i=0; i<9; i++) {  
@@ -387,30 +336,28 @@ void handleEvent(SDL_Event event) {
           } 
         }
       }
+
       for (int t=0; t<15; t++) {
       objects.at(0).RotateZY(pi/15);
       render();
       }
 
-      // Note: Previous lasted 2.25s.
-
       // Change Colour To Orange...
-      Colour startingColour(255, 131, 0);
-      objects.at(0).ApplyColour(startingColour, true);
+      objects.at(0).ApplyColour(Colour(255, 131, 0), true);
       
       //Hinge light to Bottom of the Hackspace Logo.
       lightPosition.y = objects.at(0).getLowestYValue();
       
       // Slide for 60 frames --- Light Intensity Slider ( from 20 -> 100 )
-      for (int i=0; i<60; i++) {
-        lightIntensity += 1.25;
-        render();
-      }
+      for (int i=0; i<60; i++) render();
+      
 
-      //Move from RGB(255, 170, 0) to (255, 130, 0) [ The Perfect Hackspace Orange ].
-      lightIntensity = 120;
-      objects.at(0).Scale(vec3(1, 1.25, 1.25));
+      objects.at(0).Scale(vec3(5, 5, 5));
+      cameraPosition.x = objects.at(0).GetCentre().x;
+      objects.at(0).RotateXZ(-pi/14);
+      objects.at(0).Move(vec3(0, 1, 0), 1);
       render();
+      
 
     }
     else if(event.key.keysym.sym == SDLK_p)     playOrPause();
