@@ -166,6 +166,19 @@ class Object {
       }
     }
     
+    void ScaleObject(glm::vec3 point, float scaleFactor) {
+      for (int i = 0; i < faces.size(); i++){
+        for (int j = 0; j < 3; j++){
+          glm::vec3 pointToVertex = faces[i].vertices[j] - point;
+          glm::vec3 newVertex = pointToVertex * (1 - scaleFactor);
+          glm::vec3 newPoint = point + newVertex;
+          faces[i].vertices[j] = newPoint;
+        }
+      }
+    }
+
+
+
     void Scale_Locked_YMin(glm::vec3 scale) {      
       float minY = std::numeric_limits<float>::infinity();
       int i_faceY = -1;

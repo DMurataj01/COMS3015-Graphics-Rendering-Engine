@@ -159,15 +159,16 @@ int main(int argc, char* argv[]) {
   objects = readGroupedOBJ(objFileName, mtlFileName, 1);
   
   // 4) Read in Hackspace logo, scale and append to object list.
-      vector<Object> hackspaceLogo = readGroupedOBJ("logo.obj", "logo.mtl", 0.06);
-      hackspaceLogo.at(0).ApplyMaterial(GLASS);
-      hackspaceLogo.at(0).Move(vec3(-1,0,0), 0.7);
-      hackspaceLogo.at(0).Move(vec3(0,0,-1), 1.7);
-      hackspaceLogo.at(0).Move(vec3(0,1, 0), 1.5);
-      hackspaceLogo.at(0).RotateXZ(pi/8);
-      objects.push_back(hackspaceLogo.at(0));
-
+  /*
+  vector<Object> hackspaceLogo = readGroupedOBJ("logo.obj", "logo.mtl", 0.06);
+  hackspaceLogo.at(0).ApplyMaterial(GLASS);
+  hackspaceLogo.at(0).Move(vec3(-1,0,0), 0.7);
+  hackspaceLogo.at(0).Move(vec3(0,0,-1), 1.7);
+  hackspaceLogo.at(0).Move(vec3(0,1, 0), 1.5);
+  hackspaceLogo.at(0).RotateXZ(pi/8);
+  objects.push_back(hackspaceLogo.at(0));
   cout << "Number Of Objects: " << objects.size() << "\n";
+  */
   
   objects.at(4).ApplyMaterial(MIRROR); // Mirrored floor
   objects.at(6).ApplyMaterial(GLASS);  // Mirrored Red Box.
@@ -265,6 +266,171 @@ void render(){
   }
 } 
 
+void cubeJumps(bool firstJump);
+void pixarJump(vector<int> objectIndices, float height, float rotateAngle, float maxSquashFactor, vec3 rotateCentre, bool firstJump, float scaleDownFactor);
+
+
+void jumpSquash(vector<int> objectIndices, float maxSquashFactor){
+  // save the object before the transformations so we can go back to it
+  vector<Object> objectCopies;
+  for (int o = 0 ; o < objectIndices.size() ; o++){
+    objectCopies.push_back(objects[objectIndices[o]]);
+  }
+
+  // before the jump, squash the object down
+  // use a quadratic step in the squash factor so it squashes quickly at first and then slows down as it gets to the maximum squash
+  // it should also go back to normal after it has been squashed (it should speed up as it is preparing to jump)
+  // if we use a quadratic function to get the squash factors then we should get the desired acceleration
+
+  // how many steps do we want (how quickly should it squash)
+  int steps = 10;
+  vector<float> squashSteps;
+  for (float t = 0 ; t <= steps ; t++){
+    // use y = -at^2 + bt + c
+    // at t = 0, we want squashFactor = 0 and at t = steps we want squashFactor = 0
+    // half way through (so t = steps/2) we want squashFactor = maxSquashFactor
+    // we also want it to peak at t = steps/2, so we need to look at derivative
+    // dy/dt = -2ax + b
+    // we want dy/dt = 0 at time = steps/2
+    // 0 = -(a*steps) + b
+    // b = a*steps
+    // the first equation (t = 0, y = 0) gives c = 0
+    // so we now have:
+    //   y = -a(t^2) + (steps*a)t;
+    // we also want (t = steps/2, y = maxSquashFactor)
+    //   maxSquashFactor = -(steps^2)(a/4) + (2*steps^2)(a/2)
+    //   maxSquashFactor = steps^2 * (a/4);
+    // can now get a and b
+    float a = (4 * maxSquashFactor) / (steps * steps);
+    float b = a * steps;
+    float squashFactor = -(a*t*t) + (b*t);
+    squashSteps.push_back(squashFactor);
+  }
+
+  //vector<float> squashSteps {0, 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4};
+  for (int i = 0 ; i < squashSteps.size() ; i++){
+    // for each object
+    for (int o = 0 ; o < objectIndices.size() ; o++){
+      squash(objectIndices[o], squashSteps[i]);
+    }
+    render();
+    window.renderFrame();
+    // put the objects back to it's original
+    for (int o = 0 ; o < objectIndices.size() ; o++){
+      objects[objectIndices[o]] = objectCopies[o];
+    }
+  }
+}
+
+
+
+void bounce(vector<int> objectIndices, float height, int numberOfBounces, float rotateAngle, vec3 rotateCentre, float scaleDownFactor){
+  // use a quadratic to get the heights of the bounces
+  // y = an^2 + bn + c
+  // n is the bounce number
+  // at n = 0, y = height so therefore c = height
+  // we want the minima to be on the last bounce
+  // dy/dn = 2an + b
+  // dy/dn = 0 when n = numberOfBounces
+  // 0 = (2*numberOfBounces)a + b
+  // b = -(2*numberOfBounces)a
+  // so therefore:
+  // y = an^2 + (-2*numberOfBounces*a)n + height
+  // at n = numberOfBounces, y = 0
+  // 0 = (numberOfBounces^2)a + (-2*numberOfBounces^2)a + height;
+  // 0 = -(numberOfBounces^2)a + height;
+  // we can now get a and b
+
+  float a = height / (numberOfBounces * numberOfBounces);
+  float b = -(2 * numberOfBounces * a);
+  float c = height;
+
+  // squash before the jump
+  jumpSquash(objectIndices, 0.5);
+  // for each bounce, jump but decrease the height
+  for (int n = 0 ; n < numberOfBounces ; n++){
+    float bounceHeight = (a*n*n) + (b*n) + c;
+    float squashFactor = 0.5 * (bounceHeight / height);
+    float rotate = rotateAngle * (bounceHeight / height);
+    float scaleDown = (bounceHeight / height);
+    scaleDown = scaleDownFactor * scaleDown;
+    pixarJump(objectIndices, bounceHeight, rotate, squashFactor, rotateCentre, false, scaleDown);
+  }
+}
+
+void bounce(vector<int> objectIndices, float height, int numberOfBounces, float rotateAngle, vec3 rotateCentre, float scaleDownFactor, bool second){
+  // use a quadratic to get the heights of the bounces
+  // y = an^2 + bn + c
+  // n is the bounce number
+  // at n = 0, y = height so therefore c = height
+  // we want the minima to be on the last bounce
+  // dy/dn = 2an + b
+  // dy/dn = 0 when n = numberOfBounces
+  // 0 = (2*numberOfBounces)a + b
+  // b = -(2*numberOfBounces)a
+  // so therefore:
+  // y = an^2 + (-2*numberOfBounces*a)n + height
+  // at n = numberOfBounces, y = 0
+  // 0 = (numberOfBounces^2)a + (-2*numberOfBounces^2)a + height;
+  // 0 = -(numberOfBounces^2)a + height;
+  // we can now get a and b
+
+  float a = height / (numberOfBounces * numberOfBounces);
+  float b = -(2 * numberOfBounces * a);
+  float c = height;
+
+  // squash before the jump
+  // for each bounce, jump but decrease the height
+  for (int n = 0 ; n < numberOfBounces ; n++){
+    float bounceHeight = (a*n*n) + (b*n) + c;
+    float squashFactor = 0.5 * (bounceHeight / height);
+    float rotate = rotateAngle * (bounceHeight / height);
+    float scaleDown = (bounceHeight / height);
+    scaleDown = scaleDownFactor * scaleDown;
+    pixarJump(objectIndices, bounceHeight, rotate, squashFactor, rotateCentre, false, scaleDown);
+  }
+}
+
+
+
+
+vec3 getBottomCentreOfObject(Object object){
+  // find the bottom of the object
+  // also find the centre of the underside
+  // (when we squash an object it squashes downwards)
+  float lowestPoint = numeric_limits<float>::infinity();
+  vec3 averagedVertices (0,0,0);
+
+  // for each face
+  for (int i = 0 ; i < object.faces.size() ; i++){
+    ModelTriangle face = object.faces[i];
+    // for each vertex
+    for (int j = 0 ; j < 3 ; j++){
+      vec3 vertex = face.vertices[j];
+      averagedVertices = averagedVertices + vertex;
+      
+      if (vertex[1] < lowestPoint){
+        lowestPoint = vertex[1];
+      }
+    }
+  }
+
+  averagedVertices /= float(object.faces.size() * 3);
+
+  // we squash the object around the following point (the centre but on the under side of the object)
+  vec3 squashCentre = averagedVertices;
+  squashCentre[1] = lowestPoint;
+  return squashCentre;
+}
+
+
+void wait(int n){
+  for (int i = 0 ; i < n ; i++){
+    render();
+  }
+}
+
+
 
 void handleEvent(SDL_Event event) { 
   if(event.type == SDL_KEYDOWN) { 
@@ -295,6 +461,15 @@ void handleEvent(SDL_Event event) {
     } 
 
     else if(event.key.keysym.sym == SDLK_8)     {
+      // 0) Read in Hackspace logo, scale and append to object list.
+      vector<Object> hackspaceLogo = readGroupedOBJ("logo.obj", "logo.mtl", 0.06);
+      hackspaceLogo.at(0).ApplyMaterial(GLASS);
+      hackspaceLogo.at(0).Move(vec3(-1,0,0), 0.7);
+      hackspaceLogo.at(0).Move(vec3(0,0,-1), 1.7);
+      hackspaceLogo.at(0).Move(vec3(0,1, 0), 1.5);
+      hackspaceLogo.at(0).RotateXZ(pi/8);
+      objects.push_back(hackspaceLogo.at(0));
+      
       /* Note - We're rendering at 60FPS! */ 
       /* 15 Frames == 0.25s */
       /* 30 Frames == 0.50s */
@@ -368,6 +543,26 @@ void handleEvent(SDL_Event event) {
       render();
     }
 
+    else if(event.key.keysym.sym == SDLK_9)     {
+      vector<int> objectIndices;
+      objectIndices.push_back(6);
+      objectIndices.push_back(7);
+      bounce(objectIndices, 1, 3, 0, vec3 (0,0,0), 0.3);
+      wait(20);
+      cubeJumps(true);
+      cubeJumps(false);
+      cubeJumps(false);
+      cubeJumps(false);
+      wait(20);
+      bounce(objectIndices, 1, 3, 0, vec3 (0,0,0), 0.3, true);
+      wait(20);
+      cubeJumps(false);
+      cubeJumps(false);
+      cubeJumps(false);
+      cubeJumps(false);
+    }
+
+
 
     else if(event.key.keysym.sym == SDLK_m) {
       ImageFile imageFile = importPPM("texture.ppm");
@@ -387,6 +582,139 @@ void handleEvent(SDL_Event event) {
   } 
 } 
  
+ void cubeJumps(bool firstJump) {
+  // first get the centre of the two objects
+  // for the 1st object
+  vec3 sum (0,0,0);
+  Object object1 = objects.at(6);
+  int n1 = object1.faces.size();
+  for (int i = 0 ; i < n1 ; i++){
+    for (int j = 0 ; j < 3 ; j++){
+      sum = sum + object1.faces[i].vertices[j];
+    }
+  }
+  // for the 2nd object
+  Object object2 = objects.at(7);
+  int n2 = object2.faces.size();
+  for (int i = 0 ; i < n2 ; i++){
+    for (int j = 0 ; j < 3 ; j++){
+      sum = sum + object2.faces[i].vertices[j];
+    }
+  }
+  vec3 centre = sum / float((n1*3) + (n2*3));
+  vector<int> objectIndices;
+  objectIndices.push_back(6);
+  objectIndices.push_back(7);
+
+  pixarJump(objectIndices, 1.5, 3.14159/2, 0.5, centre, firstJump, 0);
+
+}
+// same function as the jump except we include a squash and stretch transformation with the vertices
+// before the jump we want a squash and also after it lands
+// we want a stretch as it jumps in the air
+void pixarJump(vector<int> objectIndices, float height, float rotateAngle, float maxSquashFactor, vec3 rotateCentre, bool firstJump, float scaleDownFactor){
+  // for each object save the original so we can go back to it
+  vector<Object> objectCopies;
+  for (int o = 0 ; o < objectIndices.size() ; o++){
+    objectCopies.push_back(objects[objectIndices[o]]);
+  }
+
+  // for each object, work out the centre of the object but
+
+  // if this is our first jump then we need to squash the object before it jumps
+  if (firstJump){
+    jumpSquash(objectIndices, 0.5);
+  }
+
+  // these are equations to work out the height of the object at each time frame
+  // if we just define the height of the bounce, then we can calculate what the initial velocity must be and also how long it will take
+  float a = -50; // real life acceleration is a = -9.81, but this looked too slow in the render
+
+  // equations: 
+  // v = u + at where u is initial velocity
+  // maxHeight = u^2 / (-2a)
+  // displacement = ut + (1/2)at^2
+  // timeAtTopOfJump = u / -a;
+  
+  // initial velocity (m/s) using equations of motion
+  float u = sqrt(height * (2*-a));
+  // calculating how long the jump will take
+  float totalTime = (u / -a) * 2;
+  float timeStep = 0.02; // this will depend on how many frames we produce per second (normally about 24)
+
+  // for the jump we want the object to go from normal to stretch then down to normal again (squashFactor = 0)
+  // we can stretch by using negative values in the squash function
+  // quadratic motion again (quadratic speed with the stretching)
+  // we will first get all the squash factors for each step
+  // we start with a squashFactor of 0 and end with it too
+  // again we will use a quadratic (not negative and the squash factor will decrease and then increase again)
+  // y = at^2 + bt + c
+  // at t = 0 we want y = 0, so we know c = 0
+  // dy/dt = 2at + b
+  // we want the squash factor to be at the lowest when the object is at the peak of its jump (so half way through)
+  // t = totalTime / 2, dy/dt = 0
+  // 0 = totalTime*a + b
+  // b = -totalTime*a
+  // So we have:
+  // y = a(t^2) - (totalTime*a)t
+  // when t = totalTime/2, we want to have y = -maxSquashFactor (this is our stretch)
+  // -maxSquashFactor = (totalTime^2)(a/4) - (totalTime^2)(a/2)
+  // maxSquashFactor = (totalTime^2)(a/4);
+  // can now work out a and b
+  float aQuad = (maxSquashFactor * 4) / (totalTime * totalTime);
+  float bQuad = -totalTime * aQuad;
+
+  
+  // number of steps
+  float numberOfSteps = int(totalTime / timeStep);
+  // we can also make the object rotate as it jumps
+  float stepAngle = rotateAngle / numberOfSteps;
+  float scaleDownStep = scaleDownFactor / numberOfSteps;
+  
+  // for each time frame, calculate the height of the object
+  for (int i = 0 ; i < numberOfSteps ; i++){
+    float t = i*timeStep;
+    // using the 2nd equations of motion (displacement one written above)
+    float displacement = (u*t) + (0.5 * a * t * t);
+    
+    // for each object, do the transformations
+    for (int o = 0 ; o < objectIndices.size() ; o++){
+      int objectIndex = objectIndices[o];
+      // translate
+      objects[objectIndex].Move(vec3(0,1,0), displacement);
+      // squash
+      float squashFactor = (aQuad*t*t) + (bQuad*t);
+      squash(objectIndex, squashFactor);
+      // rotate
+      if (rotateAngle != 0) objects[objectIndex].RotateXZ(stepAngle*i, rotateCentre);
+      // scale down
+      if (scaleDownFactor != 0){
+        float scaleFactor = (i * scaleDownStep);
+        vec3 scaleCentre = getBottomCentreOfObject(objects.at(objectIndex));
+        objects.at(objectIndex).ScaleObject(scaleCentre, scaleFactor);
+      }
+    }
+
+    render();
+    // translate the vertices back to original and undo the squash
+    for (int o = 0 ; o < objectIndices.size() ; o++){
+      int objectIndex = objectIndices[o];
+      objects[objectIndex] = objectCopies[o];
+    }
+  }
+  // on the last step we want to keep the rotation and the scale the same once resetting the object back to normal, so rotate by full angle again
+  for (int o = 0 ; o < objectIndices.size() ; o++){
+    int objectIndex = objectIndices[o];
+    vec3 scaleCentre = getBottomCentreOfObject(objects.at(objectIndex));
+    objects[objectIndex].RotateXZ(rotateAngle, rotateCentre);
+    objects.at(objectIndex).ScaleObject(scaleCentre, scaleDownFactor);
+  }
+
+  // after the jump we want the object to go from normal to squashed to normal again
+  // can do the same as we did before the jump
+  jumpSquash(objectIndices, maxSquashFactor);
+}
+
 void clear(){ 
   window.clearPixels(); 
   for (int i = 0; i < (HEIGHT*WIDTH); i++) 
@@ -502,11 +830,10 @@ void updateView (MOVEMENT movement) {
 } 
  
 void lookAt(vec3 point){
-  vec3 direction = cameraPosition - point;
-  direction = normalize(direction);
+  vec3 direction = normalize(cameraPosition - point);
   cameraForward = direction; 
-  vec3 randomVector (0,1,0); 
-  cameraRight = glm::cross(randomVector, cameraForward); 
+  // vec3(0,1,0) is random vector from slides.
+  cameraRight = glm::cross(vec3(0,1,0), cameraForward); 
   cameraUp = glm::cross(cameraForward, cameraRight); 
   
 
