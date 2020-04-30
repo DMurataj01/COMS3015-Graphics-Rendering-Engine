@@ -22,6 +22,7 @@ enum SHADOW {NO=0, YES=1, REFLECTIVE=2};
 
 // Press '8' for Wireframe Animation.
 // Press '9' for Rasterize Animation.
+// Press '9' for Raytraced Animation.
 
 //––---------------------------------//
 /* Things You Can Change Are Here */
@@ -32,10 +33,10 @@ std::string defaultPPMFileName = "render/snapshot";
 
 const int maximumNumberOfReflections = 7;
 
-#define W 576 //Set desired screen width here. 
-#define H 600 //Set desired screen height here.
+#define W 176 //Set desired screen width here. 
+#define H 200 //Set desired screen height here.
 
-const int AA = 2; //Set Anti-Aliasing Multiplier here, applied to both x and y so expect ~AA^2 time [eg. 800x800x1 5.43s, 800x800x4 88.7s ~16.4x]
+const int AA = 1; //Set Anti-Aliasing Multiplier here, applied to both x and y so expect ~AA^2 time [eg. 800x800x1 5.43s, 800x800x4 88.7s ~16.4x]
 
 bool displayRenderTime = false;
 
@@ -92,9 +93,11 @@ void spinAroundAndSpinSubObject(float angle, int stepNumber, bool clockwise, int
 void jump(int objectIndex, float height);
 void squash(int objectIndex, float squashFactor);
 void pixarJump(int objectIndex, float height, bool rotate, float maxSquashFactor);
+void pixarJump(vector<int> objectIndices, float height, float rotateAngle, float maxSquashFactor, vec3 rotateCentre, bool firstJump, float scaleDownFactor);
+void cubeJumps(bool firstJump);
 void jumpSquash(int objectIndex, float maxSquashFactor);
 void bounce(int objectIndex, float height, int numberOfBounces);
- 
+
 DrawingWindow window;
  
 // this stores the faces split up into separate objects
@@ -102,7 +105,6 @@ vector<Object> objects;
  
 ImageFile textureFile;
 
-bool animate = false;
 int currentFrame = 0;
 
 bool recording = false;
@@ -156,22 +158,18 @@ void resetToOriginalScene() {
   objects.at(4).ApplyMaterial(MIRROR); // Mirrored floor
   objects.at(6).ApplyMaterial(GLASS);  // Mirrored Red Box.
   cameraPosition[0] = GetSceneXCentre()[0]; 
-  render();
 }
 int main(int argc, char* argv[]) { 
   // 1) Initialise.
   initialise();
 
   resetToOriginalScene();
-
+  render();
 
   SDL_Event event;
   while(true) { 
     // We MUST poll for events - otherwise the window will freeze ! 
     if(window.pollForInputEvents(&event)) handleEvent(event);
-      if (animate){
-        animate = false;
-    }
  
     // Need to render the frame at the end, or nothing actually gets shown on the screen ! 
     window.renderFrame(); 
@@ -252,8 +250,6 @@ void render(){
   }
 } 
 
-void cubeJumps(bool firstJump);
-void pixarJump(vector<int> objectIndices, float height, float rotateAngle, float maxSquashFactor, vec3 rotateCentre, bool firstJump, float scaleDownFactor);
 
 
 void jumpSquash(vector<int> objectIndices, float maxSquashFactor){
@@ -520,8 +516,6 @@ void handleEvent(SDL_Event event) {
       objects.push_back(hackspaceLogo.at(0));
 
       cameraPosition[0] = GetSceneXCentre()[0]; 
-
-      render();
 
       // spin me right round.
       spinAroundAndSpinSubObject(pi, 100, true, -1, 9, pi/10);
@@ -1561,35 +1555,6 @@ float calculateSpecularLight(vec3 point, vec3 rayDirection, vec3 normal){
   return intensity; 
 } 
  
- 
- 
-/* 
- 
-void phongBRDF(vec3 point, vec3 normal){ 
-  ///////////////////////////// 
-  // PARAMETERS 
-  ///////////////////////////// 
-  float Ka = 0.2; // ambient constant 
-  float Kd = 0.4; // diffuse constant 
-  float Ks = 0.4; // specular constant 
-  ///////////////////////////// 
-   
-  vec3 viewerDirection = cameraPosition - point; 
-  vec3 lightDirection = point - lightPosition; 
-  vec3 incident = normalize(lightDirection); 
-  normal = normalize(normal); 
-  // equation from online 
-  vec3 reflection = incident - (2 * dot(incident, normal) * normal); 
-  reflection = normalize(reflection); 
- 
-  // equation got from wikipedia 
-  float value1 = dot(-lightDirection, normal); 
-  float value2 = dot(reflection, viewerDirection); 
-  float intensity = (Ka * lightIntensity) + (Kd * value1); 
- 
-} 
-*/ 
-
 float softShadows(RayTriangleIntersection intersection){
   ///////////////////
   // PARAMETERS
@@ -1621,7 +1586,6 @@ float softShadows(RayTriangleIntersection intersection){
   }
   return 0; //return shadowFraction
 } 
-
 
 
 void gouraudShading() { 
@@ -2098,7 +2062,6 @@ void jumpSquash(int objectIndex, float maxSquashFactor){
     objects[objectIndex] = objectCopy;
   }
 }
-
 
 void bounce(int objectIndex, float height, int numberOfBounces){
   // use a quadratic to get the heights of the bounces
