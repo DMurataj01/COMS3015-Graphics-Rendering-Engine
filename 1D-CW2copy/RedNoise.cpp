@@ -20,6 +20,7 @@ enum SHADOW {NO=0, YES=1, REFLECTIVE=2};
 // Press '2' for Rasterized 
 // Press '3' for Raytraced  
 
+// Press '8' for Wireframe Animation.
 
 //––---------------------------------//
 /* Things You Can Change Are Here */
@@ -53,9 +54,7 @@ const int HEIGHT = H * AA;
 vector<uint32_t> pixelBuffer; 
 vector<float> depthMap;
   
-void update();
 void handleEvent(SDL_Event event);
-void playOrPause();
 void render(); 
 void clear(); 
 void drawLine(CanvasPoint start, CanvasPoint end, Colour colour); 
@@ -184,7 +183,6 @@ int main(int argc, char* argv[]) {
     // We MUST poll for events - otherwise the window will freeze ! 
     if(window.pollForInputEvents(&event)) handleEvent(event);
       if (animate){
-        update();
         animate = false;
     }
  
@@ -192,20 +190,6 @@ int main(int argc, char* argv[]) {
     window.renderFrame(); 
   } 
 } 
- 
- 
- 
-void update() {
-  // Function for performing animation (shifting artifacts or moving the camera)
-  spinAround(pi, 100, true, -1);
-  spinAround(pi, 100, true, 1);
-} 
-
-// this function starts and stops the animation in the window (press p)
-void playOrPause(){
-  animate = !animate;
-
-}
 
 // OPTIMISED - this function sets the screen pixel buffer. (if AA multiplier == 1 -> buffer is ignored.)
 void SetBufferColour(int x, int y, uint32_t col) {
@@ -292,15 +276,42 @@ void handleEvent(SDL_Event event) {
     else if(event.key.keysym.sym == SDLK_s)     updateView(PAN_LEFT);
     else if(event.key.keysym.sym == SDLK_w)     updateView(TILT_DOWN); 
     else if(event.key.keysym.sym == SDLK_z)     updateView(TILT_UP); 
-    else if(event.key.keysym.sym == SDLK_c)     {
+
+
+    // pressing 1 changes to wireframe mode 
+    else if(event.key.keysym.sym == SDLK_1){ 
+      currentRender = WIREFRAME;
+      render(); 
+    } 
+    // pressing 2 changes to rasterize mode 
+    else if(event.key.keysym.sym == SDLK_2){ 
+      currentRender = RASTERIZE;
+      render(); 
+    } 
+    // pressing 3 changes to raytrace mode 
+    else if(event.key.keysym.sym == SDLK_3){ 
+      currentRender = RAYTRACE;
+      render(); 
+    } 
+
+    else if(event.key.keysym.sym == SDLK_8)     {
+      /* Note - We're rendering at 60FPS! */ 
+      /* 15 Frames == 0.25s */
+      /* 30 Frames == 0.50s */
+      /* 45 Frames == 0.75s */
+      /* 60 Frames == 1.00s */
+
+      // 1) Spin around.
+      spinAround(pi, 100, true, -1);
+      spinAround(pi, 100, true, 1);
+
+      // 2) Bounce Hackspace logo.
       bounce(9, 1, 3);
       render();
 
-      // Hold me for 15 frames.
-      for (int i=0; i<15; i++) render();
+      for (int i=0; i<30; i++) render();
 
-      for (int i=0; i<145; i++) render();
-
+      // 3) Funky spins and stuff.
       objects.at(9).RotateXZ(-pi/20);
     
       cameraPosition.x = objects.at(9).GetCentre().x;
@@ -308,8 +319,7 @@ void handleEvent(SDL_Event event) {
       // Remove all the objects from the scene aside from the hackspace logo.
       objects.erase(objects.begin(), objects.begin() + 9);
       
-      // Note - We're rendering at 60FPS!
-      for (int i=0; i<6; i++) render();
+      for (int i=0; i<60; i++) render();
 
       // Do R G B Christmas Tree.      
       for (int i=0; i<9; i++) {  
@@ -338,8 +348,8 @@ void handleEvent(SDL_Event event) {
       }
 
       for (int t=0; t<15; t++) {
-      objects.at(0).RotateZY(pi/15);
-      render();
+        objects.at(0).RotateZY(pi/15);
+        render();
       }
 
       // Change Colour To Orange...
@@ -351,33 +361,15 @@ void handleEvent(SDL_Event event) {
       // Slide for 60 frames --- Light Intensity Slider ( from 20 -> 100 )
       for (int i=0; i<60; i++) render();
       
-
       objects.at(0).Scale(vec3(5, 5, 5));
       cameraPosition.x = objects.at(0).GetCentre().x;
       objects.at(0).RotateXZ(-pi/14);
       objects.at(0).Move(vec3(0, 1, 0), 1);
       render();
-      
-
     }
-    else if(event.key.keysym.sym == SDLK_p)     playOrPause();
 
-    // pressing 1 changes to wireframe mode 
-    else if(event.key.keysym.sym == SDLK_1){ 
-      currentRender = WIREFRAME;
-      render(); 
-    } 
-    // pressing 2 changes to rasterize mode 
-    else if(event.key.keysym.sym == SDLK_2){ 
-      currentRender = RASTERIZE;
-      render(); 
-    } 
-    // pressing 3 changes to raytrace mode 
-    else if(event.key.keysym.sym == SDLK_3){ 
-      currentRender = RAYTRACE;
-      render(); 
-    } 
-     else if(event.key.keysym.sym == SDLK_m) {
+
+    else if(event.key.keysym.sym == SDLK_m) {
       ImageFile imageFile = importPPM("texture.ppm");
       renderImageFile(imageFile);
     }
