@@ -25,33 +25,42 @@ class Colour
     Colour(int r, int g, int b) {
       name = "";
       if (r>255) red = 255;
+      else if (r<0) red = 0;
       else red = r;
       if (g>255) green = 255;
+      else if (g<0) green = 0;
       else green = g;
       if (b>255) blue = 255;
+      else if (b<0) blue = 0;
       else blue = b;
     }
 
     Colour(std::string n, int r, int g, int b) {
       name = n;
       if (r>255) red = 255;
+      else if (r<0) red = 0;
       else red = r;
       if (g>255) green = 255;
+      else if (g<0) green = 0;
       else green = g;
       if (b>255) blue = 255;
+      else if (b<0) blue = 0;
       else blue = b;
     }
 
     void SetRed(int r) {
       if (r>255) red = 255;
+      else if (r<0) red = 0;
       else red = r;
     }
     void SetGreen(int g) {
       if (g>255) green = 255;
+      else if (g<0) green = 0;
       else green = g;
     }
     void SetBlue(int b) {
       if (b>255) blue = 255;
+      else if (b<0) blue = 0;
       else blue = b;
     }
 

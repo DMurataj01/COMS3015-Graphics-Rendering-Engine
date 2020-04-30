@@ -119,7 +119,7 @@ float imageHeight = imageWidth * (HEIGHT / float(WIDTH)); // HEIGHT
 
 // light parameters 
 vec3 lightPosition (-0.234011, 5, -3); // this is roughly the centre of the white light box 
-const float lightIntensity = 100; 
+float lightIntensity = 100; 
 
 const float pi = 3.14159265358979323846;
 
@@ -292,7 +292,7 @@ void handleEvent(SDL_Event event) {
     else if(event.key.keysym.sym == SDLK_w)     updateView(TILT_DOWN); 
     else if(event.key.keysym.sym == SDLK_z)     updateView(TILT_UP); 
     else if(event.key.keysym.sym == SDLK_c)     {
-      bounce(9, 1.5, 5);
+      //bounce(9, 1.5, 5);
       objects.erase(objects.begin() + 9);
       render();
       vector<Object> hackspaceLogo = readGroupedOBJ("logo.obj", "logo.mtl", 0.06);
@@ -310,15 +310,93 @@ void handleEvent(SDL_Event event) {
         objects.at(9).RotateYX(pi/n);
         render();
       }
+      for (int j=0; j< objects.size()-1; j++) {
+            objects.at(j).Hide();
+      }
+
+
+   
+
       for (int i=0; i<n; i++) {
         //objects.at(9).RotateZY(pi/n);
         objects.at(9).RotateYX(pi/n);
         objects.at(9).Scale_Locked_YMin(vec3(1.025, 1.025, 1));
         objects.at(9).Move(vec3(0, 0, cameraPosition.z), 0.06);
         objects.at(9).Move(vec3(0, -1, 0), 0.03);
-        objects.at(9).Move(vec3(-1,  0, 0), 0.03);
+        objects.at(9).Move(vec3(-1,  0, 0), 0.027);
+        
+        render(); // testing
+                
+        if (i == (n-1)) {
+          // Remove all the objects from the scene aside from the hackspace logo.
+          objects.erase(objects.begin(), objects.begin() + 9);
+
+          objects.at(0).RotateXZ(-pi/20);
+          cameraPosition.x = objects.at(0).GetCentre().x;
+        }
+      }
+
+      //Set light to 0.
+      lightIntensity = 0;
+      
+      //Remove Glass.
+      objects.at(0).ApplyMaterial(NONE);
+      
+      //Move light.
+      lightPosition = cameraPosition;
+
+      //recording = true; 
+      render();
+
+      lightIntensity = 20; 
+      
+
+      // Note - We're rendering at 60FPS!
+
+
+      // Do R G B Christmas Tree.      
+      for (int i=0; i<9; i++) {  
+        if ((i % 3) == 0) {
+          //Hold this 15 times. 
+          for (int t=0; t<15; t++) {
+            objects.at(0).ApplyColour(Colour(255,0, 0), true);
+            render();
+          } 
+        }
+        else if ((i % 3) == 1) {
+          //Hold this 15 times.
+          for (int t=0; t<15; t++) {
+            objects.at(0).ApplyColour(Colour(0,255, 0), true);
+            render();
+          } 
+        }
+        else {
+          //Hold this 15 times.
+          for (int t=0; t<15; t++) {
+            objects.at(0).ApplyColour(Colour(0, 0, 255), true);
+            render();
+          } 
+        }
+      }
+
+      // Note: Previous lasted 2.25s.
+
+      // Change Colour To Orange...
+      Colour startingColour(255, 131, 0);
+      objects.at(0).ApplyColour(startingColour, true);
+      
+      //Hinge light to Bottom of the Hackspace Logo.
+      lightPosition.y = objects.at(0).getLowestYValue();
+      
+      // Slide for 60 frames --- Light Intensity Slider ( from 20 -> 100 )
+      for (int i=0; i<60; i++) {
+        lightIntensity += 1.25;
         render();
       }
+
+      //Move from RGB(255, 170, 0) to (255, 130, 0) [ The Perfect Hackspace Orange ].
+      lightIntensity = 120;
+      render();
 
     }
     else if(event.key.keysym.sym == SDLK_p)     playOrPause();
@@ -900,50 +978,52 @@ void drawTexturedTriangle(ImageFile *imageFile, CanvasTriangle triangle) {
 void rasterize(){  
   //for each object.
   for (int o = 0; o < objects.size(); o++){
-    // for each face 
-    for (int i = 0 ; i < objects[o].faces.size() ; i++) { 
-      ModelTriangle triangle = objects[o].faces[i]; 
-      CanvasTriangle canvasTriangle; 
-      canvasTriangle.colour = triangle.colour;
-      canvasTriangle.textured = (triangle.material == TEXTURE);
+    if (!objects.at(o).hidden) {
+      // for each face 
+      for (int i = 0 ; i < objects[o].faces.size() ; i++) { 
+        ModelTriangle triangle = objects[o].faces[i]; 
+        CanvasTriangle canvasTriangle; 
+        canvasTriangle.colour = triangle.colour;
+        canvasTriangle.textured = (triangle.material == TEXTURE);
 
-      // for each vertex 
-      for (int j = 0 ; j < 3 ; j++) { 
-        vec3 vertex = triangle.vertices[j]; 
-        
-        // change from world coordinates to camera
-        vertex = vertex - cameraPosition;
-        mat3 rotationMatrix = glm::inverse(mat3(cameraRight, cameraUp, cameraForward));
-        vec3 vertexCSpace = rotationMatrix * vertex;
-        vertexCSpace[2] = -vertexCSpace[2];
+        // for each vertex 
+        for (int j = 0 ; j < 3 ; j++) { 
+          vec3 vertex = triangle.vertices[j]; 
+          
+          // change from world coordinates to camera
+          vertex = vertex - cameraPosition;
+          mat3 rotationMatrix = glm::inverse(mat3(cameraRight, cameraUp, cameraForward));
+          vec3 vertexCSpace = rotationMatrix * vertex;
+          vertexCSpace[2] = -vertexCSpace[2];
 
-        // save the depth of this point for later 
-        float depth = vertexCSpace[2]; 
-  
-        // calculating the projection onto the 2D image plane by using interpolation and the z depth 
-        // only worth doing if the vertex is in front of camera 
-        if ((depth < 0) || (depth > 0)){ 
-          float proportion = focalLength / depth; 
-          vec3 vertexProjected = vertexCSpace * proportion; // the coordinates of the 3D point (in camera space) projected onto the image plane 
-
-          // converting to get the pixel numbers
-          // finding position of top left corner of image plane in camera space
-          vec3 topLeft = vec3 (-imageWidth/2, imageHeight/2, focalLength);//(focalLength * cameraForward) + ((imageHeight/2) * cameraUp) - ((imageWidth/2) * cameraRight);
-          vec3 topLeftToPoint = vertexProjected - topLeft;
-          float xPixel = (topLeftToPoint[0] / imageWidth) * WIDTH;
-          float yPixel = (-topLeftToPoint[1] / imageHeight) * HEIGHT;
+          // save the depth of this point for later 
+          float depth = vertexCSpace[2]; 
     
-          // store the pixel values as a Canvas Point and save it for this triangle 
-          canvasTriangle.vertices[j] = CanvasPoint(xPixel, yPixel, depth); // we save the depth of the 2D point too 
+          // calculating the projection onto the 2D image plane by using interpolation and the z depth 
+          // only worth doing if the vertex is in front of camera 
+          if ((depth < 0) || (depth > 0)){ 
+            float proportion = focalLength / depth; 
+            vec3 vertexProjected = vertexCSpace * proportion; // the coordinates of the 3D point (in camera space) projected onto the image plane 
 
-          //if the triangle is textured, get the texture uv's and multiply them by the texture WIDTH, HEIGHT to get texture X,Y.
-          if ((currentRender == RASTERIZE) && canvasTriangle.textured) canvasTriangle.vertices[j].texturePoint = TexturePoint(triangle.vertices_textures[j].x * textureFile.width, triangle.vertices_textures[j].y * textureFile.height);
+            // converting to get the pixel numbers
+            // finding position of top left corner of image plane in camera space
+            vec3 topLeft = vec3 (-imageWidth/2, imageHeight/2, focalLength);//(focalLength * cameraForward) + ((imageHeight/2) * cameraUp) - ((imageWidth/2) * cameraRight);
+            vec3 topLeftToPoint = vertexProjected - topLeft;
+            float xPixel = (topLeftToPoint[0] / imageWidth) * WIDTH;
+            float yPixel = (-topLeftToPoint[1] / imageHeight) * HEIGHT;
+      
+            // store the pixel values as a Canvas Point and save it for this triangle 
+            canvasTriangle.vertices[j] = CanvasPoint(xPixel, yPixel, depth); // we save the depth of the 2D point too 
+
+            //if the triangle is textured, get the texture uv's and multiply them by the texture WIDTH, HEIGHT to get texture X,Y.
+            if ((currentRender == RASTERIZE) && canvasTriangle.textured) canvasTriangle.vertices[j].texturePoint = TexturePoint(triangle.vertices_textures[j].x * textureFile.width, triangle.vertices_textures[j].y * textureFile.height);
+          } 
         } 
-      } 
 
-      if (currentRender == WIREFRAME) drawStrokedTriangle(canvasTriangle); 
-      else if (canvasTriangle.textured) drawTexturedTriangle(&textureFile, canvasTriangle);
-      else drawFilledTriangle(canvasTriangle); 
+        if (currentRender == WIREFRAME) drawStrokedTriangle(canvasTriangle); 
+        else if (canvasTriangle.textured) drawTexturedTriangle(&textureFile, canvasTriangle);
+        else drawFilledTriangle(canvasTriangle); 
+      }
     } 
   }
 }  
@@ -1002,7 +1082,7 @@ vec3 createRay(const int i, const int j) {
 // if t>0, then that means that for that particular face the ray intersects it with u and v being local coordinates for the triangle 
 vector<vector<vec4>> checkForIntersections(vec3 point, vec3 rayDirection){ 
   // this is the output vector, for every possible face it stores a possibleSolution 
-  // the 4th value in this evctor is the index of the face if there is an intersection
+  // the 4th value in this vector is the index of the face if there is an intersection
   // there is an element in solutions ofr every object
   // each element in solutions is a vector of possible solutions for all the faces in that object
   vector<vector<vec4>> solutions;
@@ -1011,6 +1091,7 @@ vector<vector<vec4>> checkForIntersections(vec3 point, vec3 rayDirection){
   // if so, does the ray intersect it?
   // if so, which of the faces in that object does the ray intersect?
   for (int i = 0 ; i < objects.size(); i++) {
+
     vector<vec4> objectSolutions; // to store the solutions if any for this object
     objectSolutions.push_back(vec4 (-1,0,0,-1));
     if (objects[i].hasBoundingBox){
@@ -1028,6 +1109,7 @@ vector<vector<vec4>> checkForIntersections(vec3 point, vec3 rayDirection){
     else {
       solutions.push_back(faceIntersections(objects[i].faces, point, rayDirection));
     }
+
   }
   return solutions;
 } 
@@ -1068,49 +1150,49 @@ RayTriangleIntersection closestIntersection(vector<vector<vec4>> objectSolutions
   // for each possible solution / for each face 
   // for each object
   for (int o=0; o<objectSolutions.size(); o++) {
-    vector<vec4> solutions = objectSolutions[o];
-    for (int i = 0 ; i < objects[o].faces.size() ; i++){ 
-      
-      vec4 possibleSolution = solutions[i]; 
-      const float t = possibleSolution[0]; 
-      const float u = possibleSolution[1]; 
-      const float v = possibleSolution[2];
-      const int index = possibleSolution[3];
-      
-      // if it is actually a solution 
-      bool bool1 = (t > 0); 
-      bool bool2 = (0 <= u) && (u <= 1) && (0 <= v) && (v <= 1) ; 
-      bool bool3 = (u + v) <= 1; 
-      if (bool1 && bool2 && bool3){ 
-        ModelTriangle triangle = objects[o].faces[index]; 
+      vector<vec4> solutions = objectSolutions[o];
+      for (int i = 0 ; i < objects[o].faces.size() ; i++){ 
         
-        // is it closer than what we currently have? 
-        if (t < closestT){ 
-          closestT = t; 
-          closestIndex = i; 
+        vec4 possibleSolution = solutions[i]; 
+        const float t = possibleSolution[0]; 
+        const float u = possibleSolution[1]; 
+        const float v = possibleSolution[2];
+        const int index = possibleSolution[3];
+        
+        // if it is actually a solution 
+        bool bool1 = (t > 0); 
+        bool bool2 = (0 <= u) && (u <= 1) && (0 <= v) && (v <= 1) ; 
+        bool bool3 = (u + v) <= 1; 
+        if (bool1 && bool2 && bool3){ 
+          ModelTriangle triangle = objects[o].faces[index]; 
           
-          // calculating the point of intersection 
-          const vec3 p0 = triangle.vertices[0]; 
-          const vec3 p1 = triangle.vertices[1]; 
-          const vec3 p2 = triangle.vertices[2]; 
-          const vec3 intersection = p0 + (u * (p1 - p0)) + (v * (p2 - p0)); 
-          closest.intersectionPoint = intersection; 
+          // is it closer than what we currently have? 
+          if (t < closestT){ 
+            closestT = t; 
+            closestIndex = i; 
+            
+            // calculating the point of intersection 
+            const vec3 p0 = triangle.vertices[0]; 
+            const vec3 p1 = triangle.vertices[1]; 
+            const vec3 p2 = triangle.vertices[2]; 
+            const vec3 intersection = p0 + (u * (p1 - p0)) + (v * (p2 - p0)); 
+            closest.intersectionPoint = intersection; 
 
-          // calculating the distance between the camera and intersection point 
-          const vec3 d = intersection - rayPoint; 
-          closest.distanceFromCamera = sqrt( (d[0]*d[0]) + (d[1] * d[1]) + (d[2] * d[2]));
+            // calculating the distance between the camera and intersection point 
+            const vec3 d = intersection - rayPoint; 
+            closest.distanceFromCamera = sqrt( (d[0]*d[0]) + (d[1] * d[1]) + (d[2] * d[2]));
 
-          // calculating the normal of the intersection 
-          const vec3 n0 = triangle.normals[0]; 
-          const vec3 n1 = triangle.normals[1]; 
-          const vec3 n2 = triangle.normals[2]; 
-          closest.normal = n0 + (u * (n1 - n0)) + (v * (n2 - n0));
+            // calculating the normal of the intersection 
+            const vec3 n0 = triangle.normals[0]; 
+            const vec3 n1 = triangle.normals[1]; 
+            const vec3 n2 = triangle.normals[2]; 
+            closest.normal = n0 + (u * (n1 - n0)) + (v * (n2 - n0));
 
-          closest.intersectUV = vec2(u, v);
-          closest.intersectedTriangle = triangle; 
+            closest.intersectUV = vec2(u, v);
+            closest.intersectedTriangle = triangle; 
+          } 
         } 
-      } 
-    } 
+      }
   }
   return closest; 
 } 
@@ -1466,13 +1548,13 @@ float fresnel(vec3 incident, vec3 normal, float ior) {
 void backfaceCulling(vec3 rayDirection){
   // for each object
   for (int o = 0 ; o < objects.size() ; o++){
-    // for each face
-    for (int i = 0 ; i < objects[o].faces.size() ; i++){
-      //ModelTriangle face = objects[o].faces[i];
-      const vec3 normal = objects[o].faces[i].getNormal();
-      //True if faces face the other way && !glass.
-      objects[o].faces[i].culled = ((dot(normal, rayDirection) > 0) && (objects[o].faces[i].material != GLASS));
-    }
+      // for each face
+      for (int i = 0 ; i < objects[o].faces.size() ; i++){
+        //ModelTriangle face = objects[o].faces[i];
+        const vec3 normal = objects[o].faces[i].getNormal();
+        //True if faces face the other way && !glass.
+        objects[o].faces[i].culled = ((dot(normal, rayDirection) > 0) && (objects[o].faces[i].material != GLASS));
+      }
   }
 }
 

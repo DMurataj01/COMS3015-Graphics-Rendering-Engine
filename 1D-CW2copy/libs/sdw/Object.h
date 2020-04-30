@@ -16,14 +16,17 @@ class Object {
     bool hasBoundingBox; // true if a bounding box has been created for this object
     std::vector<ModelTriangle> boxFaces; // if a bounding box has been created, this stores the faces of it
     MATERIAL material;
+    bool hidden; // Notice::: Implemented for Wireframe & Rasterize ONLY!!!
 
     Object() {
       hasBoundingBox = false;
+      hidden = false;
     }
 
     Object(std::vector<ModelTriangle> inputFaces) {
       faces = inputFaces;
       hasBoundingBox = false;
+      hidden = false;
     }
 
     void Clear() {
@@ -55,6 +58,14 @@ class Object {
       return sum/(float) faces.size();
     }
 
+    // Notice::: Implemented for Wireframe & Rasterize ONLY!!!
+    void Hide() {
+      hidden = true;
+    }
+    // Notice::: Implemented for Wireframe & Rasterize ONLY!!!
+    void Show() {
+      hidden = false;
+    }
     // Rotate about the centre in the XZ direction.
     void RotateXZ(float theta) {
       glm::vec3 col1 = glm::vec3 (cos(theta), 0, sin(theta)); 
