@@ -16,14 +16,17 @@ class Object {
     bool hasBoundingBox; // true if a bounding box has been created for this object
     std::vector<ModelTriangle> boxFaces; // if a bounding box has been created, this stores the faces of it
     MATERIAL material;
+    bool hidden; // Notice::: Implemented for Wireframe & Rasterize ONLY!!!
 
     Object() {
       hasBoundingBox = false;
+      hidden = false;
     }
 
     Object(std::vector<ModelTriangle> inputFaces) {
       faces = inputFaces;
       hasBoundingBox = false;
+      hidden = false;
     }
 
     void Clear() {
@@ -55,13 +58,21 @@ class Object {
       return sum/(float) faces.size();
     }
 
+    // Notice::: Implemented for Wireframe & Rasterize ONLY!!!
+    void Hide() {
+      hidden = true;
+    }
+    // Notice::: Implemented for Wireframe & Rasterize ONLY!!!
+    void Show() {
+      hidden = false;
+    }
     // Rotate about the centre in the XZ direction.
     void RotateXZ(float theta) {
-      glm::vec3 col1 = glm::vec3 (cos(theta), 0, sin(theta)); 
-      glm::vec3 col2 = glm::vec3 (0, 1, 0); 
+      glm::vec3 col1 = glm::vec3 (cos(theta), 0, sin(theta));
+      glm::vec3 col2 = glm::vec3 (0, 1, 0);
       glm::vec3 col3 = glm::vec3 (-sin(theta), 0, cos(theta));
       glm::mat3 rotationMatrix (col1, col2, col3);
-      
+
       const glm::vec3 centre = GetCentre();
 
       for (int i=0; i<faces.size(); i++) {
@@ -72,11 +83,11 @@ class Object {
     }
     // Rotate about the point in the XZ direction.
     void RotateXZ(float theta, glm::vec3 point) {
-      glm::vec3 col1 = glm::vec3 (cos(theta), 0, -sin(theta)); 
-      glm::vec3 col2 = glm::vec3 (0, 1, 0); 
+      glm::vec3 col1 = glm::vec3 (cos(theta), 0, -sin(theta));
+      glm::vec3 col2 = glm::vec3 (0, 1, 0);
       glm::vec3 col3 = glm::vec3 (sin(theta), 0, cos(theta));
       glm::mat3 rotationMatrix (col1, col2, col3);
-      
+
       for (int i=0; i<faces.size(); i++) {
         faces.at(i).vertices[0] = point + rotationMatrix * (faces.at(i).vertices[0] - point);
         faces.at(i).vertices[1] = point + rotationMatrix * (faces.at(i).vertices[1] - point);
@@ -85,11 +96,11 @@ class Object {
     }
     // Rotate about the centre in the ZY direction.
     void RotateZY(float theta) {
-      glm::vec3 col1 = glm::vec3 (1, 0, 0); 
-      glm::vec3 col2 = glm::vec3 (0,  cos(theta), -sin(theta)); 
+      glm::vec3 col1 = glm::vec3 (1, 0, 0);
+      glm::vec3 col2 = glm::vec3 (0,  cos(theta), -sin(theta));
       glm::vec3 col3 = glm::vec3 (0, sin(theta), cos(theta));
       glm::mat3 rotationMatrix (col1, col2, col3);
-      
+
       const glm::vec3 centre = GetCentre();
 
       for (int i=0; i<faces.size(); i++) {
@@ -100,11 +111,11 @@ class Object {
     }
     // Rotate about the centre in the YX direction.
     void RotateYX(float theta) {
-      glm::vec3 col1 = glm::vec3 (cos(theta), -sin(theta), 0); 
-      glm::vec3 col2 = glm::vec3 (sin(theta), cos(theta), 0); 
+      glm::vec3 col1 = glm::vec3 (cos(theta), -sin(theta), 0);
+      glm::vec3 col2 = glm::vec3 (sin(theta), cos(theta), 0);
       glm::vec3 col3 = glm::vec3 (0, 0, 1);
       glm::mat3 rotationMatrix (col1, col2, col3);
-      
+
       const glm::vec3 centre = GetCentre();
 
       for (int i=0; i<faces.size(); i++) {
@@ -154,8 +165,8 @@ class Object {
         faces[i].vertices[2] = centre + (scale * (faces[i].vertices[2] - centre));
       }
     }
-    
-    void Scale_Locked_YMin(glm::vec3 scale) {      
+
+    void Scale_Locked_YMin(glm::vec3 scale) {
       float minY = std::numeric_limits<float>::infinity();
       int i_faceY = -1;
       int i_vertexY = -1;
@@ -176,14 +187,36 @@ class Object {
 
       const float scaledMinY = faces[i_faceY].vertices[i_vertexY][1]; // This is our current lowest Y value.
       const float distToMoveDown = scaledMinY - minY;
-      
+
       // go through each vertex and move up by - minY.
       for (int i = 0; i < faces.size(); i++) {
         for (int j = 0; j< 3; j++) {
           faces.at(i).vertices[j] += glm::vec3(0, -distToMoveDown, 0);
         }
       }
-      
+
+    }
+
+    glm::vec3 getBottomCentreOfObject() {
+      // find the bottom of the object
+      // also find the centre of the underside
+      // (when we squash an object it squashes downwards)
+      float lowestPoint = std::numeric_limits<float>::infinity();
+      glm::vec3 averagedVertices (0,0,0);
+
+      for (int i = 0; i < faces.size(); i++){
+        for (int j = 0 ; j < 3 ; j++){
+          glm::vec3 vertex = faces[i].vertices[j];
+          averagedVertices += vertex;
+          if (vertex[1] < lowestPoint) lowestPoint = vertex[1];
+        }
+      }
+      averagedVertices /= float(faces.size() * 3);
+
+      // we squash the object around the following point (the centre but on the under side of the object)
+      glm::vec3 squashCentre = averagedVertices;
+      squashCentre[1] = lowestPoint;
+      return squashCentre;
     }
 
 };
