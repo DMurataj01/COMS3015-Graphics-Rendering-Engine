@@ -461,6 +461,7 @@ void handleEvent(SDL_Event event) {
       render(); 
     } 
 
+
     else if(event.key.keysym.sym == SDLK_8)     {
       // 0) Read in Hackspace logo, scale and append to object list.
       vector<Object> hackspaceLogo = readGroupedOBJ("logo.obj", "logo.mtl", 0.06);
@@ -543,27 +544,96 @@ void handleEvent(SDL_Event event) {
       objects.at(0).Move(vec3(0, 1, 0), 1);
       render();
     }
-
     else if(event.key.keysym.sym == SDLK_9)     {
       vector<int> objectIndices;
       objectIndices.push_back(6);
       objectIndices.push_back(7);
       bounce(objectIndices, 1, 3, 0, vec3 (0,0,0), 0.3);
       wait(20);
-      cubeJumps(true);
-      cubeJumps(false);
-      cubeJumps(false);
-      cubeJumps(false);
+      cubeJumps(true); cubeJumps(false); cubeJumps(false); cubeJumps(false);
       wait(20);
       bounce(objectIndices, 1, 3, 0, vec3 (0,0,0), 0.3, true);
       wait(20);
-      cubeJumps(false);
-      cubeJumps(false);
-      cubeJumps(false);
-      cubeJumps(false);
+      cubeJumps(false); cubeJumps(false); cubeJumps(false); cubeJumps(false);
     }
 
+    else if(event.key.keysym.sym == SDLK_0)     {
+      vector<Object> hackspaceLogo = readGroupedOBJ("logo.obj", "logo.mtl", 0.06);
+      hackspaceLogo.at(0).Move(vec3(0,0,-1), 0.7);
+      hackspaceLogo.at(0).Move(vec3(-1,0,0), 2.5);
+      hackspaceLogo.at(0).SnapToY0();
+      hackspaceLogo.at(0).ApplyMaterial(TEXTURE);
+      objects.push_back(hackspaceLogo.at(0));
+      cameraPosition[0] = GetSceneXCentre()[0]; 
+      render();
 
+      // spin me right round.
+      spinAround(pi, 100, true, -1);
+      spinAround(pi, 100, true, 1);
+
+      // delete old hsLogo.
+      objects.erase(objects.begin() + 9);
+      render();
+
+      for (int i=0; i<15; i++) render();
+
+      vector<Object> hsLogo = readGroupedOBJ("logo.obj", "logo.mtl", 0.06);
+      hsLogo.at(0).ApplyMaterial(GLASS);
+      hsLogo.at(0).Move(vec3(-1,0,0), 0.7);
+      hsLogo.at(0).Move(vec3(0,0,-1), 1.7);
+      hsLogo.at(0).Move(vec3(0,1, 0), 1.5);
+      hsLogo.at(0).RotateXZ(pi/8);
+      objects.push_back(hsLogo.at(0));
+      render();
+
+      // Hold me for around 0.3s.
+      for (int i=0; i<25; i++) render();
+
+      const int n = 40;
+      for (int i=0; i<3*n; i++) {
+        objects.at(9).RotateYX(pi/n);
+        render();
+      }
+
+      for (int i=0; i<n; i++) {
+        objects.at(9).RotateYX(pi/n);
+        objects.at(9).Scale_Locked_YMin(vec3(1.025, 1.025, 1));
+        objects.at(9).Move(vec3(0, 0, cameraPosition.z), 0.06);
+        objects.at(9).Move(vec3(0, -1, 0), 0.03);
+        objects.at(9).Move(vec3(-1,  0, 0), 0.027);
+        render(); // testing
+        if (i == (n-1)) {
+          // Remove all the objects from the scene aside from the hackspace logo.
+          objects.erase(objects.begin(), objects.begin() + 9);
+
+          objects.at(0).RotateXZ(-pi/20);
+          cameraPosition.x = objects.at(0).GetCentre().x;
+        }
+      }
+
+      
+      lightIntensity = 0;
+      objects.at(0).ApplyMaterial(NONE);
+      lightPosition = cameraPosition;
+      render();
+      lightIntensity = 20; 
+      
+      //Beautiful orange.
+      objects.at(0).ApplyColour(Colour(255, 131, 0), true);
+
+      //Hinge light to Bottom of the Hackspace Logo.
+      lightPosition.y = objects.at(0).getLowestYValue();
+      
+      // Slide for 60 frames --- Light Intensity Slider ( from 20 -> 100 )
+      for (int i=0; i<60; i++) {
+        lightIntensity += 1.25;
+        render();
+      }
+
+      //Move from RGB(255, 170, 0) to (255, 130, 0) [ The Perfect Hackspace Orange ].
+      lightIntensity = 120;
+      render();
+    }
 
     else if(event.key.keysym.sym == SDLK_m) {
       ImageFile imageFile = importPPM("texture.ppm");
@@ -591,7 +661,7 @@ void handleEvent(SDL_Event event) {
   int n1 = object1.faces.size();
   for (int i = 0 ; i < n1 ; i++){
     for (int j = 0 ; j < 3 ; j++){
-      sum = sum + object1.faces[i].vertices[j];
+      sum += object1.faces[i].vertices[j];
     }
   }
   // for the 2nd object
@@ -599,7 +669,7 @@ void handleEvent(SDL_Event event) {
   int n2 = object2.faces.size();
   for (int i = 0 ; i < n2 ; i++){
     for (int j = 0 ; j < 3 ; j++){
-      sum = sum + object2.faces[i].vertices[j];
+      sum += object2.faces[i].vertices[j];
     }
   }
   vec3 centre = sum / float((n1*3) + (n2*3));
@@ -815,18 +885,6 @@ void updateView (MOVEMENT movement) {
     cameraForward = cameraOrientation[2];
   }
 
-  /*
-  // if the camera position has changed we need to redo the culling of faces
-  if (move){
-    for (int o = 0; o< objects.size(); o++)
-      for (int i = 0 ; i < objects[o].faces.size(); i++)
-        objects[o].faces[i].culled = false;
-    
-    // cull them
-    backfaceCulling(cameraPosition);
-  }
-  */
-
   render();
 } 
  
@@ -837,7 +895,6 @@ void lookAt(vec3 point){
   cameraRight = glm::cross(vec3(0,1,0), cameraForward); 
   cameraUp = glm::cross(cameraForward, cameraRight); 
   
-
   cameraForward = normalize(cameraForward); 
   cameraRight = normalize(cameraRight); 
   cameraUp = normalize(cameraUp); 
