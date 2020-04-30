@@ -149,35 +149,19 @@ glm::vec3 GetSceneXCentre() {
 } 
  
 
+void resetToOriginalScene() {
+  textureFile = importPPM(texFileName);
+  objects = readGroupedOBJ(objFileName, mtlFileName, 1);
+  objects.at(4).ApplyMaterial(MIRROR); // Mirrored floor
+  objects.at(6).ApplyMaterial(GLASS);  // Mirrored Red Box.
+  cameraPosition[0] = GetSceneXCentre()[0]; 
+  render();
+}
 int main(int argc, char* argv[]) { 
   // 1) Initialise.
   initialise();
 
-  // 2) Read In Texture.
-  textureFile = importPPM(texFileName);
-  
-  // 3) Read In OBJ [ Cornell Box ].
-  objects = readGroupedOBJ(objFileName, mtlFileName, 1);
-  
-  // 4) Read in Hackspace logo, scale and append to object list.
-  /*
-  vector<Object> hackspaceLogo = readGroupedOBJ("logo.obj", "logo.mtl", 0.06);
-  hackspaceLogo.at(0).ApplyMaterial(GLASS);
-  hackspaceLogo.at(0).Move(vec3(-1,0,0), 0.7);
-  hackspaceLogo.at(0).Move(vec3(0,0,-1), 1.7);
-  hackspaceLogo.at(0).Move(vec3(0,1, 0), 1.5);
-  hackspaceLogo.at(0).RotateXZ(pi/8);
-  objects.push_back(hackspaceLogo.at(0));
-  cout << "Number Of Objects: " << objects.size() << "\n";
-  */
-  
-  objects.at(4).ApplyMaterial(MIRROR); // Mirrored floor
-  objects.at(6).ApplyMaterial(GLASS);  // Mirrored Red Box.
-
-
-  cameraPosition[0] = GetSceneXCentre()[0]; 
-  // 5) Render
-  render();
+  resetToOriginalScene();
 
 
   SDL_Event event;
@@ -485,6 +469,7 @@ void handleEvent(SDL_Event event) {
 
 
     else if(event.key.keysym.sym == SDLK_8)     {
+      resetToOriginalScene();
       // 0) Read in Hackspace logo, scale and append to object list.
       vector<Object> hackspaceLogo = readGroupedOBJ("logo.obj", "logo.mtl", 0.06);
       hackspaceLogo.at(0).ApplyMaterial(GLASS);
@@ -567,6 +552,7 @@ void handleEvent(SDL_Event event) {
       render();
     }
     else if(event.key.keysym.sym == SDLK_9)     {
+      resetToOriginalScene();
       vector<int> objectIndices;
       objectIndices.push_back(6);
       objectIndices.push_back(7);
@@ -578,8 +564,8 @@ void handleEvent(SDL_Event event) {
       wait(20);
       cubeJumps(false); cubeJumps(false); cubeJumps(false); cubeJumps(false);
     }
-
     else if(event.key.keysym.sym == SDLK_0)     {
+      resetToOriginalScene();
       vector<Object> hackspaceLogo = readGroupedOBJ("logo.obj", "logo.mtl", 0.06);
       hackspaceLogo.at(0).Move(vec3(0,0,-1), 0.7);
       hackspaceLogo.at(0).Move(vec3(-1,0,0), 2.5);
