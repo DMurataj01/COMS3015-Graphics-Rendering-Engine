@@ -30,8 +30,8 @@ std::string defaultPPMFileName = "render/snapshot";
 
 const int maximumNumberOfReflections = 7;
 
-#define W 800 //Set desired screen width here. 
-#define H 800 //Set desired screen height here.
+#define W 600 //Set desired screen width here. 
+#define H 576 //Set desired screen height here.
 
 const int AA = 1; //Set Anti-Aliasing Multiplier here, applied to both x and y so expect ~AA^2 time [eg. 800x800x1 5.43s, 800x800x4 88.7s ~16.4x]
 
@@ -139,6 +139,18 @@ void initialise() {
     depthMap.push_back(std::numeric_limits<float>::infinity());
     if (AA > 1) pixelBuffer.push_back(0);
   }
+
+}
+
+glm::vec3 GetSceneXCentre() {
+  glm::vec3 sceneCentre;
+  const int n = objects.size();
+  
+  for (int o=0; o<n; o++) {
+    sceneCentre += objects.at(o).GetCentre();
+  }
+  
+  return sceneCentre / glm::vec3(n, n, n);
 }
 
 int main(int argc, char* argv[]) { 
@@ -159,28 +171,17 @@ int main(int argc, char* argv[]) {
   hackspaceLogo.at(0).SnapToY0();
   hackspaceLogo.at(0).ApplyMaterial(TEXTURE);
   objects.push_back(hackspaceLogo.at(0));
+  //cout << "Number Of Objects: " << objects.size() << "\n";
   */
-  
-  
 
-  
-  cout << "Number Of Objects: " << objects.size() << "\n";
-  //Mirrored floor
-  objects[4].ApplyMaterial(MIRROR);
-  //Mirrored Red Box.
-  objects[6].ApplyMaterial(GLASS);
+  // 5) Apply Some Fancy Materials (mirrored floor & glass red box)
+  objects.at(4).ApplyMaterial(MIRROR);
+  objects.at(6).ApplyMaterial(GLASS);
 
-  //Apply colour to Hacksapce logo for SHADOWing
-  //objects[9].ApplyColour(Colour(24, 21, 180), true);
-  //Apply Material for the Raytracer
-  //objects[9].ApplyMaterial(GLASS);
-  //objects.at(9).ApplyMaterial(TEXTURE);
-  //objects[9].ApplyMaterial("texture");
-  // 3) Read In Texture.
-  //textureFile = importPPM(texFileName);
+  // 6) Centre camera to scene.
+  cameraPosition[0] = GetSceneXCentre()[0];
 
-
-  // 5) Render
+  // 7) Render
   render();
 
 
@@ -199,7 +200,8 @@ int main(int argc, char* argv[]) {
 } 
  
  
- 
+ void bounce(vector<int> objectIndices, float height, int numberOfBounces, float rotateAngle, vec3 rotateCentre, float scaleDownFactor, bool second);
+
 void update() {
   // Function for performing animation (shifting artifacts or moving the camera)
   const float pi = 4 * atan(1);
@@ -218,10 +220,10 @@ void update() {
   cubeJumps(false);
   cubeJumps(false);
   cubeJumps(false);
-  wait(80);
-  bounce(objectIndices, 1, 3, 0, vec3 (0,0,0), 0.3);
   wait(20);
-  cubeJumps(true);
+  bounce(objectIndices, 1, 3, 0, vec3 (0,0,0), 0.3, true);
+  wait(20);
+  cubeJumps(false);
   cubeJumps(false);
   cubeJumps(false);
   cubeJumps(false);
@@ -1864,7 +1866,38 @@ void bounce(vector<int> objectIndices, float height, int numberOfBounces, float 
   }
 }
 
+void bounce(vector<int> objectIndices, float height, int numberOfBounces, float rotateAngle, vec3 rotateCentre, float scaleDownFactor, bool second){
+  // use a quadratic to get the heights of the bounces
+  // y = an^2 + bn + c
+  // n is the bounce number
+  // at n = 0, y = height so therefore c = height
+  // we want the minima to be on the last bounce
+  // dy/dn = 2an + b
+  // dy/dn = 0 when n = numberOfBounces
+  // 0 = (2*numberOfBounces)a + b
+  // b = -(2*numberOfBounces)a
+  // so therefore:
+  // y = an^2 + (-2*numberOfBounces*a)n + height
+  // at n = numberOfBounces, y = 0
+  // 0 = (numberOfBounces^2)a + (-2*numberOfBounces^2)a + height;
+  // 0 = -(numberOfBounces^2)a + height;
+  // we can now get a and b
 
+  float a = height / (numberOfBounces * numberOfBounces);
+  float b = -(2 * numberOfBounces * a);
+  float c = height;
+
+  // squash before the jump
+  // for each bounce, jump but decrease the height
+  for (int n = 0 ; n < numberOfBounces ; n++){
+    float bounceHeight = (a*n*n) + (b*n) + c;
+    float squashFactor = 0.5 * (bounceHeight / height);
+    float rotate = rotateAngle * (bounceHeight / height);
+    float scaleDown = (bounceHeight / height);
+    scaleDown = scaleDownFactor * scaleDown;
+    pixarJump(objectIndices, bounceHeight, rotate, squashFactor, rotateCentre, false, scaleDown);
+  }
+}
 
 void cubeJumps(bool firstJump) {
   // first get the centre of the two objects
