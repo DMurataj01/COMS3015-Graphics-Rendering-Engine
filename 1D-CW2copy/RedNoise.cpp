@@ -21,6 +21,7 @@ enum SHADOW {NO=0, YES=1, REFLECTIVE=2};
 // Press '3' for Raytraced  
 
 // Press '8' for Wireframe Animation.
+// Press '9' for Rasterize Animation.
 
 //––---------------------------------//
 /* Things You Can Change Are Here */
