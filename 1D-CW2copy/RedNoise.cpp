@@ -292,7 +292,7 @@ void handleEvent(SDL_Event event) {
     else if(event.key.keysym.sym == SDLK_w)     updateView(TILT_DOWN); 
     else if(event.key.keysym.sym == SDLK_z)     updateView(TILT_UP); 
     else if(event.key.keysym.sym == SDLK_c)     {
-      //bounce(9, 1.5, 5);
+      bounce(9, 1.5, 3);
       objects.erase(objects.begin() + 9);
       render();
 
@@ -317,12 +317,7 @@ void handleEvent(SDL_Event event) {
         objects.at(9).RotateYX(pi/n);
         render();
       }
-      for (int j=0; j< objects.size()-1; j++) {
-            objects.at(j).Hide();
-      }
 
-
-   
 
       for (int i=0; i<n; i++) {
         //objects.at(9).RotateZY(pi/n);
@@ -359,14 +354,21 @@ void handleEvent(SDL_Event event) {
       
 
       // Note - We're rendering at 60FPS!
+      render();
+      render();
+      render();
+      render();
+      render();
 
-      /*
+      objects.at(0).Scale(vec3(1, 0.8, 0.8));
+
       // Do R G B Christmas Tree.      
       for (int i=0; i<9; i++) {  
         if ((i % 3) == 0) {
           //Hold this 15 times. 
           for (int t=0; t<15; t++) {
             objects.at(0).ApplyColour(Colour(255,0, 0), true);
+            objects.at(0).RotateZY(pi/15);
             render();
           } 
         }
@@ -385,8 +387,10 @@ void handleEvent(SDL_Event event) {
           } 
         }
       }
-
-      */
+      for (int t=0; t<15; t++) {
+      objects.at(0).RotateZY(pi/15);
+      render();
+      }
 
       // Note: Previous lasted 2.25s.
 
@@ -405,6 +409,7 @@ void handleEvent(SDL_Event event) {
 
       //Move from RGB(255, 170, 0) to (255, 130, 0) [ The Perfect Hackspace Orange ].
       lightIntensity = 120;
+      objects.at(0).Scale(vec3(1, 1.25, 1.25));
       render();
 
     }
@@ -1603,7 +1608,7 @@ void spinAround(float angle, int stepNumber, bool clockwise, int zoom){
   for (int i = 0; i < stepNumber; i++){
       float distance = startDistance + (i * distanceStep);
       spin(point, angleStep, distance);
-      objects.at(9).RotateXZ(pi/10);
+      //objects.at(9).RotateXZ(pi/10);
       render();
   }
 }
@@ -1611,7 +1616,7 @@ void spinAround(float angle, int stepNumber, bool clockwise, int zoom){
 // use equations of motion to animate a jump
 void jump(int objectIndex, float height){
   // if we just define the height of the bounce, then we can calculate what the initial velocity must be and also how long it will take
-  float a = -9.81; // acceleration
+  float a = -50; // acceleration
 
   // equations: 
   // v = u + at where u is initial velocity
